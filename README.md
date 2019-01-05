@@ -14,7 +14,7 @@ messages/pics/vids using iMessage.
 1. Make sure Messages has an iMessage account configured.
 2. Send a message. Like this:
 ```shell
-curl "http://127.0.0.1:8765/api/v1.0/send-message?to=user@email1.com,user@email2.com&msg=Office%20Window%20Closed%21%20%2811/28/18%2003%3A09%3A16%29"
+curl "http://127.0.0.1:8765/api/v1.0/send/imessage/msg/user@email1.com,user@email2.com&msg=Office%20Window%20Closed%21%20%2811/28/18%2003%3A09%3A16%29"
 ```
 
 ## Example Config File
@@ -29,7 +29,7 @@ port = 8765
 temp_dir = "/tmp/"
 allowed_to = [ "user@domain1.com", "+12099114678", "email@address.tv"]
 queue = 20
-clear_msg = true
+clear_messages = true
 
 [cameras.Gate]
   url = "rtsp://admin:admin@192.168.1.13:554/live"
@@ -38,7 +38,7 @@ clear_msg = true
 ```
 Defining cameras is optional, but required to send videos.
 
-**Setting `clear_msg` to true will delete every conversation in Messages.app.**
+**Setting `clear_messages` to true will delete every conversation in Messages.app.**
 
 ## Endpoints
 
@@ -97,6 +97,7 @@ except Exception as err:
 You can use the following simple script to send yourself a picture any time motion is detected.
 
 ```applescript
+-- Change Gate to a real camera name to test this in Script Editor
 property TestCam : "Gate"
 property Subscriber : "user@email.tld"
 
@@ -108,6 +109,19 @@ end run
 
 ```
 
+If you're going for the full subscription integration, use this script instead,
+and only recipients subscribed to the camera will be notified.
+```applescript
+-- Change Porch to a real camera name to test this in Script Editor
+property TestCam : "Porch"
+
+on run arg
+	if (count of arg) is not 2 then set arg to {0, TestCam}
+	set Camera to item 2 of arg -- item 1 is the cam number.
+	do shell script ("curl -s -X POST -A SecuritySpy 'http://127.0.0.1:8765/api/v1.0/event/notify/" & Camera & "'")
+end run
+```
+The above script is installed into `~/SecuritySpy/Scripts` when you use `make install`.
 
 # TODO
 

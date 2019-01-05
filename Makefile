@@ -26,11 +26,12 @@ linux:
 install:
 	@echo "If you get errors, you may need sudo."
 	GOBIN=/usr/local/bin go install -ldflags "-w -s" ./...
-	mkdir -p /usr/local/etc/$(NAME)
+	mkdir -p /usr/local/etc/$(NAME) /usr/local/var/lib/$(NAME)
 	test -f /usr/local/etc/$(NAME)/${CONF} || cp ${CONF}.example /usr/local/etc/$(NAME)/${CONF}
-	test -d ~/Library/LaunchAgents && cp install/launchd/$(ID).$(NAME).plist ~/Library/LaunchAgents || true
-	test -d "~/Library/Application Scripts/com.apple.iChat" && cp install/MotifiniHandler.scpt "~/Library/Application Scripts/com.apple.iChat" || true
-	test -d /etc/systemd/system && cp install/systemd/$(NAME).service /etc/systemd/system || true
+	test -d ~/Library/LaunchAgents && cp installparts/launchd/$(ID).$(NAME).plist ~/Library/LaunchAgents || true
+	test -d ~/SecuritySpy/Scripts && cp installparts/MotifiniCameraEvents.scpt ~/SecuritySpy/Scripts || true
+	test -d ~/"Library/Application Scripts/com.apple.iChat" && cp installparts/MotifiniHandler.applescript ~/"Library/Application Scripts/com.apple.iChat" || true
+	test -d /etc/systemd/system && cp installparts/systemd/$(NAME).service /etc/systemd/system || true
 
 uninstall:
 	@echo "If you get errors, you may need sudo."
@@ -38,7 +39,9 @@ uninstall:
 	test -f /etc/systemd/system/$(NAME).service && systemctl stop $(NAME) || true
 	rm -f ~/Library/LaunchAgents/$(ID).$(NAME).plist
 	rm -f /etc/systemd/system/$(NAME).service
-	rm -f "~/Library/Application Scripts/com.apple.iChat/MotifiniHandler.scpt"
+	rm -f ~/"Library/Application Scripts/com.apple.iChat/MotifiniHandler.applescript"
+	rm -f ~/SecuritySpy/Scripts/MotifiniCameraEvents.scpt
+	rm -f /usr/local/bin/$(NAME)
 
 test: lint
 	@echo "Running Go Tests"
