@@ -1,4 +1,4 @@
-package exp
+package main
 
 import (
 	"expvar"

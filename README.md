@@ -5,16 +5,13 @@ an API call. It also integrates with ffmpeg to capture videos from IP cameras,
 and SecuritySpy to capture still images (or.. videos).
 
 This code is still very crude, under construction and lacking full documentation.
-The built-in Messages.app handler will not work in 10.3.4 or newer. Apple killed it.
-You can still integrate with the subscription api using another service and send
-messages/pics/vids using iMessage.
 
 # Usage
 
 1. Make sure Messages has an iMessage account configured.
 2. Send a message. Like this:
 ```shell
-curl "http://127.0.0.1:8765/api/v1.0/send/imessage/msg/user@email1.com,user@email2.com&msg=Office%20Window%20Closed%21%20%2811/28/18%2003%3A09%3A16%29"
+curl "http://127.0.0.1:8765/api/v1.0/send/imessage/msg/user@email1.com,user@email2.com&msg=Office%20Window%20Closed"
 ```
 
 ## Example Config File
@@ -128,9 +125,7 @@ The above script is installed into `~/SecuritySpy/Scripts` when you use `make in
 - Better Usage/Install Documentation
 - Cleanup config file to require less duplication.
 - Hard define between cameras or securityspy.
-  - build in solid securityspy support/library.
-    - look into dedicating the module and building in things like motion alerts/hooks.
-    - if dedicated, full securityspy api support would be ideal.
+  - tie in securityspy eventstream.
   - make direct-camera support "optional"
     - document the differences.
 - Some reasonable way to add and control events, and how they fire.

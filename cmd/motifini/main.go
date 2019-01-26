@@ -20,14 +20,13 @@ import (
 	"github.com/naoina/toml"
 	"github.com/pkg/errors"
 
-	"github.com/davidnewhall/motifini/exp"
-	"github.com/davidnewhall/motifini/messages"
-	"github.com/davidnewhall/motifini/subscribe"
+	"github.com/golift/imessage"
+	"github.com/golift/subscribe"
 )
 
 var (
 	// Version of the aplication.
-	Version = "0.1.1"
+	Version = "0.2.0"
 	// StopChan is how we exit. Can be used in tests.
 	StopChan = make(chan os.Signal, 1)
 )
@@ -39,8 +38,7 @@ const (
 
 // Config struct
 type Config struct {
-	AllowedTo []string
-	Cameras   map[string]struct {
+	Cameras map[string]struct {
 		URL    string
 		Copy   bool
 		Height int
@@ -48,15 +46,21 @@ type Config struct {
 		Audio  bool
 		Number string
 	}
-	ClearMessages  bool
-	Port           int
-	Queue          int
-	SecuritySpyURL string
-	TempDir        string
-	StateFile      string
-	subs           subscribe.SubDB
-	msgs           messages.Messages
-	export         exportData
+	Imessage struct {
+		AllowedTo     []string
+		DBPath        string
+		QueueSize     int
+		ClearMessages bool
+	}
+	SecuritySpy struct {
+		URL string
+	}
+	Port      int
+	TempDir   string
+	StateFile string
+	subs      *subscribe.Subscribe
+	msgs      imessage.Messages
+	export    exportData
 	sync.Mutex
 }
 
@@ -71,8 +75,19 @@ func main() {
 		log.Fatalln("[ERROR] Validation Error:", err.Error())
 	} else if err := config.GetCamNumbers(); err != nil {
 		log.Fatalln("[ERROR] SecuritySpy Error:", err.Error())
-	} else if config.subs, err = subscribe.GetDB([]string{"all"}, config.StateFile); err != nil {
+	} else if config.subs, err = subscribe.GetDB(config.StateFile); err != nil {
 		log.Fatalln("[ERROR] Subscription State Error:", err.Error())
+	} else if config.msgs, err = imessage.Init(&imessage.Config{
+		SQLPath:   config.Imessage.DBPath,
+		QueueSize: config.Imessage.QueueSize,
+		ClearMsgs: config.Imessage.ClearMessages,
+		ErrorLog:  log.Printf,
+		Retries:   3,
+		Interval:  250 * time.Millisecond,
+	}); err != nil {
+		log.Fatalln("[ERROR] Initializing iMessage DB:", err)
+	} else if err = config.msgs.Start(); err != nil {
+		log.Fatalln("[ERROR] Starting iMessage:", err)
 	}
 	signal.Notify(StopChan, os.Interrupt, syscall.SIGTERM, syscall.SIGQUIT)
 	config.Exports(configFile)
@@ -82,7 +97,7 @@ func main() {
 // ParseFlags turns CLI args into usable data.
 func ParseFlags() string {
 	flag.Usage = func() {
-		fmt.Println("Usage: motifini [--config=<file>] [--debug] [--version]")
+		fmt.Println("Usage: motifini [-c <configfile>] [-D] [-v]")
 		flag.PrintDefaults()
 	}
 	config := flag.String("c", "/usr/local/etc/motifini.conf", "Path to config file.")
@@ -107,12 +122,15 @@ func GetConfig(configFile string) (*Config, error) {
 	} else if err := toml.Unmarshal(buf, config); err != nil {
 		return config, errors.Wrap(err, "invalid config")
 	}
+	if strings.HasPrefix(config.Imessage.DBPath, "~") {
+		config.Imessage.DBPath = os.Getenv("HOME") + config.Imessage.DBPath[1:]
+	}
 	return config, nil
 }
 
 // Validate makes sure the data in the config file is valid.
 func (c *Config) Validate() error {
-	if len(c.AllowedTo) < 1 {
+	if len(c.Imessage.AllowedTo) < 1 {
 		return errors.New("missing allowed_to list")
 	}
 	if c.Port == 0 {
@@ -144,11 +162,11 @@ func (c *Config) Validate() error {
 		log.Printf("[WARN] No usable cameras defined in configuration!")
 	}
 
-	if c.SecuritySpyURL != "" && !strings.Contains(c.SecuritySpyURL, "://") {
+	if c.SecuritySpy.URL != "" && !strings.Contains(c.SecuritySpy.URL, "://") {
 		log.Printf("[WARN] Security Spy URL appears malformed. Ignoring it and using AppleScript!")
-		c.SecuritySpyURL = ""
-	} else if c.SecuritySpyURL != "" && !strings.HasSuffix(c.SecuritySpyURL, "/") {
-		c.SecuritySpyURL += "/"
+		c.SecuritySpy.URL = ""
+	} else if c.SecuritySpy.URL != "" && !strings.HasSuffix(c.SecuritySpy.URL, "/") {
+		c.SecuritySpy.URL += "/"
 	}
 	return nil
 }
@@ -170,7 +188,7 @@ type exportData struct {
 
 // Exports makes all the expvar data available.
 func (c *Config) Exports(configFile string) {
-	c.export.Map = exp.GetPublishedMap("iMessageRelay")
+	c.export.Map = GetPublishedMap("iMessageRelay")
 	c.export.Set("app_started", &c.export.startAt)
 	c.export.Set("app_version", &c.export.version)
 	c.export.Set("config_file", &c.export.configFile)
@@ -190,20 +208,18 @@ func (c *Config) Exports(configFile string) {
 
 // StartUp creates the http routers, starts http server and kicks off a task poller.
 func (c *Config) StartUp() {
-	c.msgs = messages.Init(&messages.Config{QueueSize: c.Queue, ClearMsgs: c.ClearMessages, Debug: DebugLog})
+	c.msgs.IncomingCall(".*", c.recvMessageHandler)
 	log.Printf("Listening on port %d", c.Port)
 	r := mux.NewRouter()
 	r.Handle("/debug/vars", http.DefaultServeMux).Methods("GET")
 	r.HandleFunc("/api/v1.0/send/imessage/video/{to}/{camera}", c.sendVideoHandler).Methods("GET")
 	r.HandleFunc("/api/v1.0/send/imessage/picture/{to}/{camera}", c.sendPictureHandler).Methods("GET")
 	r.HandleFunc("/api/v1.0/send/imessage/msg/{to}", c.sendMessageHandler).Methods("GET").Queries("msg", "{msg}")
-	r.HandleFunc("/api/v1.0/recv/imessage/msg/{from}", c.recvMessageHandler).Methods("POST")
 	r.HandleFunc("/api/v1.0/event/{cmd:remove|update|add|notify}/{event}", c.eventsHandler).Methods("POST")
 	// need to figure out what user interface will use these methods.
 	r.HandleFunc("/api/v1.0/sub/{cmd:subscribe|unsubscribe|pause|unpause}/{api}/{contact}/{event}", c.subsHandler).Methods("GET")
 	r.PathPrefix("/").HandlerFunc(c.handleAll)
 	http.Handle("/", r)
-
 	srv := &http.Server{
 		Addr:         fmt.Sprintf("127.0.0.1:%d", c.Port),
 		WriteTimeout: time.Second * 15,
@@ -211,7 +227,6 @@ func (c *Config) StartUp() {
 		IdleTimeout:  time.Second * 60,
 		Handler:      r, // *mux.Router
 	}
-
 	go c.taskPoller(srv)
 	if err := srv.ListenAndServe(); err != nil {
 		log.Fatalln("[ERROR] http.ListenAndServe:", err)

@@ -1,10 +1,17 @@
+# Motifini Settings
+state_file         = "/usr/local/var/lib/motifini-subscribers.json"
+port               = 8765
+temp_dir           = "/private/tmp/"
+
+[imessage]
+db_path            = "~/Library/Messages/chat.db"
 allowed_to         = [ "user1@service.com", "user2@email.com", "+19259114969" ]
 clear_messages     = false
-port               = 8765
-queue              = 20
-security_spy_url   = "http://127.0.0.1:8000/"
-temp_dir           = "/tmp/"
-state_file         = "/usr/local/var/lib/motifini/subscribers.json"
+queue_size         = 20
+
+[security_spy]
+url = "http://127.0.0.1:8000/"
+
 [cameras.Door]
   url  = "rtsp://127.0.0.1:8000/++stream?8980&cameraNum="
   width = 800

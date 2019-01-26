@@ -10,7 +10,7 @@ import (
 	"net/url"
 	"os"
 
-	"github.com/davidnewhall/motifini/messages"
+	"github.com/golift/imessage"
 	"github.com/pkg/errors"
 )
 
@@ -27,10 +27,10 @@ type SecuritySpySystemInfo struct {
 // GetCamNumbers asks SecuritySpy for number of every defined camera.
 func (c *Config) GetCamNumbers() error {
 	var sysInfo SecuritySpySystemInfo
-	if c.SecuritySpyURL == "" {
+	if c.SecuritySpy.URL == "" {
 		return nil
 	}
-	uri := c.SecuritySpyURL + url.PathEscape("++systemInfo")
+	uri := c.SecuritySpy.URL + url.PathEscape("++systemInfo")
 	Debugf("xxxx", "Refreshing SecuritySpy Camera List from %v", uri)
 	resp, err := http.Get(uri)
 	if err != nil {
@@ -64,32 +64,32 @@ CAMERAS:
 }
 
 // GetPicture makes SecuritySpy save a pic. TODO: Switch to API?
-func (c *Config) GetPicture(id, cam, output string) error {
-	if c.SecuritySpyURL == "" {
+func (c *Config) GetPicture(id, cam, output string) []error {
+	if c.SecuritySpy.URL == "" {
 		arg := `tell application "SecuritySpy" to capture image camera name "` + cam +
 			`" as "` + output + `" with overwrite`
-		if err := c.msgs.RunAppleScript(id, []string{arg}, 2); err != nil {
-			return errors.Wrap(err, "(2/2) RunAppleScript")
+		if errs := c.msgs.RunAppleScript(id, []string{arg}, 2); errs != nil {
+			return errs
 		}
 		return nil
 	}
-	url := c.SecuritySpyURL + "++image?cameraNum=" + url.PathEscape(c.Cameras[cam].Number) + "/"
+	url := c.SecuritySpy.URL + "++image?cameraNum=" + url.PathEscape(c.Cameras[cam].Number) + "/"
 	resp, err := http.Get(url)
 	if err != nil {
-		return errors.Wrap(err, "http.Get(url)")
+		return []error{errors.Wrap(err, "http.Get(url)")}
 	}
 	defer func() {
 		_ = resp.Body.Close()
 	}()
 	file, err := os.Create(output)
 	if err != nil {
-		return errors.Wrap(err, "os.Create")
+		return []error{errors.Wrap(err, "os.Create")}
 	}
 	defer func() {
 		_ = file.Close()
 	}()
 	if _, err = io.Copy(file, resp.Body); err != nil {
-		return errors.Wrap(err, "io.Copy")
+		return []error{errors.Wrap(err, "io.Copy")}
 	}
 	return nil
 }
@@ -104,7 +104,7 @@ func Debugf(id, msg string, v ...interface{}) {
 	}
 }
 
-func (c *Config) finishReq(w http.ResponseWriter, r *http.Request, id string, code int, reply string, msg messages.Msg, cmd string) {
+func (c *Config) finishReq(w http.ResponseWriter, r *http.Request, id string, code int, reply string, msg imessage.Outgoing, cmd string) {
 	if msg.Text != "" {
 		c.msgs.Send(msg)
 	}
@@ -120,7 +120,7 @@ func (c *Config) handleAll(w http.ResponseWriter, r *http.Request) {
 	c.export.httpVisits.Add(1)
 	c.export.defaultURL.Add(1)
 	id, code, reply := ReqID(4), 405, "FAIL\n"
-	c.finishReq(w, r, id, code, reply, messages.Msg{}, "-")
+	c.finishReq(w, r, id, code, reply, imessage.Outgoing{}, "-")
 }
 
 // ReqID makes a random string to identify requests in the logs.

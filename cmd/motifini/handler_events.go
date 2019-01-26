@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/davidnewhall/motifini/messages"
+	"github.com/golift/imessage"
 	"github.com/gorilla/mux"
 )
 
@@ -30,7 +30,7 @@ func (c *Config) eventsHandler(w http.ResponseWriter, r *http.Request) {
 		if isCam && len(subs) > 0 {
 			if err := c.GetPicture(id, vars["event"], path); err != nil {
 				log.Printf("[ERROR] [%v] GetPicture: %v", id, err)
-				code, reply = 500, "ERROR: "+err.Error()
+				code, reply = 500, "ERROR: "+err[0].Error()
 			}
 		}
 		msg = r.FormValue("msg")
@@ -40,17 +40,17 @@ func (c *Config) eventsHandler(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		for _, sub := range subs {
-			switch sub.GetAPI() {
+			switch sub.API {
 			case APIiMessage:
 				if isCam {
-					c.msgs.Send(messages.Msg{ID: id, To: sub.GetContact(), Text: path, File: true, Call: c.pictureCallback})
+					c.msgs.Send(imessage.Outgoing{ID: id, To: sub.Contact, Text: path, File: true, Call: c.pictureCallback})
 				} else {
-					c.msgs.Send(messages.Msg{ID: id, To: sub.GetContact(), Text: msg})
+					c.msgs.Send(imessage.Outgoing{ID: id, To: sub.Contact, Text: msg})
 				}
 			default:
-				log.Printf("[%v] Unknown Notification API '%v' for contact: %v", id, sub.GetAPI(), sub.GetContact())
+				log.Printf("[%v] Unknown Notification API '%v' for contact: %v", id, sub.API, sub.Contact)
 			}
 		}
 	}
-	c.finishReq(w, r, id, code, reply, messages.Msg{}, msg)
+	c.finishReq(w, r, id, code, reply, imessage.Outgoing{}, msg)
 }
