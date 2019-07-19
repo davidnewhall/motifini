@@ -128,7 +128,7 @@ func (m *Motifini) Run() error {
 	log.Printf("Motifini %v Starting! (PID: %v)", Version, os.Getpid())
 	err := m.GetCamNumbers()
 	if err != nil {
-		log.Println("[ERROR] (continuing anyway)", err)
+		log.Println("[WARN]", err)
 	}
 	if m.Subscribe, err = subscribe.GetDB(m.StateFile); err != nil {
 		return errors.Wrap(err, "sub state")
@@ -146,7 +146,7 @@ func (m *Motifini) Run() error {
 func (m *Motifini) startiMessage() error {
 	var err error
 	m.Messages, err = imessage.Init(&imessage.Config{
-		SQLPath:   strings.Replace(m.Imessage.DBPath, "~", os.Getenv("HOME"), -1),
+		SQLPath:   strings.Replace(m.Imessage.DBPath, "~", os.Getenv("HOME"), 1),
 		QueueSize: m.Imessage.QueueSize,
 		ClearMsgs: m.Imessage.ClearMessages,
 		Retries:   m.Imessage.Retries,
@@ -292,7 +292,7 @@ func (m *Motifini) taskPoller() {
 		select {
 		case <-ticker.C:
 			if err := m.GetCamNumbers(); err != nil {
-				log.Printf("[ERROR] (continuing anyway) %v", err)
+				log.Printf("[WARN] %v", err)
 			}
 			if err := m.SaveStateFile(); err != nil {
 				log.Printf("[ERROR] saving subscribers state file: %v", err)
