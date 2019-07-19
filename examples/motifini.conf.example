@@ -12,6 +12,7 @@ queue_size         = 20
 [security_spy]
 url = "http://127.0.0.1:8000/"
 
+# TODO Fill all this in dynamically. Use this list for IP cameras?
 [cameras.Door]
   url  = "rtsp://127.0.0.1:8000/++stream?8980&cameraNum="
   width = 800

@@ -31,8 +31,6 @@ import (
 var (
 	// Version of the aplication.
 	Version = "development"
-	// StopChan is how we exit. Can be used in tests.
-	StopChan = make(chan os.Signal, 1)
 	// Binary is the app name.
 	Binary = "motifini"
 )
@@ -50,7 +48,8 @@ type Motifini struct {
 	*subscribe.Subscribe
 	*imessage.Messages
 	exportData
-	flag *flag.FlagSet
+	flag     *flag.FlagSet
+	stopChan chan os.Signal
 }
 
 // Flags defines our application's CLI arguments.
@@ -71,10 +70,12 @@ type Config struct {
 		Number string `toml:"number"`
 	} `toml:"cameras"`
 	Imessage struct {
-		AllowedTo     []string `toml:"allowed_to"`
-		DBPath        string   `toml:"db_path"`
-		QueueSize     int      `toml:"queue_size"`
-		ClearMessages bool     `toml:"clear_messages"`
+		AllowedTo     []string          `toml:"allowed_to"`
+		DBPath        string            `toml:"db_path"`
+		QueueSize     int               `toml:"queue_size"`
+		Retries       int               `toml:"retries"`
+		Interval      imessage.Duration `toml:"interval"`
+		ClearMessages bool              `toml:"clear_messages"`
 	} `toml:"imessage"`
 	SecuritySpy struct {
 		URL string `toml:"url"`
@@ -124,10 +125,13 @@ func Start() error {
 
 // Run starts the app after all configs are collected.
 func (m *Motifini) Run() error {
+	if m.stopChan != nil {
+		return errors.New("cannot run twice")
+	}
 	log.Printf("iMessage Relay %v Starting! (PID: %v)", Version, os.Getpid())
 	err := m.GetCamNumbers()
 	if err != nil {
-		return errors.Wrap(err, "securityspy")
+		log.Println("[ERROR] (continuing anyway)", err)
 	}
 	if m.Subscribe, err = subscribe.GetDB(m.StateFile); err != nil {
 		return errors.Wrap(err, "sub state")
@@ -136,20 +140,22 @@ func (m *Motifini) Run() error {
 		SQLPath:   m.Imessage.DBPath,
 		QueueSize: m.Imessage.QueueSize,
 		ClearMsgs: m.Imessage.ClearMessages,
-		Retries:   3,
-		Interval:  250 * time.Millisecond,
+		Retries:   m.Imessage.Retries,
+		Interval:  m.Imessage.Interval,
 	})
 	if err != nil {
 		return errors.Wrap(err, "initializing imessage")
 	}
+	m.Messages.ErrorLog = log.Printf
 	if m.Debug {
 		m.DebugLog = log.Printf
 	}
-	m.Messages.ErrorLog = log.Printf
 	if err = m.Start(); err != nil {
 		return errors.Wrap(err, "starting imessage")
 	}
 	m.Exports(m.ConfigFile)
+	// StopChan is how we exit. Can be used in tests.
+	m.stopChan = make(chan os.Signal, 1)
 	go m.taskPoller()
 	return m.StartServer()
 }
@@ -244,10 +250,10 @@ func (m *Motifini) Exports(configFile string) {
 	m.Set("messge_sent", &m.texts)
 	m.Set("error_count", &m.errors)
 	// Set static data now.
-	m.startAt.Set(time.Now().String())
-	m.version.Set(Version)
-	m.configFile.Set(configFile)
-	m.listenPort.Set(int64(m.Port))
+	m.exportData.startAt.Set(time.Now().String())
+	m.exportData.version.Set(Version)
+	m.exportData.configFile.Set(configFile)
+	m.exportData.listenPort.Set(int64(m.Port))
 }
 
 // StartServer creates the http routers and starts http server
@@ -279,20 +285,20 @@ func (m *Motifini) StartServer() error {
 // looks for an exit signal to shut down the http server.
 func (m *Motifini) taskPoller() {
 	ticker := time.NewTicker(10 * time.Minute)
-	signal.Notify(StopChan, os.Interrupt, syscall.SIGTERM, syscall.SIGQUIT)
+	signal.Notify(m.stopChan, os.Interrupt, syscall.SIGTERM, syscall.SIGQUIT)
 	for {
 		select {
 		case <-ticker.C:
 			if err := m.GetCamNumbers(); err != nil {
-				log.Printf("[ERROR] Unable to update camera names. Is SecuritySpy running? %v", err)
+				log.Printf("[ERROR] (continuing anyway) %v", err)
 			}
 			if err := m.SaveStateFile(); err != nil {
-				log.Printf("[ERROR] Error saving subscribers state file. %v", err)
+				log.Printf("[ERROR] saving subscribers state file: %v", err)
 			}
-		case sig := <-StopChan:
-			log.Println("Exiting! Caught Signal:", sig)
+		case sig := <-m.stopChan:
+			log.Printf("Exiting! Caught Signal: %v", sig)
 			if err := m.SaveStateFile(); err != nil {
-				log.Printf("[ERROR] Error saving subscribers state file. %v", err)
+				log.Printf("[ERROR] saving subscribers state file: %v", err)
 			}
 			// Give the http server up to 3 seconds to finish any open requests.
 			if m.Server != nil {
