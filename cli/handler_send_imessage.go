@@ -1,4 +1,4 @@
-package main
+package cli
 
 import (
 	"log"
@@ -9,14 +9,14 @@ import (
 	"strings"
 	"time"
 
-	"github.com/golift/imessage"
-	"github.com/golift/securityspy/ffmpegencode"
+	"code.golift.io/ffmpeg"
+	"code.golift.io/imessage"
 	"github.com/gorilla/mux"
 )
 
 ///api/v1.0/send/imessage/video/{to}/{camera}"
-func (c *Config) sendVideoHandler(w http.ResponseWriter, r *http.Request) {
-	c.export.httpVisits.Add(1)
+func (m *Motifini) sendVideoHandler(w http.ResponseWriter, r *http.Request) {
+	m.exportData.httpVisits.Add(1)
 	vars := mux.Vars(r)
 	to, cam := vars["to"], vars["camera"]
 	vals := map[string]string{
@@ -31,34 +31,34 @@ func (c *Config) sendVideoHandler(w http.ResponseWriter, r *http.Request) {
 		"prof":   r.FormValue("profile"),
 	}
 	id, code, reply := ReqID(4), 200, "OK"
-	c.Lock()
-	_, ok := c.Cameras[cam]
-	c.Unlock()
+	m.Config.Lock()
+	_, ok := m.Cameras[cam]
+	m.Config.Unlock()
 	if !ok {
 		Debugf(id, "Invalid 'cam' provided: %v", cam)
 		code, reply = 500, "ERROR: Camera not found in configuration!"
 	}
 	for _, t := range strings.Split(to, ",") {
-		if t == "" || !contains(c.Imessage.AllowedTo, t) {
+		if t == "" || !contains(m.Imessage.AllowedTo, t) {
 			Debugf(id, "Invalid 'to' provided: %v", t)
 			code, reply = 500, "ERROR: Missing 'to' or 'cam'"
 		}
 	}
 	if code == 200 {
-		go c.processVideoRequest(id, cam, to, vals)
+		go m.processVideoRequest(id, cam, to, vals)
 	}
 	reply = "REQ ID: " + id + ", msg: " + reply + "\n"
-	c.finishReq(w, r, id, code, reply, imessage.Outgoing{}, "-")
+	m.finishReq(w, r, id, code, reply, imessage.Outgoing{}, "-")
 }
 
 // Since this runs in a go routine it sort of defeats the purpose of the queue. sorta?
-func (c *Config) processVideoRequest(id, cam, to string, v map[string]string) {
-	path := c.TempDir + "imessage_relay_" + id + "_" + cam + ".mov"
-	camData := c.Cameras[cam]
+func (m *Motifini) processVideoRequest(id, cam, to string, v map[string]string) {
+	path := m.TempDir + "imessage_relay_" + id + "_" + cam + ".mov"
+	camData := m.Cameras[cam]
 	urlData := &url.Values{}
 	var builtURL string
-	c.Lock()
-	defer c.Unlock()
+	m.Config.Lock()
+	defer m.Config.Unlock()
 	if camData.Copy {
 		if strings.HasSuffix(camData.URL, "=") {
 			camData.URL += url.PathEscape(camData.Number)
@@ -80,7 +80,7 @@ func (c *Config) processVideoRequest(id, cam, to string, v map[string]string) {
 			urlData.Set("quality", v["crf"])
 		}
 	}
-	encoder := ffmpegencode.Get(&ffmpegencode.VidOps{
+	encoder := ffmpeg.Get(&ffmpeg.Config{
 		Level: v["level"],
 		Prof:  v["profile"],
 		Copy:  camData.Copy,
@@ -107,22 +107,22 @@ func (c *Config) processVideoRequest(id, cam, to string, v map[string]string) {
 	}
 	// Input data OK, video grabbed, send an attachment to each recipient.
 	for _, t := range strings.Split(to, ",") {
-		c.msgs.Send(
-			imessage.Outgoing{ID: id, To: t, Text: path, File: true, Call: c.videoCallback})
+		m.Send(
+			imessage.Outgoing{ID: id, To: t, Text: path, File: true, Call: m.videoCallback})
 	}
 }
 
 // videoCallback runs in a go routine after the video iMessage is processed.
-func (c *Config) videoCallback(msg *imessage.Response) {
+func (m *Motifini) videoCallback(msg *imessage.Response) {
 	var size int64
 	if fi, errStat := os.Stat(msg.Text); errStat == nil {
 		size = fi.Size()
 	}
 	if msg.Errs != nil {
-		c.export.errors.Add(1)
+		m.exportData.errors.Add(1)
 		log.Printf("[ERROR] [%v] msgs.Send '%v': %v", msg.ID, msg.To, msg.Errs)
 	} else {
-		c.export.videos.Add(1)
+		m.exportData.videos.Add(1)
 		log.Printf("[REPLY] [%v] Video '%v' (%.2fMb) sent to: %v", msg.ID, msg.Text, float32(size)/1024/1024, msg.To)
 	}
 	// Might take a while to upload.
@@ -135,15 +135,15 @@ func (c *Config) videoCallback(msg *imessage.Response) {
 }
 
 // /api/v1.0/send/imessage/picture/{to}/{camera}
-func (c *Config) sendPictureHandler(w http.ResponseWriter, r *http.Request) {
-	c.export.httpVisits.Add(1)
+func (m *Motifini) sendPictureHandler(w http.ResponseWriter, r *http.Request) {
+	m.exportData.httpVisits.Add(1)
 	vars := mux.Vars(r)
 	to, cam := strings.Split(vars["to"], ","), vars["camera"]
 	id, code, reply := ReqID(4), 200, "OK"
-	path := c.TempDir + "imessage_relay_" + id + "_" + cam + ".jpg"
+	path := m.TempDir + "imessage_relay_" + id + "_" + cam + ".jpg"
 	// Check input data.
 	for _, t := range to {
-		if t == "" || !contains(c.Imessage.AllowedTo, t) {
+		if t == "" || !contains(m.Imessage.AllowedTo, t) {
 			Debugf(id, "Invalid 'to' provided: %v", t)
 			code = 500
 			break
@@ -152,7 +152,7 @@ func (c *Config) sendPictureHandler(w http.ResponseWriter, r *http.Request) {
 	if cam == "" || code == 500 {
 		code, reply = 500, "ERROR: Missing 'to' or 'cam'"
 		Debugf(id, "Invalid 'to' provided or 'cam' empty: %v", cam)
-	} else if err := c.GetPicture(id, cam, path); err != nil {
+	} else if err := m.GetPicture(id, cam, path); err != nil {
 		log.Printf("[ERROR] [%v] GetPicture: %v", id, err)
 		code, reply = 500, "ERROR: "+err[0].Error()
 	} else {
@@ -160,22 +160,22 @@ func (c *Config) sendPictureHandler(w http.ResponseWriter, r *http.Request) {
 		time.Sleep(150 * time.Millisecond)
 		// Input data OK, send a message to each recipient.
 		for _, t := range to {
-			c.msgs.Send(imessage.Outgoing{ID: id, To: t, Text: path, File: true, Call: c.pictureCallback})
+			m.Send(imessage.Outgoing{ID: id, To: t, Text: path, File: true, Call: m.pictureCallback})
 		}
 		reply = "REQ ID: " + id + ", msg: " + reply + "\n"
 	}
-	c.finishReq(w, r, id, code, reply, imessage.Outgoing{}, "-")
+	m.finishReq(w, r, id, code, reply, imessage.Outgoing{}, "-")
 }
 
 // This runs in a go routine after the iMessage is processed.
 // Possibly more than once...
-func (c *Config) pictureCallback(msg *imessage.Response) {
+func (m *Motifini) pictureCallback(msg *imessage.Response) {
 	if msg.Errs != nil {
-		c.export.errors.Add(1)
+		m.exportData.errors.Add(1)
 		log.Printf("[ERROR] [%v] msgs.Send '%v': %v", msg.ID, msg.To, msg.Errs)
 
 	} else {
-		c.export.pics.Add(1)
+		m.exportData.pics.Add(1)
 		log.Printf("[REPLY] [%v] Picture '%v' sent to: %v", msg.ID, msg.Text, msg.To)
 	}
 	// Might take a while to upload.
@@ -188,8 +188,8 @@ func (c *Config) pictureCallback(msg *imessage.Response) {
 }
 
 // /api/v1.0/send/imessage/msg
-func (c *Config) sendMessageHandler(w http.ResponseWriter, r *http.Request) {
-	c.export.httpVisits.Add(1)
+func (c *Motifini) sendMessageHandler(w http.ResponseWriter, r *http.Request) {
+	c.exportData.httpVisits.Add(1)
 	vars := mux.Vars(r)
 	to, msg := strings.Split(vars["to"], ","), vars["msg"]
 	id, code, reply := ReqID(4), 200, "OK"
@@ -203,11 +203,11 @@ func (c *Config) sendMessageHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	callback := func(msg *imessage.Response) {
 		if msg.Errs != nil {
-			c.export.errors.Add(1)
+			c.exportData.errors.Add(1)
 			log.Printf("[ERROR] [%v] msgs.Send '%v': %v", msg.ID, msg.To, msg.Errs)
 			return
 		}
-		c.export.texts.Add(1)
+		c.exportData.texts.Add(1)
 		log.Printf("[REPLY] [%v] Message (%d chars) sent to: %v", msg.ID, len(msg.Text), msg.To)
 	}
 	if code == 500 || msg == "" {
@@ -216,7 +216,7 @@ func (c *Config) sendMessageHandler(w http.ResponseWriter, r *http.Request) {
 	} else {
 		// Input data OK, send a message to each recipient.
 		for _, t := range to {
-			c.msgs.Send(imessage.Outgoing{ID: id, To: t, Text: msg, File: false, Call: callback})
+			c.Send(imessage.Outgoing{ID: id, To: t, Text: msg, File: false, Call: callback})
 		}
 	}
 	reply = "REQ ID: " + id + ", msg: " + reply + "\n"

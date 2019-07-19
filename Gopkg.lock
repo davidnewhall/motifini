@@ -2,95 +2,130 @@
 
 
 [[projects]]
-  name = "crawshaw.io/sqlite"
+  digest = "1:b936b904b1cfa23889f61635efcbc2ef3ea600c864378db0b164c29ff1cd762b"
+  name = "code.golift.io/ffmpeg"
   packages = ["."]
-  revision = "3eafba8f1fa218c020ecd7408262a7469c95e008"
-  version = "v0.1.2"
+  pruneopts = "UT"
+  revision = "82a404c8777fe9ac6fcb0d73cc4e489321a63fe4"
+  version = "v1.0.0"
 
 [[projects]]
-  name = "github.com/davecgh/go-spew"
-  packages = ["spew"]
-  revision = "8991bc29aa16c548c550c7ff78260e27b9ab7c73"
-  version = "v1.1.1"
-
-[[projects]]
-  name = "github.com/fsnotify/fsnotify"
+  digest = "1:b60f3acaf01c41565f6cd0f3739a3f1e398e47ed499e34bf517b51f701cc4077"
+  name = "code.golift.io/imessage"
   packages = ["."]
-  revision = "c2828203cd70a50dcccfb2761f8b1f8ceef9a8e9"
-  version = "v1.4.7"
+  pruneopts = "UT"
+  revision = "20dea9859b6addceebeb00567172026914baa2e4"
+  version = "v1.0.0"
 
 [[projects]]
-  name = "github.com/golift/imessage"
+  digest = "1:57227eab565a6634e2ef46d30bd15ca864cbbfa85ec323ca6530e179985ca307"
+  name = "code.golift.io/subscribe"
   packages = ["."]
-  revision = "49a648072e5c6a95dbef6160c1a38fe81b81c7fd"
-  version = "0.9.0"
-
-[[projects]]
-  name = "github.com/golift/securityspy"
-  packages = ["ffmpegencode"]
-  revision = "755fae8a639a77099f94ae8804f6d2cd0764d6ac"
-  version = "0.9.0"
-
-[[projects]]
-  name = "github.com/golift/subscribe"
-  packages = ["."]
+  pruneopts = "UT"
   revision = "5fa8653d7883f4fee4728564e9aff5f4eae0691b"
   version = "0.9.0"
 
 [[projects]]
-  name = "github.com/gorilla/context"
+  digest = "1:305f70b04fb6c50e99390fb8b7979a8340671f22c7b3450539ae11a2702c83c9"
+  name = "crawshaw.io/sqlite"
   packages = ["."]
-  revision = "08b5f424b9271eedf6f9f0ce86cb9396ed337a42"
+  pruneopts = "UT"
+  revision = "3eafba8f1fa218c020ecd7408262a7469c95e008"
+  version = "v0.1.2"
+
+[[projects]]
+  digest = "1:9f3b30d9f8e0d7040f729b82dcbc8f0dead820a133b3147ce355fc451f32d761"
+  name = "github.com/BurntSushi/toml"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "3012a1dbe2e4bd1391d42b32f0577cb7bbc7f005"
+  version = "v0.3.1"
+
+[[projects]]
+  digest = "1:ffe9824d294da03b391f44e1ae8281281b4afc1bdaa9588c9097785e3af10cec"
+  name = "github.com/davecgh/go-spew"
+  packages = ["spew"]
+  pruneopts = "UT"
+  revision = "8991bc29aa16c548c550c7ff78260e27b9ab7c73"
   version = "v1.1.1"
 
 [[projects]]
+  digest = "1:abeb38ade3f32a92943e5be54f55ed6d6e3b6602761d74b4aab4c9dd45c18abd"
+  name = "github.com/fsnotify/fsnotify"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "c2828203cd70a50dcccfb2761f8b1f8ceef9a8e9"
+  version = "v1.4.7"
+
+[[projects]]
+  digest = "1:cbec35fe4d5a4fba369a656a8cd65e244ea2c743007d8f6c1ccb132acf9d1296"
   name = "github.com/gorilla/mux"
   packages = ["."]
-  revision = "e3702bed27f0d39777b0b37b664b6280e8ef8fbf"
-  version = "v1.6.2"
+  pruneopts = "UT"
+  revision = "00bdffe0f3c77e27d2cf6f5c70232a2d3e4d9c15"
+  version = "v1.7.3"
 
 [[projects]]
-  name = "github.com/naoina/go-stringutil"
-  packages = ["."]
-  revision = "6b638e95a32d0c1131db0e7fe83775cbea4a0d0b"
-  version = "v0.1.0"
-
-[[projects]]
-  name = "github.com/naoina/toml"
-  packages = [
-    ".",
-    "ast"
-  ]
-  revision = "e6f5723bf2a66af014955e0888881314cf294129"
-  version = "v0.1.1"
-
-[[projects]]
+  digest = "1:cf31692c14422fa27c83a05292eb5cbe0fb2775972e8f1f8446a71549bd8980b"
   name = "github.com/pkg/errors"
   packages = ["."]
+  pruneopts = "UT"
   revision = "ba968bfe8b2f7e042a574c888954fccecfa385b4"
   version = "v0.8.1"
 
 [[projects]]
+  digest = "1:0028cb19b2e4c3112225cd871870f2d9cf49b9b4276531f03438a88e94be86fe"
   name = "github.com/pmezard/go-difflib"
   packages = ["difflib"]
+  pruneopts = "UT"
   revision = "792786c7400a136282c1664665ae0a8db921c6c2"
   version = "v1.0.0"
 
 [[projects]]
+  digest = "1:c1b1102241e7f645bc8e0c22ae352e8f0dc6484b6cb4d132fa9f24174e0119e2"
+  name = "github.com/spf13/pflag"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "298182f68c66c05229eb03ac171abe6e309ee79a"
+  version = "v1.0.3"
+
+[[projects]]
+  digest = "1:972c2427413d41a1e06ca4897e8528e5a1622894050e2f527b38ddf0f343f759"
   name = "github.com/stretchr/testify"
   packages = ["assert"]
+  pruneopts = "UT"
   revision = "ffdc059bfe9ce6a4e144ba849dbedead332c6053"
   version = "v1.3.0"
 
 [[projects]]
   branch = "master"
+  digest = "1:5632b0c4d972da51b5914f09fc5c1a8535e9d8d5d937e95ef83c423a0dd67f13"
   name = "golang.org/x/sys"
   packages = ["unix"]
-  revision = "b90733256f2e882e81d52f9126de08df5615afd9"
+  pruneopts = "UT"
+  revision = "fae7ac547cb717d141c433a2a173315e216b64c4"
+
+[[projects]]
+  digest = "1:4d2e5a73dc1500038e504a8d78b986630e3626dc027bc030ba5c75da257cdb96"
+  name = "gopkg.in/yaml.v2"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "51d6538a90f86fe93ac480b35f37b2be17fef232"
+  version = "v2.2.2"
 
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "fbdd7c88d8cf6d8c0b1290c6f18db51e82f559b0eeb6563284bdcab1279e962f"
+  input-imports = [
+    "code.golift.io/ffmpeg",
+    "code.golift.io/imessage",
+    "code.golift.io/subscribe",
+    "github.com/BurntSushi/toml",
+    "github.com/gorilla/mux",
+    "github.com/pkg/errors",
+    "github.com/spf13/pflag",
+    "github.com/stretchr/testify/assert",
+    "gopkg.in/yaml.v2",
+  ]
   solver-name = "gps-cdcl"
   solver-version = 1

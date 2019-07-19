@@ -1,4 +1,4 @@
-package main
+package cli
 
 import (
 	"encoding/xml"
@@ -10,7 +10,7 @@ import (
 	"net/url"
 	"os"
 
-	"github.com/golift/imessage"
+	"code.golift.io/imessage"
 	"github.com/pkg/errors"
 )
 
@@ -25,12 +25,12 @@ type SecuritySpySystemInfo struct {
 }
 
 // GetCamNumbers asks SecuritySpy for number of every defined camera.
-func (c *Config) GetCamNumbers() error {
+func (m *Motifini) GetCamNumbers() error {
 	var sysInfo SecuritySpySystemInfo
-	if c.SecuritySpy.URL == "" {
+	if m.SecuritySpy.URL == "" {
 		return nil
 	}
-	uri := c.SecuritySpy.URL + url.PathEscape("++systemInfo")
+	uri := m.SecuritySpy.URL + url.PathEscape("++systemInfo")
 	Debugf("xxxx", "Refreshing SecuritySpy Camera List from %v", uri)
 	resp, err := http.Get(uri)
 	if err != nil {
@@ -40,21 +40,19 @@ func (c *Config) GetCamNumbers() error {
 		_ = resp.Body.Close()
 	}()
 	if body, err := ioutil.ReadAll(resp.Body); err != nil {
-		if err != nil {
-			return errors.Wrap(err, "ioutil.ReadAll")
-		}
+		return errors.Wrap(err, "ioutil.ReadAll")
 	} else if err := xml.Unmarshal(body, &sysInfo); err != nil {
 		return errors.Wrap(err, "xml.Unmarshal")
 	}
-	c.Lock()
-	defer c.Unlock()
+	m.Config.Lock()
+	defer m.Config.Unlock()
 CAMERAS:
-	for name, camData := range c.Cameras {
+	for name, camData := range m.Cameras {
 		for _, spycams := range sysInfo.Cameralist.Camera {
 			if spycams.Name == name {
 				Debugf("xxxx", "Got camera number %v for %v", spycams.Number, name)
 				camData.Number = spycams.Number
-				c.Cameras[name] = camData
+				m.Cameras[name] = camData
 				continue CAMERAS
 			}
 		}
@@ -64,16 +62,16 @@ CAMERAS:
 }
 
 // GetPicture makes SecuritySpy save a pic. TODO: Switch to API?
-func (c *Config) GetPicture(id, cam, output string) []error {
-	if c.SecuritySpy.URL == "" {
+func (m *Motifini) GetPicture(id, cam, output string) []error {
+	if m.SecuritySpy.URL == "" {
 		arg := `tell application "SecuritySpy" to capture image camera name "` + cam +
 			`" as "` + output + `" with overwrite`
-		if errs := c.msgs.RunAppleScript(id, []string{arg}, 2); errs != nil {
+		if ok, errs := m.RunAppleScript(id, []string{arg}, 2); !ok {
 			return errs
 		}
 		return nil
 	}
-	url := c.SecuritySpy.URL + "++image?cameraNum=" + url.PathEscape(c.Cameras[cam].Number) + "/"
+	url := m.SecuritySpy.URL + "++image?cameraNum=" + url.PathEscape(m.Cameras[cam].Number) + "/"
 	resp, err := http.Get(url)
 	if err != nil {
 		return []error{errors.Wrap(err, "http.Get(url)")}
@@ -104,9 +102,9 @@ func Debugf(id, msg string, v ...interface{}) {
 	}
 }
 
-func (c *Config) finishReq(w http.ResponseWriter, r *http.Request, id string, code int, reply string, msg imessage.Outgoing, cmd string) {
+func (m *Motifini) finishReq(w http.ResponseWriter, r *http.Request, id string, code int, reply string, msg imessage.Outgoing, cmd string) {
 	if msg.Text != "" {
-		c.msgs.Send(msg)
+		m.Send(msg)
 	}
 	log.Printf(`[REQST] [%v] %v %v "%v %v" %d %d "%v" "%v"`, id, r.RemoteAddr, r.Host, r.Method, r.URL.String(), code, len(reply), r.UserAgent(), cmd)
 	w.WriteHeader(code)
@@ -116,11 +114,11 @@ func (c *Config) finishReq(w http.ResponseWriter, r *http.Request, id string, co
 }
 
 // handle any unknown URIs.
-func (c *Config) handleAll(w http.ResponseWriter, r *http.Request) {
-	c.export.httpVisits.Add(1)
-	c.export.defaultURL.Add(1)
+func (m *Motifini) handleAll(w http.ResponseWriter, r *http.Request) {
+	m.exportData.httpVisits.Add(1)
+	m.exportData.defaultURL.Add(1)
 	id, code, reply := ReqID(4), 405, "FAIL\n"
-	c.finishReq(w, r, id, code, reply, imessage.Outgoing{}, "-")
+	m.finishReq(w, r, id, code, reply, imessage.Outgoing{}, "-")
 }
 
 // ReqID makes a random string to identify requests in the logs.

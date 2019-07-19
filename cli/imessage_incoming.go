@@ -1,4 +1,4 @@
-package main
+package cli
 
 import (
 	"log"
@@ -6,68 +6,69 @@ import (
 	"strings"
 	"time"
 
-	"github.com/golift/imessage"
-	"github.com/golift/subscribe"
+	"code.golift.io/imessage"
+	"code.golift.io/subscribe"
 )
 
-// /api/v1.0/recv/imessage/msg/{from}
-func (c *Config) recvMessageHandler(msg imessage.Incoming) {
+// recvMessageHandler is a callback binding from the imessage library.
+func (m *Motifini) recvMessageHandler(msg imessage.Incoming) {
+	log.Println("msg", msg.From, msg.Text)
 	id := ReqID(4)
 	text := strings.Fields(msg.Text)
 	reply := imessage.Outgoing{To: msg.From, ID: id}
 
-	requestor, err := c.subs.GetSubscriber(msg.From, APIiMessage)
+	requestor, err := m.GetSubscriber(msg.From, APIiMessage)
 	if err != nil {
 		// Every account we receive a message from gets logged as a subscriber with no subscriptions.
-		requestor = c.subs.CreateSub(msg.From, APIiMessage, len(c.subs.GetAdmins()) == 0, false)
+		requestor = m.CreateSub(msg.From, APIiMessage, len(m.GetAdmins()) == 0, false)
 	}
 
 	if !requestor.Ignored {
 		switch strings.ToLower(text[0]) {
 		case "cams":
-			reply.Text = c.iMessageCams()
+			reply.Text = m.iMessageCams()
 		case "events":
-			reply.Text = c.iMessageEvents(text)
+			reply.Text = m.iMessageEvents(text)
 		case "pics":
-			reply.Text = c.iMessagePics(msg.From, id, text)
+			reply.Text = m.iMessagePics(msg.From, id, text)
 		case "sub":
-			reply.Text = c.iMessageSub(text, requestor)
+			reply.Text = m.iMessageSub(text, requestor)
 		case "subs":
-			reply.Text = c.iMessageSubs(text, requestor)
+			reply.Text = m.iMessageSubs(text, requestor)
 		case "unsub":
-			reply.Text = c.iMessageUnsub(text, requestor)
+			reply.Text = m.iMessageUnsub(text, requestor)
 		case "stop":
-			reply.Text = c.iMessageStop(text, requestor)
+			reply.Text = m.iMessageStop(text, requestor)
 		case "help":
-			reply.Text = c.iMessageHelp()
+			reply.Text = m.iMessageHelp()
 		}
 	}
 	if requestor.Admin {
 		switch strings.ToLower(text[0]) {
 		case "ignores":
-			reply.Text = c.iMessageAdminIgnores()
+			reply.Text = m.iMessageAdminIgnores()
 		case "ignore":
-			reply.Text = c.iMessageAdminIgnore(text)
+			reply.Text = m.iMessageAdminIgnore(text)
 		case "unignore":
-			reply.Text = c.iMessageAdminUnignore(text)
+			reply.Text = m.iMessageAdminUnignore(text)
 		case "admins":
-			reply.Text = c.iMessageAdminAdmins()
+			reply.Text = m.iMessageAdminAdmins()
 		case "admin":
-			reply.Text = c.iMessageAdminAdmin(text)
+			reply.Text = m.iMessageAdminAdmin(text)
 		case "unadmin":
-			reply.Text = c.iMessageAdminUnadmin(text)
+			reply.Text = m.iMessageAdminUnadmin(text)
 		case "subs":
-			reply.Text += c.iMessageAdminSubs(text)
+			reply.Text += m.iMessageAdminSubs(text)
 		case "help":
-			reply.Text += c.iMessageAdminHelp()
+			reply.Text += m.iMessageAdminHelp()
 		}
 		if reply.Text != "" {
-			c.msgs.Send(reply)
+			m.Send(reply)
 		}
 	}
 }
 
-func (c *Config) iMessageHelp() string {
+func (m *Motifini) iMessageHelp() string {
 	msg := `- iMessageSpy Help -
 Available User Commands:
 cams - Displays all available cameras by name.
@@ -80,7 +81,7 @@ subs - Shows your subscriptions.`
 	return msg
 }
 
-func (c *Config) iMessageAdminHelp() string {
+func (m *Motifini) iMessageAdminHelp() string {
 	msg := "\n\n" + `Available Admin Commands:
 subs [subscriber] - Shows subscribers, or details for [subscriber].
 ignores - Lists all ignored handles.
@@ -92,8 +93,8 @@ unadmin <handle> - Take away admin from <handle>`
 	return msg
 }
 
-func (c *Config) iMessageAdminAdmins() string {
-	admins := c.subs.GetAdmins()
+func (m *Motifini) iMessageAdminAdmins() string {
+	admins := m.GetAdmins()
 	msg := "There are " + strconv.Itoa(len(admins)) + " admins:"
 	for i, admin := range admins {
 		msg += "\n" + strconv.Itoa(i+1) + ": (" + admin.API + ") " + admin.Contact + " (" + strconv.Itoa(len(admin.Subscriptions())) + " subscriptions)"
@@ -101,8 +102,8 @@ func (c *Config) iMessageAdminAdmins() string {
 	return msg
 }
 
-func (c *Config) iMessageAdminIgnores() string {
-	ignores := c.subs.GetIgnored()
+func (m *Motifini) iMessageAdminIgnores() string {
+	ignores := m.GetIgnored()
 	msg := "There are " + strconv.Itoa(len(ignores)) + " ignored subscribers:"
 	for i, ignore := range ignores {
 		msg += "\n" + strconv.Itoa(i+1) + ": (" + ignore.API + ") " + ignore.Contact + " (" + strconv.Itoa(len(ignore.Subscriptions())) + " subscriptions)"
@@ -110,9 +111,9 @@ func (c *Config) iMessageAdminIgnores() string {
 	return msg
 }
 
-func (c *Config) iMessageAdminSubs(text []string) string {
+func (m *Motifini) iMessageAdminSubs(text []string) string {
 	if len(text) == 1 {
-		subs := c.subs.GetAllSubscribers()
+		subs := m.Subscribers
 		msg := "There are " + strconv.Itoa(len(subs)) + " total subscribers:"
 		for i, target := range subs {
 			var x string
@@ -125,7 +126,7 @@ func (c *Config) iMessageAdminSubs(text []string) string {
 		}
 		return msg
 	}
-	s, err := c.subs.GetSubscriber(text[1], APIiMessage)
+	s, err := m.GetSubscriber(text[1], APIiMessage)
 	if err != nil {
 		return "Subscriber does not exist: " + text[1]
 	}
@@ -151,12 +152,12 @@ func (c *Config) iMessageAdminSubs(text []string) string {
 	return msg
 }
 
-func (c *Config) iMessageAdminUnadmin(text []string) string {
+func (m *Motifini) iMessageAdminUnadmin(text []string) string {
 	msg := "Usage: unadmin <contact> - Use 'admins' to see all admin subscribers."
 	if len(text) != 2 {
 		return msg
 	}
-	target, err := c.subs.GetSubscriber(text[1], APIiMessage)
+	target, err := m.GetSubscriber(text[1], APIiMessage)
 	if err != nil {
 		msg = "Subscriber does not exist: " + text[1]
 		return msg
@@ -166,12 +167,12 @@ func (c *Config) iMessageAdminUnadmin(text []string) string {
 	return msg
 }
 
-func (c *Config) iMessageAdminAdmin(text []string) string {
+func (m *Motifini) iMessageAdminAdmin(text []string) string {
 	msg := "Usage: admin <contact> - Use 'subs' to see all (non-ignored) subscribers."
 	if len(text) != 2 {
 		return msg
 	}
-	target, err := c.subs.GetSubscriber(text[1], APIiMessage)
+	target, err := m.GetSubscriber(text[1], APIiMessage)
 	if err != nil {
 		msg = "Subscriber does not exist: " + text[1]
 		return msg
@@ -181,12 +182,12 @@ func (c *Config) iMessageAdminAdmin(text []string) string {
 	return msg
 }
 
-func (c *Config) iMessageAdminUnignore(text []string) string {
+func (m *Motifini) iMessageAdminUnignore(text []string) string {
 	msg := "Usage: unignore <contact> - Use 'ignores' to see all ignored subscribers."
 	if len(text) != 2 {
 		return msg
 	}
-	target, err := c.subs.GetSubscriber(text[1], APIiMessage)
+	target, err := m.GetSubscriber(text[1], APIiMessage)
 	if err != nil {
 		msg = "Subscriber does not exist: " + text[1]
 		return msg
@@ -196,12 +197,12 @@ func (c *Config) iMessageAdminUnignore(text []string) string {
 	return msg
 }
 
-func (c *Config) iMessageAdminIgnore(text []string) string {
+func (m *Motifini) iMessageAdminIgnore(text []string) string {
 	msg := "Usage: ignore <contact> - Use 'subs' to see all (non-ignored) subscribers."
 	if len(text) != 2 {
 		return msg
 	}
-	target, err := c.subs.GetSubscriber(text[1], APIiMessage)
+	target, err := m.GetSubscriber(text[1], APIiMessage)
 	if err != nil {
 		msg = "Subscriber does not exist: " + text[1]
 		return msg
@@ -212,18 +213,18 @@ func (c *Config) iMessageAdminIgnore(text []string) string {
 	return msg
 }
 
-func (c *Config) iMessageCams() string {
-	c.Lock()
-	defer c.Unlock()
-	msg := "There are " + strconv.Itoa(len(c.Cameras)) + " cameras:\n"
-	for cam := range c.Cameras {
-		msg += c.Cameras[cam].Number + ": " + cam + "\n"
+func (m *Motifini) iMessageCams() string {
+	m.Config.Lock()
+	defer m.Config.Unlock()
+	msg := "There are " + strconv.Itoa(len(m.Cameras)) + " cameras:\n"
+	for cam := range m.Cameras {
+		msg += m.Cameras[cam].Number + ": " + cam + "\n"
 	}
 	return msg
 }
 
-func (c *Config) iMessageEvents(text []string) string {
-	events := c.subs.GetEvents()
+func (m *Motifini) iMessageEvents(text []string) string {
+	events := m.GetEvents()
 	msg := "There are " + strconv.Itoa(len(events)) + " events:\n"
 	i := 0
 	for eventName, event := range events {
@@ -237,50 +238,50 @@ func (c *Config) iMessageEvents(text []string) string {
 	return msg
 }
 
-func (c *Config) iMessagePics(from string, id string, text []string) string {
-	c.Lock()
-	defer c.Unlock()
+func (m *Motifini) iMessagePics(from string, id string, text []string) string {
+	m.Config.Lock()
+	defer m.Config.Unlock()
 	msg := ""
 	if len(text) > 1 {
 		cam := strings.Join(text[1:], " ")
-		if _, ok := c.Cameras[cam]; !ok {
+		if _, ok := m.Cameras[cam]; !ok {
 			msg = "Unknown Camera: " + cam
 			return msg
 		}
-		path := c.TempDir + "imessage_relay_" + id + "_" + cam + ".jpg"
-		if err := c.GetPicture(id, cam, path); err != nil {
+		path := m.TempDir + "imessage_relay_" + id + "_" + cam + ".jpg"
+		if err := m.GetPicture(id, cam, path); err != nil {
 			log.Printf("[ERROR] [%v] GetPicture: %v", id, err)
 			msg = "Error Getting '" + cam + "' Picture: " + err[0].Error()
 		}
-		c.msgs.Send(imessage.Outgoing{ID: id, To: from, Text: path, File: true, Call: c.pictureCallback})
+		m.Send(imessage.Outgoing{ID: id, To: from, Text: path, File: true, Call: m.pictureCallback})
 		return msg
 	}
-	for cam := range c.Cameras {
-		path := c.TempDir + "imessage_relay_" + id + "_" + cam + ".jpg"
-		if err := c.GetPicture(id, cam, path); err != nil {
+	for cam := range m.Cameras {
+		path := m.TempDir + "imessage_relay_" + id + "_" + cam + ".jpg"
+		if err := m.GetPicture(id, cam, path); err != nil {
 			log.Printf("[ERROR] [%v] GetPicture: %v", id, err)
 			msg += "Error Getting '" + cam + "' Picture: " + err[0].Error() + "\n"
 			continue
 		}
 		// Give the file system time to sync
 		time.Sleep(150 * time.Millisecond)
-		c.msgs.Send(imessage.Outgoing{ID: id, To: from, Text: path, File: true, Call: c.pictureCallback})
+		m.Send(imessage.Outgoing{ID: id, To: from, Text: path, File: true, Call: m.pictureCallback})
 	}
 	return msg
 }
 
-func (c *Config) iMessageSub(text []string, requestor *subscribe.Subscriber) string {
+func (m *Motifini) iMessageSub(text []string, requestor *subscribe.Subscriber) string {
 	kind := "event"
 	msg := "Usage: sub <camera|event> - Use 'cams' and 'events' to see their names."
 	if len(text) < 2 {
 		return msg
 	}
 	event := strings.Join(text[1:], " ")
-	if _, ok := c.subs.GetEvents()[event]; !ok {
-		c.Lock()
-		defer c.Unlock()
+	if _, ok := m.GetEvents()[event]; !ok {
+		m.Config.Lock()
+		defer m.Config.Unlock()
 		kind = "camera"
-		if _, ok := c.Cameras[event]; !ok {
+		if _, ok := m.Cameras[event]; !ok {
 			msg = "Event or Camera not found: " + event + "\n" + msg
 			return msg
 		}
@@ -293,7 +294,7 @@ func (c *Config) iMessageSub(text []string, requestor *subscribe.Subscriber) str
 	return msg
 }
 
-func (c *Config) iMessageSubs(text []string, requestor *subscribe.Subscriber) string {
+func (m *Motifini) iMessageSubs(text []string, requestor *subscribe.Subscriber) string {
 	if requestor.Admin && len(text) > 1 {
 		// admin asking for subs for someone else. handled by iMessageAdminSubs()
 		return ""
@@ -313,7 +314,7 @@ func (c *Config) iMessageSubs(text []string, requestor *subscribe.Subscriber) st
 	return msg
 }
 
-func (c *Config) iMessageUnsub(text []string, requestor *subscribe.Subscriber) string {
+func (m *Motifini) iMessageUnsub(text []string, requestor *subscribe.Subscriber) string {
 	msg := "Usage: unsub <camera|event|*> - Use 'subs' to see your subscriptions."
 	if len(text) < 2 {
 		return msg
@@ -333,7 +334,7 @@ func (c *Config) iMessageUnsub(text []string, requestor *subscribe.Subscriber) s
 	return msg
 }
 
-func (c *Config) iMessageStop(text []string, requestor *subscribe.Subscriber) string {
+func (m *Motifini) iMessageStop(text []string, requestor *subscribe.Subscriber) string {
 	msg := "Usage: stop <minutes> [camera|event] - Use 'subs' to see your subscriptions."
 	if len(text) < 2 {
 		return msg
