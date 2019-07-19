@@ -188,14 +188,14 @@ func (m *Motifini) pictureCallback(msg *imessage.Response) {
 }
 
 // /api/v1.0/send/imessage/msg
-func (c *Motifini) sendMessageHandler(w http.ResponseWriter, r *http.Request) {
-	c.exports.httpVisits.Add(1)
+func (m *Motifini) sendMessageHandler(w http.ResponseWriter, r *http.Request) {
+	m.exports.httpVisits.Add(1)
 	vars := mux.Vars(r)
 	to, msg := strings.Split(vars["to"], ","), vars["msg"]
 	id, code, reply := ReqID(4), 200, "OK"
 	// Check input data.
 	for _, t := range to {
-		if t == "" || !contains(c.Imessage.AllowedTo, t) {
+		if t == "" || !contains(m.Imessage.AllowedTo, t) {
 			Debugf(id, "Invalid 'to' provided: %v", t)
 			code = 500
 			break
@@ -203,11 +203,11 @@ func (c *Motifini) sendMessageHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	callback := func(msg *imessage.Response) {
 		if msg.Errs != nil {
-			c.exports.errors.Add(1)
+			m.exports.errors.Add(1)
 			log.Printf("[ERROR] [%v] msgs.Send '%v': %v", msg.ID, msg.To, msg.Errs)
 			return
 		}
-		c.exports.texts.Add(1)
+		m.exports.texts.Add(1)
 		log.Printf("[REPLY] [%v] Message (%d chars) sent to: %v", msg.ID, len(msg.Text), msg.To)
 	}
 	if code == 500 || msg == "" {
@@ -216,9 +216,9 @@ func (c *Motifini) sendMessageHandler(w http.ResponseWriter, r *http.Request) {
 	} else {
 		// Input data OK, send a message to each recipient.
 		for _, t := range to {
-			c.Send(imessage.Outgoing{ID: id, To: t, Text: msg, File: false, Call: callback})
+			m.Send(imessage.Outgoing{ID: id, To: t, Text: msg, File: false, Call: callback})
 		}
 	}
 	reply = "REQ ID: " + id + ", msg: " + reply + "\n"
-	c.finishReq(w, r, id, code, reply, imessage.Outgoing{}, "-")
+	m.finishReq(w, r, id, code, reply, imessage.Outgoing{}, "-")
 }

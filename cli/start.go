@@ -114,9 +114,7 @@ func Start() error {
 		m.flag.Usage()
 		return err
 	}
-	if err := m.Validate(); err != nil {
-		return errors.Wrap(err, "config invalid")
-	}
+	m.Validate()
 	return m.Run()
 }
 
@@ -198,10 +196,7 @@ func (m *Motifini) GetConfig() error {
 }
 
 // Validate makes sure the data in the config file is valid.
-func (c *Config) Validate() error {
-	if len(c.Imessage.AllowedTo) < 1 {
-		return errors.New("missing allowed_to list")
-	}
+func (c *Config) Validate() {
 	if c.Port == 0 {
 		c.Port = 8765
 	}
@@ -237,7 +232,6 @@ func (c *Config) Validate() error {
 	} else if c.SecuritySpy.URL != "" && !strings.HasSuffix(c.SecuritySpy.URL, "/") {
 		c.SecuritySpy.URL += "/"
 	}
-	return nil
 }
 
 // exportData makes all the expvar data available. Only needs to run once.
