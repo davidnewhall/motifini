@@ -47,9 +47,9 @@ type Motifini struct {
 	*http.Server
 	*subscribe.Subscribe
 	*imessage.Messages
-	exportData
-	flag     *flag.FlagSet
-	stopChan chan os.Signal
+	exports exportData
+	flag    *flag.FlagSet
+	stopChn chan os.Signal
 }
 
 // Flags defines our application's CLI arguments.
@@ -117,18 +117,15 @@ func Start() error {
 	if err := m.Validate(); err != nil {
 		return errors.Wrap(err, "config invalid")
 	}
-	if strings.HasPrefix(m.Imessage.DBPath, "~") {
-		m.Imessage.DBPath = os.Getenv("HOME") + strings.TrimPrefix(m.Imessage.DBPath, "~")
-	}
 	return m.Run()
 }
 
 // Run starts the app after all configs are collected.
 func (m *Motifini) Run() error {
-	if m.stopChan != nil {
+	if m.stopChn != nil {
 		return errors.New("cannot run twice")
 	}
-	log.Printf("iMessage Relay %v Starting! (PID: %v)", Version, os.Getpid())
+	log.Printf("Motifini %v Starting! (PID: %v)", Version, os.Getpid())
 	err := m.GetCamNumbers()
 	if err != nil {
 		log.Println("[ERROR] (continuing anyway)", err)
@@ -136,8 +133,20 @@ func (m *Motifini) Run() error {
 	if m.Subscribe, err = subscribe.GetDB(m.StateFile); err != nil {
 		return errors.Wrap(err, "sub state")
 	}
+	if err := m.startiMessage(); err != nil {
+		return err
+	}
+	m.exportData()
+	// StopChan is how we exit. Can be used in tests.
+	m.stopChn = make(chan os.Signal, 1)
+	go m.taskPoller()
+	return m.StartServer()
+}
+
+func (m *Motifini) startiMessage() error {
+	var err error
 	m.Messages, err = imessage.Init(&imessage.Config{
-		SQLPath:   m.Imessage.DBPath,
+		SQLPath:   strings.Replace(m.Imessage.DBPath, "~", os.Getenv("HOME"), -1),
 		QueueSize: m.Imessage.QueueSize,
 		ClearMsgs: m.Imessage.ClearMessages,
 		Retries:   m.Imessage.Retries,
@@ -150,14 +159,9 @@ func (m *Motifini) Run() error {
 	if m.Debug {
 		m.DebugLog = log.Printf
 	}
-	if err = m.Start(); err != nil {
-		return errors.Wrap(err, "starting imessage")
-	}
-	m.Exports(m.ConfigFile)
-	// StopChan is how we exit. Can be used in tests.
-	m.stopChan = make(chan os.Signal, 1)
-	go m.taskPoller()
-	return m.StartServer()
+	// Listen to all incoming imessages, pass them to our handler.
+	m.IncomingCall(".*", m.recvMessageHandler)
+	return errors.Wrap(m.Start(), "starting imessage")
 }
 
 // ParseFlags runs the parser for CLI arguments.
@@ -236,30 +240,28 @@ func (c *Config) Validate() error {
 	return nil
 }
 
-// Exports makes all the expvar data available.
-func (m *Motifini) Exports(configFile string) {
-	m.Map = GetPublishedMap("iMessageRelay")
-	m.Set("app_started", &m.startAt)
-	m.Set("app_version", &m.version)
-	m.Set("config_file", &m.configFile)
-	m.Set("listen_port", &m.listenPort)
-	m.Set("http_visits", &m.httpVisits)
-	m.Set("default_url", &m.defaultURL)
-	m.Set("videos_sent", &m.videos)
-	m.Set("photos_sent", &m.pics)
-	m.Set("messge_sent", &m.texts)
-	m.Set("error_count", &m.errors)
+// exportData makes all the expvar data available. Only needs to run once.
+func (m *Motifini) exportData() {
+	m.exports.Map = GetPublishedMap("iMessageRelay")
+	m.exports.Set("app_started", &m.exports.startAt)
+	m.exports.Set("app_version", &m.exports.version)
+	m.exports.Set("config_file", &m.exports.configFile)
+	m.exports.Set("listen_port", &m.exports.listenPort)
+	m.exports.Set("http_visits", &m.exports.httpVisits)
+	m.exports.Set("default_url", &m.exports.defaultURL)
+	m.exports.Set("videos_sent", &m.exports.videos)
+	m.exports.Set("photos_sent", &m.exports.pics)
+	m.exports.Set("messge_sent", &m.exports.texts)
+	m.exports.Set("error_count", &m.exports.errors)
 	// Set static data now.
-	m.exportData.startAt.Set(time.Now().String())
-	m.exportData.version.Set(Version)
-	m.exportData.configFile.Set(configFile)
-	m.exportData.listenPort.Set(int64(m.Port))
+	m.exports.startAt.Set(time.Now().String())
+	m.exports.version.Set(Version)
+	m.exports.configFile.Set(m.ConfigFile)
+	m.exports.listenPort.Set(int64(m.Port))
 }
 
 // StartServer creates the http routers and starts http server
 func (m *Motifini) StartServer() error {
-	// Listen to all incoming imessages, pass them to our handler.
-	m.IncomingCall(".*", m.recvMessageHandler)
 	log.Printf("Listening on port %d", m.Port)
 	r := mux.NewRouter()
 	r.Handle("/debug/vars", http.DefaultServeMux).Methods("GET")
@@ -285,7 +287,7 @@ func (m *Motifini) StartServer() error {
 // looks for an exit signal to shut down the http server.
 func (m *Motifini) taskPoller() {
 	ticker := time.NewTicker(10 * time.Minute)
-	signal.Notify(m.stopChan, os.Interrupt, syscall.SIGTERM, syscall.SIGQUIT)
+	signal.Notify(m.stopChn, os.Interrupt, syscall.SIGTERM, syscall.SIGQUIT)
 	for {
 		select {
 		case <-ticker.C:
@@ -295,7 +297,7 @@ func (m *Motifini) taskPoller() {
 			if err := m.SaveStateFile(); err != nil {
 				log.Printf("[ERROR] saving subscribers state file: %v", err)
 			}
-		case sig := <-m.stopChan:
+		case sig := <-m.stopChn:
 			log.Printf("Exiting! Caught Signal: %v", sig)
 			if err := m.SaveStateFile(); err != nil {
 				log.Printf("[ERROR] saving subscribers state file: %v", err)

@@ -10,12 +10,12 @@
   version = "v1.0.0"
 
 [[projects]]
-  digest = "1:b60f3acaf01c41565f6cd0f3739a3f1e398e47ed499e34bf517b51f701cc4077"
+  branch = "master"
+  digest = "1:17b7df24e9958d035ed29f78a565d57646b9d77a9f1ba51c8013703c811f1af6"
   name = "code.golift.io/imessage"
   packages = ["."]
   pruneopts = "UT"
-  revision = "20dea9859b6addceebeb00567172026914baa2e4"
-  version = "v1.0.0"
+  revision = "62bb23ce7d17147a056d19d367ab667043e00a2e"
 
 [[projects]]
   digest = "1:57227eab565a6634e2ef46d30bd15ca864cbbfa85ec323ca6530e179985ca307"

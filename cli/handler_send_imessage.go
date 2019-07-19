@@ -16,7 +16,7 @@ import (
 
 ///api/v1.0/send/imessage/video/{to}/{camera}"
 func (m *Motifini) sendVideoHandler(w http.ResponseWriter, r *http.Request) {
-	m.exportData.httpVisits.Add(1)
+	m.exports.httpVisits.Add(1)
 	vars := mux.Vars(r)
 	to, cam := vars["to"], vars["camera"]
 	vals := map[string]string{
@@ -119,10 +119,10 @@ func (m *Motifini) videoCallback(msg *imessage.Response) {
 		size = fi.Size()
 	}
 	if msg.Errs != nil {
-		m.exportData.errors.Add(1)
+		m.exports.errors.Add(1)
 		log.Printf("[ERROR] [%v] msgs.Send '%v': %v", msg.ID, msg.To, msg.Errs)
 	} else {
-		m.exportData.videos.Add(1)
+		m.exports.videos.Add(1)
 		log.Printf("[REPLY] [%v] Video '%v' (%.2fMb) sent to: %v", msg.ID, msg.Text, float32(size)/1024/1024, msg.To)
 	}
 	// Might take a while to upload.
@@ -136,7 +136,7 @@ func (m *Motifini) videoCallback(msg *imessage.Response) {
 
 // /api/v1.0/send/imessage/picture/{to}/{camera}
 func (m *Motifini) sendPictureHandler(w http.ResponseWriter, r *http.Request) {
-	m.exportData.httpVisits.Add(1)
+	m.exports.httpVisits.Add(1)
 	vars := mux.Vars(r)
 	to, cam := strings.Split(vars["to"], ","), vars["camera"]
 	id, code, reply := ReqID(4), 200, "OK"
@@ -171,11 +171,11 @@ func (m *Motifini) sendPictureHandler(w http.ResponseWriter, r *http.Request) {
 // Possibly more than once...
 func (m *Motifini) pictureCallback(msg *imessage.Response) {
 	if msg.Errs != nil {
-		m.exportData.errors.Add(1)
+		m.exports.errors.Add(1)
 		log.Printf("[ERROR] [%v] msgs.Send '%v': %v", msg.ID, msg.To, msg.Errs)
 
 	} else {
-		m.exportData.pics.Add(1)
+		m.exports.pics.Add(1)
 		log.Printf("[REPLY] [%v] Picture '%v' sent to: %v", msg.ID, msg.Text, msg.To)
 	}
 	// Might take a while to upload.
@@ -189,7 +189,7 @@ func (m *Motifini) pictureCallback(msg *imessage.Response) {
 
 // /api/v1.0/send/imessage/msg
 func (c *Motifini) sendMessageHandler(w http.ResponseWriter, r *http.Request) {
-	c.exportData.httpVisits.Add(1)
+	c.exports.httpVisits.Add(1)
 	vars := mux.Vars(r)
 	to, msg := strings.Split(vars["to"], ","), vars["msg"]
 	id, code, reply := ReqID(4), 200, "OK"
@@ -203,11 +203,11 @@ func (c *Motifini) sendMessageHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	callback := func(msg *imessage.Response) {
 		if msg.Errs != nil {
-			c.exportData.errors.Add(1)
+			c.exports.errors.Add(1)
 			log.Printf("[ERROR] [%v] msgs.Send '%v': %v", msg.ID, msg.To, msg.Errs)
 			return
 		}
-		c.exportData.texts.Add(1)
+		c.exports.texts.Add(1)
 		log.Printf("[REPLY] [%v] Message (%d chars) sent to: %v", msg.ID, len(msg.Text), msg.To)
 	}
 	if code == 500 || msg == "" {

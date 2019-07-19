@@ -11,7 +11,7 @@ import (
 
 // /api/v1.0/event/{cmd:remove|update|add|notify}/{event}
 func (m *Motifini) eventsHandler(w http.ResponseWriter, r *http.Request) {
-	m.exportData.httpVisits.Add(1)
+	m.exports.httpVisits.Add(1)
 	vars := mux.Vars(r)
 	id, code, reply := ReqID(4), 500, "3RROR\n"
 	msg := ""

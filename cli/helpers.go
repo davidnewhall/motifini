@@ -14,6 +14,8 @@ import (
 	"github.com/pkg/errors"
 )
 
+// TODO switch to securityspy library. that's why we wrote it.....
+
 // SecuritySpySystemInfo represents a very small portion of the ++systemInfo method.
 type SecuritySpySystemInfo struct {
 	Cameralist struct {
@@ -115,8 +117,8 @@ func (m *Motifini) finishReq(w http.ResponseWriter, r *http.Request, id string, 
 
 // handle any unknown URIs.
 func (m *Motifini) handleAll(w http.ResponseWriter, r *http.Request) {
-	m.exportData.httpVisits.Add(1)
-	m.exportData.defaultURL.Add(1)
+	m.exports.httpVisits.Add(1)
+	m.exports.defaultURL.Add(1)
 	id, code, reply := ReqID(4), 405, "FAIL\n"
 	m.finishReq(w, r, id, code, reply, imessage.Outgoing{}, "-")
 }
