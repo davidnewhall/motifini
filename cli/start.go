@@ -24,8 +24,8 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/pkg/errors"
 
-	"code.golift.io/imessage"
-	"code.golift.io/subscribe"
+	"golift.io/imessage"
+	"golift.io/subscribe"
 )
 
 var (

@@ -3,7 +3,7 @@ package cli
 import (
 	"net/http"
 
-	"code.golift.io/imessage"
+	"golift.io/imessage"
 )
 
 // /api/v1.0/sub/{cmd:subscribe|unsubscribe|pause|unpause}/{api}/{contact}/{event}

@@ -9,9 +9,9 @@ import (
 	"strings"
 	"time"
 
-	"code.golift.io/ffmpeg"
-	"code.golift.io/imessage"
 	"github.com/gorilla/mux"
+	"golift.io/ffmpeg"
+	"golift.io/imessage"
 )
 
 ///api/v1.0/send/imessage/video/{to}/{camera}"

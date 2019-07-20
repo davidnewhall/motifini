@@ -6,8 +6,8 @@ import (
 	"strings"
 	"time"
 
-	"code.golift.io/imessage"
-	"code.golift.io/subscribe"
+	"golift.io/imessage"
+	"golift.io/subscribe"
 )
 
 // recvMessageHandler is a callback binding from the imessage library.

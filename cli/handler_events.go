@@ -5,8 +5,8 @@ import (
 	"net/http"
 	"strings"
 
-	"code.golift.io/imessage"
 	"github.com/gorilla/mux"
+	"golift.io/imessage"
 )
 
 // /api/v1.0/event/{cmd:remove|update|add|notify}/{event}

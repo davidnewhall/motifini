@@ -10,8 +10,8 @@ import (
 	"net/url"
 	"os"
 
-	"code.golift.io/imessage"
 	"github.com/pkg/errors"
+	"golift.io/imessage"
 )
 
 // TODO switch to securityspy library. that's why we wrote it.....
