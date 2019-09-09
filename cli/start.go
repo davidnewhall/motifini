@@ -128,6 +128,29 @@ func (c *Config) ParseFile(configFile string) error {
 	}
 }
 
+// Validate makes sure the data in the config file is valid.
+func (c *Config) Validate() {
+	if c.Global.Port == 0 {
+		c.Global.Port = 8765
+	}
+	if c.Global.TempDir == "" {
+		c.Global.TempDir = "/tmp/"
+	} else if !strings.HasSuffix(c.Global.TempDir, "/") {
+		c.Global.TempDir += "/"
+	}
+	if c.Imessage.QueueSize < 20 {
+		c.Imessage.QueueSize = 20
+	} else if c.Imessage.QueueSize > 500 {
+		c.Imessage.QueueSize = 500
+	}
+	if c.SecuritySpy.URL != "" && !strings.Contains(c.SecuritySpy.URL, "://") {
+		log.Printf("[WARN] Security Spy URL appears malformed. Ignoring it and using AppleScript!")
+		c.SecuritySpy.URL = ""
+	} else if c.SecuritySpy.URL != "" && !strings.HasSuffix(c.SecuritySpy.URL, "/") {
+		c.SecuritySpy.URL += "/"
+	}
+}
+
 // Run starts the app after all configs are collected.
 func (m *Motifini) Run() error {
 	if m.stopChn != nil {
@@ -152,28 +175,7 @@ func (m *Motifini) Run() error {
 	return m.StartServer()
 }
 
-// Validate makes sure the data in the config file is valid.
-func (c *Config) Validate() {
-	if c.Global.Port == 0 {
-		c.Global.Port = 8765
-	}
-	if c.Global.TempDir == "" {
-		c.Global.TempDir = "/tmp/"
-	} else if !strings.HasSuffix(c.Global.TempDir, "/") {
-		c.Global.TempDir += "/"
-	}
-	if c.Imessage.QueueSize < 20 {
-		c.Imessage.QueueSize = 20
-	} else if c.Imessage.QueueSize > 500 {
-		c.Imessage.QueueSize = 500
-	}
-	if c.SecuritySpy.URL != "" && !strings.Contains(c.SecuritySpy.URL, "://") {
-		log.Printf("[WARN] Security Spy URL appears malformed. Ignoring it and using AppleScript!")
-		c.SecuritySpy.URL = ""
-	} else if c.SecuritySpy.URL != "" && !strings.HasSuffix(c.SecuritySpy.URL, "/") {
-		c.SecuritySpy.URL += "/"
-	}
-}
+
 
 func (m *Motifini) startiMessage() error {
 	var err error
