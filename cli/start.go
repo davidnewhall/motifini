@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"encoding/xml"
-	"expvar"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -16,7 +15,7 @@ import (
 	"syscall"
 	"time"
 
-	flag "github.com/spf13/pflag"
+	"github.com/spf13/pflag"
 
 	"github.com/BurntSushi/toml"
 	"github.com/gorilla/mux"
@@ -43,14 +42,13 @@ const (
 type Motifini struct {
 	Flags   *Flags
 	Config  *Config
-	Server  *http.Server
-	exports exportData
-	flag    *flag.FlagSet
-	stopChn chan os.Signal
 	Debug   *Log
+	Server  *http.Server
 	Spy     *securityspy.Server
 	Subs    *subscribe.Subscribe
 	Msgs    *imessage.Messages
+	exports exportData
+	stopChn chan os.Signal
 }
 
 // Flags defines our application's CLI arguments.
@@ -58,6 +56,7 @@ type Flags struct {
 	Debug      bool
 	VersionReq bool
 	ConfigFile string
+	*pflag.FlagSet
 }
 
 // Config struct
@@ -80,37 +79,53 @@ type Config struct {
 	} `toml:"security_spy"`
 }
 
-// Contains our expvar exports.
-type exportData struct {
-	*expvar.Map
-	startAt    expvar.String
-	version    expvar.String
-	configFile expvar.String
-	listenPort expvar.Int
-	httpVisits expvar.Int
-	defaultURL expvar.Int
-	videos     expvar.Int
-	pics       expvar.Int
-	texts      expvar.Int
-	errors     expvar.Int
+// ParseArgs runs the parser for CLI arguments.
+func (flag *Flags) ParseArgs(args []string) {
+	*flag = Flags{FlagSet: pflag.NewFlagSet(Binary, pflag.ExitOnError)}
+	flag.Usage = func() {
+		fmt.Printf("Usage: %s [--config=filepath] [--version] [--debug]", Binary)
+		flag.PrintDefaults()
+	}
+	flag.StringVarP(&flag.ConfigFile, "config", "c", "/usr/local/etc/"+Binary+".conf", "Config File")
+	flag.BoolVarP(&flag.Debug, "debug", "D", false, "Turn on the Spam.")
+	flag.BoolVarP(&flag.VersionReq, "version", "v", false, "Print the version and exit")
+	_ = flag.Parse(args) // flag.ExitOnError means this will never return != nil
 }
 
 // Start the daemon.
 func Start() error {
 	rand.Seed(time.Now().UnixNano())
 	log.SetFlags(log.LstdFlags)
-	m := &Motifini{Config: &Config{}}
-	if m.ParseFlags(os.Args[1:]); m.Flags.VersionReq {
+	m := &Motifini{Config: &Config{}, Flags: &Flags{}}
+	if m.Flags.ParseArgs(os.Args[1:]); m.Flags.VersionReq {
 		fmt.Printf("%s v%s\n", Binary, Version)
 		return nil // don't run anything else w/ version request.
 	}
 	m.Debug = &Log{Muted: !m.Flags.Debug}
 	if err := m.Config.ParseFile(m.Flags.ConfigFile); err != nil {
-		m.flag.Usage()
+		m.Flags.Usage()
 		return err
 	}
 	m.Config.Validate()
 	return m.Run()
+}
+
+// ParseFile parses and returns our configuration data.
+// Supports a few formats for config file: xml, json, toml
+func (c *Config) ParseFile(configFile string) error {
+	// Preload our defaults.
+	*c = Config{}
+	log.Printf("Loading Configuration File: %s", configFile)
+	switch buf, err := ioutil.ReadFile(configFile); {
+	case err != nil:
+		return err
+	case strings.Contains(configFile, ".json"):
+		return json.Unmarshal(buf, c)
+	case strings.Contains(configFile, ".xml"):
+		return xml.Unmarshal(buf, c)
+	default:
+		return toml.Unmarshal(buf, c)
+	}
 }
 
 // Run starts the app after all configs are collected.
@@ -137,57 +152,6 @@ func (m *Motifini) Run() error {
 	return m.StartServer()
 }
 
-func (m *Motifini) startiMessage() error {
-	var err error
-	m.Msgs, err = imessage.Init(&imessage.Config{
-		SQLPath:   strings.Replace(m.Config.Imessage.DBPath, "~", os.Getenv("HOME"), 1),
-		QueueSize: m.Config.Imessage.QueueSize,
-		ClearMsgs: m.Config.Imessage.ClearMessages,
-		Retries:   m.Config.Imessage.Retries,
-		Interval:  m.Config.Imessage.Interval,
-		ErrorLog:  &Log{Affix: "[ERROR] "},
-		DebugLog:  &Log{Affix: "[DEBUG] ", Muted: !m.Flags.Debug},
-	})
-	if err != nil {
-		return errors.Wrap(err, "initializing imessage")
-	}
-	// Listen to all incoming imessages, pass them to our handler.
-	m.Msgs.IncomingCall(".*", m.recvMessageHandler)
-	return errors.Wrap(m.Msgs.Start(), "starting imessage")
-}
-
-// ParseFlags runs the parser for CLI arguments.
-func (m *Motifini) ParseFlags(args []string) {
-	m.Flags = &Flags{}
-	m.flag = flag.NewFlagSet(Binary, flag.ExitOnError)
-	m.flag.Usage = func() {
-		fmt.Printf("Usage: %s [--config=filepath] [--version] [--debug]", Binary)
-		m.flag.PrintDefaults()
-	}
-	m.flag.StringVarP(&m.Flags.ConfigFile, "config", "c", "/usr/local/etc/"+Binary+".conf", "Config File")
-	m.flag.BoolVarP(&m.Flags.Debug, "debug", "D", false, "Turn on the Spam.")
-	m.flag.BoolVarP(&m.Flags.VersionReq, "version", "v", false, "Print the version and exit")
-	_ = m.flag.Parse(args)
-}
-
-// ParseFile parses and returns our configuration data.
-// Supports a few formats for config file: xml, json, toml
-func (c *Config) ParseFile(configFile string) error {
-	// Preload our defaults.
-	*c = Config{}
-	log.Printf("Loading Configuration File: %s", configFile)
-	switch buf, err := ioutil.ReadFile(configFile); {
-	case err != nil:
-		return err
-	case strings.Contains(configFile, ".json"):
-		return json.Unmarshal(buf, c)
-	case strings.Contains(configFile, ".xml"):
-		return xml.Unmarshal(buf, c)
-	default:
-		return toml.Unmarshal(buf, c)
-	}
-}
-
 // Validate makes sure the data in the config file is valid.
 func (c *Config) Validate() {
 	if c.Global.Port == 0 {
@@ -211,24 +175,23 @@ func (c *Config) Validate() {
 	}
 }
 
-// exportData makes all the expvar data available. Only needs to run once.
-func (m *Motifini) exportData() {
-	m.exports.Map = GetPublishedMap("iMessageRelay")
-	m.exports.Set("app_started", &m.exports.startAt)
-	m.exports.Set("app_version", &m.exports.version)
-	m.exports.Set("config_file", &m.exports.configFile)
-	m.exports.Set("listen_port", &m.exports.listenPort)
-	m.exports.Set("http_visits", &m.exports.httpVisits)
-	m.exports.Set("default_url", &m.exports.defaultURL)
-	m.exports.Set("videos_sent", &m.exports.videos)
-	m.exports.Set("photos_sent", &m.exports.pics)
-	m.exports.Set("messge_sent", &m.exports.texts)
-	m.exports.Set("error_count", &m.exports.errors)
-	// Set static data now.
-	m.exports.startAt.Set(time.Now().String())
-	m.exports.version.Set(Version)
-	m.exports.configFile.Set(m.Flags.ConfigFile)
-	m.exports.listenPort.Set(int64(m.Config.Global.Port))
+func (m *Motifini) startiMessage() error {
+	var err error
+	m.Msgs, err = imessage.Init(&imessage.Config{
+		SQLPath:   strings.Replace(m.Config.Imessage.DBPath, "~", os.Getenv("HOME"), 1),
+		QueueSize: m.Config.Imessage.QueueSize,
+		ClearMsgs: m.Config.Imessage.ClearMessages,
+		Retries:   m.Config.Imessage.Retries,
+		Interval:  m.Config.Imessage.Interval,
+		ErrorLog:  &Log{Affix: "[ERROR] "},
+		DebugLog:  &Log{Affix: "[DEBUG] ", Muted: !m.Flags.Debug},
+	})
+	if err != nil {
+		return errors.Wrap(err, "initializing imessage")
+	}
+	// Listen to all incoming imessages, pass them to our handler.
+	m.Msgs.IncomingCall(".*", m.recvMessageHandler)
+	return errors.Wrap(m.Msgs.Start(), "starting imessage")
 }
 
 // StartServer creates the http routers and starts http server
