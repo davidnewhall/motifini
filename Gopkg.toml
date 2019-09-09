@@ -1,0 +1,8 @@
+# TODO update subscribe library.
+[[constraint]]
+  name = "golift.io/subscribe"
+  version = "0.9.0"
+
+[prune]
+  go-tests = true
+  unused-packages = true

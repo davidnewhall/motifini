@@ -3,7 +3,7 @@
 <plist version="1.0">
     <dict>
         <key>Label</key>
-        <string>pro.sleepers.motifini</string>
+        <string>io.golift.motifini</string>
         <key>ProgramArguments</key>
         <array>
             <string>/usr/local/bin/motifini</string>

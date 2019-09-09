@@ -1,4 +1,4 @@
-package exp
+package cli
 
 import (
 	"expvar"
@@ -6,10 +6,10 @@ import (
 )
 
 // We hold a list of map pointers here, so we can retain data through reload.
-var maps Maps
+var maps mapsList
 
-// Maps holds a list of reusable expvar maps.
-type Maps struct {
+// mapsList holds a list of reusable expvar maps.
+type mapsList struct {
 	list map[string]*expvar.Map
 	sync.Mutex
 }

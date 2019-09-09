@@ -1,3 +1,10 @@
+(*
+						      THIS IS LEGACY. DO NOT USE IT
+								 	 (unless you really want to)
+
+Motifini now uses a library that watches the Messages.app sqlite3 db.
+
+*)
 (* ***************************************************************
 **  --== Motifini Messages.app AppleScript handler ==--   **
 **  Copy this to ~/Library/Application Scripts/com.apple.iChat/ **

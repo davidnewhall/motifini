@@ -1,0 +1,17 @@
+[motifini]
+state_file         = "/usr/local/var/lib/motifini-subscribers.json"
+port               = 8765
+temp_dir           = "/private/tmp/"
+
+[imessage]
+db_path            = "~/Library/Messages/chat.db"
+allowed_to         = [
+  "user1@service.com",
+  "user2@email.com",
+  "+19259114969"
+]
+clear_messages     = false
+queue_size         = 20
+
+[security_spy]
+url = "http://user:pass@127.0.0.1:8000/"
