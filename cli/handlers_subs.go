@@ -2,8 +2,6 @@ package cli
 
 import (
 	"net/http"
-
-	"golift.io/imessage"
 )
 
 // /api/v1.0/sub/{cmd:subscribe|unsubscribe|pause|unpause}/{api}/{contact}/{event}
@@ -14,5 +12,5 @@ func (m *Motifini) subsHandler(w http.ResponseWriter, r *http.Request) {
 	if from != "" && msg != "" {
 		code, reply = 200, "woo!\n"
 	}
-	m.finishReq(w, r, id, code, reply, imessage.Outgoing{}, "-")
+	m.finishReq(w, r, id, code, reply, "-")
 }

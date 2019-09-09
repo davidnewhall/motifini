@@ -1,12 +1,14 @@
 package cli
 
 import (
+	"fmt"
 	"log"
 	"strconv"
 	"strings"
 	"time"
 
 	"golift.io/imessage"
+	"golift.io/securityspy"
 	"golift.io/subscribe"
 )
 
@@ -17,10 +19,10 @@ func (m *Motifini) recvMessageHandler(msg imessage.Incoming) {
 	text := strings.Fields(msg.Text)
 	reply := imessage.Outgoing{To: msg.From, ID: id}
 
-	requestor, err := m.GetSubscriber(msg.From, APIiMessage)
+	requestor, err := m.Subs.GetSubscriber(msg.From, APIiMessage)
 	if err != nil {
 		// Every account we receive a message from gets logged as a subscriber with no subscriptions.
-		requestor = m.CreateSub(msg.From, APIiMessage, len(m.GetAdmins()) == 0, false)
+		requestor = m.Subs.CreateSub(msg.From, APIiMessage, len(m.Subs.GetAdmins()) == 0, false)
 	}
 
 	if !requestor.Ignored {
@@ -63,7 +65,7 @@ func (m *Motifini) recvMessageHandler(msg imessage.Incoming) {
 			reply.Text += m.iMessageAdminHelp()
 		}
 		if reply.Text != "" {
-			m.Send(reply)
+			m.Msgs.Send(reply)
 		}
 	}
 }
@@ -94,7 +96,7 @@ unadmin <handle> - Take away admin from <handle>`
 }
 
 func (m *Motifini) iMessageAdminAdmins() string {
-	admins := m.GetAdmins()
+	admins := m.Subs.GetAdmins()
 	msg := "There are " + strconv.Itoa(len(admins)) + " admins:"
 	for i, admin := range admins {
 		msg += "\n" + strconv.Itoa(i+1) + ": (" + admin.API + ") " + admin.Contact + " (" + strconv.Itoa(len(admin.Subscriptions())) + " subscriptions)"
@@ -103,7 +105,7 @@ func (m *Motifini) iMessageAdminAdmins() string {
 }
 
 func (m *Motifini) iMessageAdminIgnores() string {
-	ignores := m.GetIgnored()
+	ignores := m.Subs.GetIgnored()
 	msg := "There are " + strconv.Itoa(len(ignores)) + " ignored subscribers:"
 	for i, ignore := range ignores {
 		msg += "\n" + strconv.Itoa(i+1) + ": (" + ignore.API + ") " + ignore.Contact + " (" + strconv.Itoa(len(ignore.Subscriptions())) + " subscriptions)"
@@ -113,7 +115,7 @@ func (m *Motifini) iMessageAdminIgnores() string {
 
 func (m *Motifini) iMessageAdminSubs(text []string) string {
 	if len(text) == 1 {
-		subs := m.Subscribers
+		subs := m.Subs.Subscribers
 		msg := "There are " + strconv.Itoa(len(subs)) + " total subscribers:"
 		for i, target := range subs {
 			var x string
@@ -126,7 +128,7 @@ func (m *Motifini) iMessageAdminSubs(text []string) string {
 		}
 		return msg
 	}
-	s, err := m.GetSubscriber(text[1], APIiMessage)
+	s, err := m.Subs.GetSubscriber(text[1], APIiMessage)
 	if err != nil {
 		return "Subscriber does not exist: " + text[1]
 	}
@@ -157,7 +159,7 @@ func (m *Motifini) iMessageAdminUnadmin(text []string) string {
 	if len(text) != 2 {
 		return msg
 	}
-	target, err := m.GetSubscriber(text[1], APIiMessage)
+	target, err := m.Subs.GetSubscriber(text[1], APIiMessage)
 	if err != nil {
 		msg = "Subscriber does not exist: " + text[1]
 		return msg
@@ -172,7 +174,7 @@ func (m *Motifini) iMessageAdminAdmin(text []string) string {
 	if len(text) != 2 {
 		return msg
 	}
-	target, err := m.GetSubscriber(text[1], APIiMessage)
+	target, err := m.Subs.GetSubscriber(text[1], APIiMessage)
 	if err != nil {
 		msg = "Subscriber does not exist: " + text[1]
 		return msg
@@ -187,7 +189,7 @@ func (m *Motifini) iMessageAdminUnignore(text []string) string {
 	if len(text) != 2 {
 		return msg
 	}
-	target, err := m.GetSubscriber(text[1], APIiMessage)
+	target, err := m.Subs.GetSubscriber(text[1], APIiMessage)
 	if err != nil {
 		msg = "Subscriber does not exist: " + text[1]
 		return msg
@@ -202,7 +204,7 @@ func (m *Motifini) iMessageAdminIgnore(text []string) string {
 	if len(text) != 2 {
 		return msg
 	}
-	target, err := m.GetSubscriber(text[1], APIiMessage)
+	target, err := m.Subs.GetSubscriber(text[1], APIiMessage)
 	if err != nil {
 		msg = "Subscriber does not exist: " + text[1]
 		return msg
@@ -214,17 +216,15 @@ func (m *Motifini) iMessageAdminIgnore(text []string) string {
 }
 
 func (m *Motifini) iMessageCams() string {
-	m.Config.Lock()
-	defer m.Config.Unlock()
-	msg := "There are " + strconv.Itoa(len(m.Cameras)) + " cameras:\n"
-	for cam := range m.Cameras {
-		msg += m.Cameras[cam].Number + ": " + cam + "\n"
+	msg := "There are " + strconv.Itoa(len(m.Spy.Cameras.All())) + " cameras:\n"
+	for _, cam := range m.Spy.Cameras.All() {
+		msg += fmt.Sprintf("%v: %v\n", cam.Number, cam.Name)
 	}
 	return msg
 }
 
 func (m *Motifini) iMessageEvents(text []string) string {
-	events := m.GetEvents()
+	events := m.Subs.GetEvents()
 	msg := "There are " + strconv.Itoa(len(events)) + " events:\n"
 	i := 0
 	for eventName, event := range events {
@@ -239,33 +239,32 @@ func (m *Motifini) iMessageEvents(text []string) string {
 }
 
 func (m *Motifini) iMessagePics(from string, id string, text []string) string {
-	m.Config.Lock()
-	defer m.Config.Unlock()
 	msg := ""
 	if len(text) > 1 {
-		cam := strings.Join(text[1:], " ")
-		if _, ok := m.Cameras[cam]; !ok {
-			msg = "Unknown Camera: " + cam
+		name := strings.Join(text[1:], " ")
+		cam := m.Spy.Cameras.ByName(name)
+		if cam == nil {
+			msg = "Unknown Camera: " + name
 			return msg
 		}
-		path := m.TempDir + "imessage_relay_" + id + "_" + cam + ".jpg"
-		if err := m.GetPicture(id, cam, path); err != nil {
-			log.Printf("[ERROR] [%v] GetPicture: %v", id, err)
-			msg = "Error Getting '" + cam + "' Picture: " + err[0].Error()
+		path := m.Config.Global.TempDir + "imessage_relay_" + id + "_" + name + ".jpg"
+		if err := cam.SaveJPEG(&securityspy.VidOps{}, path); err != nil {
+			log.Printf("[ERROR] [%v] am.SaveJPEG: %v", id, err)
+			msg = "Error Getting '" + name + "' Picture: " + err.Error()
 		}
-		m.Send(imessage.Outgoing{ID: id, To: from, Text: path, File: true, Call: m.pictureCallback})
+		m.Msgs.Send(imessage.Outgoing{ID: id, To: from, Text: path, File: true, Call: m.pictureCallback})
 		return msg
 	}
-	for cam := range m.Cameras {
-		path := m.TempDir + "imessage_relay_" + id + "_" + cam + ".jpg"
-		if err := m.GetPicture(id, cam, path); err != nil {
-			log.Printf("[ERROR] [%v] GetPicture: %v", id, err)
-			msg += "Error Getting '" + cam + "' Picture: " + err[0].Error() + "\n"
+	for _, cam := range m.Spy.Cameras.All() {
+		path := fmt.Sprintf("%vimessage_relay_%v_%v.jpg", m.Config.Global.TempDir, cam.Number, cam.Name)
+		if err := cam.SaveJPEG(&securityspy.VidOps{}, path); err != nil {
+			log.Printf("[ERROR] [%v] cam.SaveJPEG: %v", id, err)
+			msg += "Error Getting '" + cam.Name + "' Picture: " + err.Error() + "\n"
 			continue
 		}
 		// Give the file system time to sync
 		time.Sleep(150 * time.Millisecond)
-		m.Send(imessage.Outgoing{ID: id, To: from, Text: path, File: true, Call: m.pictureCallback})
+		m.Msgs.Send(imessage.Outgoing{ID: id, To: from, Text: path, File: true, Call: m.pictureCallback})
 	}
 	return msg
 }
@@ -277,11 +276,9 @@ func (m *Motifini) iMessageSub(text []string, requestor *subscribe.Subscriber) s
 		return msg
 	}
 	event := strings.Join(text[1:], " ")
-	if _, ok := m.GetEvents()[event]; !ok {
-		m.Config.Lock()
-		defer m.Config.Unlock()
+	if _, ok := m.Subs.GetEvents()[event]; !ok {
 		kind = "camera"
-		if _, ok := m.Cameras[event]; !ok {
+		if cam := m.Spy.Cameras.ByName(event); cam == nil {
 			msg = "Event or Camera not found: " + event + "\n" + msg
 			return msg
 		}

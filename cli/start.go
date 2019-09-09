@@ -13,23 +13,22 @@ import (
 	"os"
 	"os/signal"
 	"strings"
-	"sync"
 	"syscall"
 	"time"
 
 	flag "github.com/spf13/pflag"
-	yaml "gopkg.in/yaml.v2"
 
 	"github.com/BurntSushi/toml"
 	"github.com/gorilla/mux"
 	"github.com/pkg/errors"
 
 	"golift.io/imessage"
+	"golift.io/securityspy"
 	"golift.io/subscribe"
 )
 
 var (
-	// Version of the aplication.
+	// Version of the aplication. Injected at build time.
 	Version = "development"
 	// Binary is the app name.
 	Binary = "motifini"
@@ -42,14 +41,16 @@ const (
 
 // Motifini is the main application struct.
 type Motifini struct {
-	*Flags
-	*Config
-	*http.Server
-	*subscribe.Subscribe
-	*imessage.Messages
+	Flags   *Flags
+	Config  *Config
+	Server  *http.Server
 	exports exportData
 	flag    *flag.FlagSet
 	stopChn chan os.Signal
+	Debug   *Log
+	Spy     *securityspy.Server
+	Subs    *subscribe.Subscribe
+	Msgs    *imessage.Messages
 }
 
 // Flags defines our application's CLI arguments.
@@ -61,14 +62,11 @@ type Flags struct {
 
 // Config struct
 type Config struct {
-	Cameras map[string]struct {
-		URL    string `toml:"url"`
-		Copy   bool   `toml:"copy"`
-		Height int    `toml:"height"`
-		Width  int    `toml:"width"`
-		Audio  bool   `toml:"audio"`
-		Number string `toml:"number"`
-	} `toml:"cameras"`
+	Global struct {
+		Port      int    `toml:"port"`
+		TempDir   string `toml:"temp_dir"`
+		StateFile string `toml:"state_file"`
+	} `toml:"motifini"`
 	Imessage struct {
 		AllowedTo     []string          `toml:"allowed_to"`
 		DBPath        string            `toml:"db_path"`
@@ -80,10 +78,6 @@ type Config struct {
 	SecuritySpy struct {
 		URL string `toml:"url"`
 	} `toml:"security_spy"`
-	Port      int    `toml:"port"`
-	TempDir   string `toml:"temp_dir"`
-	StateFile string `toml:"state_file"`
-	sync.Mutex
 }
 
 // Contains our expvar exports.
@@ -105,16 +99,17 @@ type exportData struct {
 func Start() error {
 	rand.Seed(time.Now().UnixNano())
 	log.SetFlags(log.LstdFlags)
-	m := &Motifini{Config: &Config{}, Flags: &Flags{}}
-	if m.ParseFlags(os.Args[1:]); m.VersionReq {
+	m := &Motifini{Config: &Config{}}
+	if m.ParseFlags(os.Args[1:]); m.Flags.VersionReq {
 		fmt.Printf("%s v%s\n", Binary, Version)
 		return nil // don't run anything else w/ version request.
 	}
-	if err := m.GetConfig(); err != nil {
+	m.Debug = &Log{Muted: !m.Flags.Debug}
+	if err := m.Config.ParseFile(m.Flags.ConfigFile); err != nil {
 		m.flag.Usage()
 		return err
 	}
-	m.Validate()
+	m.Config.Validate()
 	return m.Run()
 }
 
@@ -124,11 +119,12 @@ func (m *Motifini) Run() error {
 		return errors.New("cannot run twice")
 	}
 	log.Printf("Motifini %v Starting! (PID: %v)", Version, os.Getpid())
-	err := m.GetCamNumbers()
-	if err != nil {
-		log.Println("[WARN]", err)
+	var err error
+	spyConfig := &securityspy.Config{URL: m.Config.SecuritySpy.URL}
+	if m.Spy, err = securityspy.GetServer(spyConfig); err != nil {
+		return err
 	}
-	if m.Subscribe, err = subscribe.GetDB(m.StateFile); err != nil {
+	if m.Subs, err = subscribe.GetDB(m.Config.Global.StateFile); err != nil {
 		return errors.Wrap(err, "sub state")
 	}
 	if err := m.startiMessage(); err != nil {
@@ -143,89 +139,70 @@ func (m *Motifini) Run() error {
 
 func (m *Motifini) startiMessage() error {
 	var err error
-	m.Messages, err = imessage.Init(&imessage.Config{
-		SQLPath:   strings.Replace(m.Imessage.DBPath, "~", os.Getenv("HOME"), 1),
-		QueueSize: m.Imessage.QueueSize,
-		ClearMsgs: m.Imessage.ClearMessages,
-		Retries:   m.Imessage.Retries,
-		Interval:  m.Imessage.Interval,
+	m.Msgs, err = imessage.Init(&imessage.Config{
+		SQLPath:   strings.Replace(m.Config.Imessage.DBPath, "~", os.Getenv("HOME"), 1),
+		QueueSize: m.Config.Imessage.QueueSize,
+		ClearMsgs: m.Config.Imessage.ClearMessages,
+		Retries:   m.Config.Imessage.Retries,
+		Interval:  m.Config.Imessage.Interval,
+		ErrorLog:  &Log{Affix: "[ERROR] "},
+		DebugLog:  &Log{Affix: "[DEBUG] ", Muted: !m.Flags.Debug},
 	})
 	if err != nil {
 		return errors.Wrap(err, "initializing imessage")
 	}
-	m.Messages.ErrorLog = log.Printf
-	if m.Debug {
-		m.DebugLog = log.Printf
-	}
 	// Listen to all incoming imessages, pass them to our handler.
-	m.IncomingCall(".*", m.recvMessageHandler)
-	return errors.Wrap(m.Start(), "starting imessage")
+	m.Msgs.IncomingCall(".*", m.recvMessageHandler)
+	return errors.Wrap(m.Msgs.Start(), "starting imessage")
 }
 
 // ParseFlags runs the parser for CLI arguments.
 func (m *Motifini) ParseFlags(args []string) {
+	m.Flags = &Flags{}
 	m.flag = flag.NewFlagSet(Binary, flag.ExitOnError)
 	m.flag.Usage = func() {
 		fmt.Printf("Usage: %s [--config=filepath] [--version] [--debug]", Binary)
 		m.flag.PrintDefaults()
 	}
-	m.flag.StringVarP(&m.ConfigFile, "config", "c", "/usr/local/etc/"+Binary+".conf", "Config File")
-	m.flag.BoolVarP(&m.Debug, "debug", "D", false, "Turn on the Spam (default false).")
-	m.flag.BoolVarP(&m.VersionReq, "version", "v", false, "Print the version and exit")
+	m.flag.StringVarP(&m.Flags.ConfigFile, "config", "c", "/usr/local/etc/"+Binary+".conf", "Config File")
+	m.flag.BoolVarP(&m.Flags.Debug, "debug", "D", false, "Turn on the Spam.")
+	m.flag.BoolVarP(&m.Flags.VersionReq, "version", "v", false, "Print the version and exit")
 	_ = m.flag.Parse(args)
 }
 
-// GetConfig parses and returns our configuration data.
-// Supports any format for config file: xml, yaml, json, toml
-func (m *Motifini) GetConfig() error {
+// ParseFile parses and returns our configuration data.
+// Supports a few formats for config file: xml, json, toml
+func (c *Config) ParseFile(configFile string) error {
 	// Preload our defaults.
-	m.Config = &Config{}
-	log.Printf("Loading Configuration File: %s", m.ConfigFile)
-	switch buf, err := ioutil.ReadFile(m.ConfigFile); {
+	*c = Config{}
+	log.Printf("Loading Configuration File: %s", configFile)
+	switch buf, err := ioutil.ReadFile(configFile); {
 	case err != nil:
 		return err
-	case strings.Contains(m.ConfigFile, ".json"):
-		return json.Unmarshal(buf, m.Config)
-	case strings.Contains(m.ConfigFile, ".xml"):
-		return xml.Unmarshal(buf, m.Config)
-	case strings.Contains(m.ConfigFile, ".yaml"):
-		return yaml.Unmarshal(buf, m.Config)
+	case strings.Contains(configFile, ".json"):
+		return json.Unmarshal(buf, c)
+	case strings.Contains(configFile, ".xml"):
+		return xml.Unmarshal(buf, c)
 	default:
-		return toml.Unmarshal(buf, m.Config)
+		return toml.Unmarshal(buf, c)
 	}
 }
 
 // Validate makes sure the data in the config file is valid.
 func (c *Config) Validate() {
-	if c.Port == 0 {
-		c.Port = 8765
+	if c.Global.Port == 0 {
+		c.Global.Port = 8765
 	}
-	if c.TempDir == "" {
-		c.TempDir = "/tmp/"
-	} else if !strings.HasSuffix(c.TempDir, "/") {
-		c.TempDir += "/"
+	if c.Global.TempDir == "" {
+		c.Global.TempDir = "/tmp/"
+	} else if !strings.HasSuffix(c.Global.TempDir, "/") {
+		c.Global.TempDir += "/"
 	}
 	if c.Imessage.QueueSize < 20 {
 		c.Imessage.QueueSize = 20
 	} else if c.Imessage.QueueSize > 500 {
 		c.Imessage.QueueSize = 500
 	}
-	var ignore []string
-	c.Lock()
-	defer c.Unlock()
-	for cam, camData := range c.Cameras {
-		if camData.URL == "" || !strings.Contains(camData.URL, "://") {
-			log.Printf("[WARN] Ignoring Camera '%v' missing or invalid URL: %v", cam, camData.URL)
-			ignore = append(ignore, cam)
-		}
-	}
-	for _, cam := range ignore {
-		delete(c.Cameras, cam)
-	}
-	if len(c.Cameras) == 0 {
-		log.Printf("[WARN] No usable cameras defined in configuration!")
-	}
-
 	if c.SecuritySpy.URL != "" && !strings.Contains(c.SecuritySpy.URL, "://") {
 		log.Printf("[WARN] Security Spy URL appears malformed. Ignoring it and using AppleScript!")
 		c.SecuritySpy.URL = ""
@@ -250,13 +227,13 @@ func (m *Motifini) exportData() {
 	// Set static data now.
 	m.exports.startAt.Set(time.Now().String())
 	m.exports.version.Set(Version)
-	m.exports.configFile.Set(m.ConfigFile)
-	m.exports.listenPort.Set(int64(m.Port))
+	m.exports.configFile.Set(m.Flags.ConfigFile)
+	m.exports.listenPort.Set(int64(m.Config.Global.Port))
 }
 
 // StartServer creates the http routers and starts http server
 func (m *Motifini) StartServer() error {
-	log.Printf("Listening on port %d", m.Port)
+	log.Printf("Listening on port %d", m.Config.Global.Port)
 	r := mux.NewRouter()
 	r.Handle("/debug/vars", http.DefaultServeMux).Methods("GET")
 	r.HandleFunc("/api/v1.0/send/imessage/video/{to}/{camera}", m.sendVideoHandler).Methods("GET")
@@ -268,13 +245,13 @@ func (m *Motifini) StartServer() error {
 	r.PathPrefix("/").HandlerFunc(m.handleAll)
 	http.Handle("/", r)
 	m.Server = &http.Server{
-		Addr:         fmt.Sprintf("127.0.0.1:%d", m.Port),
+		Addr:         fmt.Sprintf("127.0.0.1:%d", m.Config.Global.Port),
 		WriteTimeout: time.Second * 15,
 		ReadTimeout:  time.Second * 15,
 		IdleTimeout:  time.Second * 60,
 		Handler:      r, // *mux.Router
 	}
-	return m.ListenAndServe()
+	return m.Server.ListenAndServe()
 }
 
 // taskPoller runs things at an interval and
@@ -285,22 +262,22 @@ func (m *Motifini) taskPoller() {
 	for {
 		select {
 		case <-ticker.C:
-			if err := m.GetCamNumbers(); err != nil {
-				log.Printf("[WARN] %v", err)
+			if err := m.Spy.Refresh(); err != nil {
+				log.Printf("[WARN] SecuritySpy Refresh: %v", err)
 			}
-			if err := m.SaveStateFile(); err != nil {
+			if err := m.Subs.SaveStateFile(); err != nil {
 				log.Printf("[ERROR] saving subscribers state file: %v", err)
 			}
 		case sig := <-m.stopChn:
 			log.Printf("Exiting! Caught Signal: %v", sig)
-			if err := m.SaveStateFile(); err != nil {
+			if err := m.Subs.SaveStateFile(); err != nil {
 				log.Printf("[ERROR] saving subscribers state file: %v", err)
 			}
 			// Give the http server up to 3 seconds to finish any open requests.
 			if m.Server != nil {
 				ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 				defer cancel()
-				_ = m.Shutdown(ctx)
+				_ = m.Server.Shutdown(ctx)
 			}
 			return
 		}

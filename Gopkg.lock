@@ -66,20 +66,20 @@
   version = "v1.0.3"
 
 [[projects]]
-  digest = "1:972c2427413d41a1e06ca4897e8528e5a1622894050e2f527b38ddf0f343f759"
+  digest = "1:8548c309c65a85933a625be5e7d52b6ac927ca30c56869fae58123b8a77a75e1"
   name = "github.com/stretchr/testify"
   packages = ["assert"]
   pruneopts = "UT"
-  revision = "ffdc059bfe9ce6a4e144ba849dbedead332c6053"
-  version = "v1.3.0"
+  revision = "221dbe5ed46703ee255b1da0dec05086f5035f62"
+  version = "v1.4.0"
 
 [[projects]]
   branch = "master"
-  digest = "1:5632b0c4d972da51b5914f09fc5c1a8535e9d8d5d937e95ef83c423a0dd67f13"
+  digest = "1:1a89869b4fcee01c6d2e596260fb1a0f1c9b4fb449f6ba5cd2e2faa73799ec95"
   name = "golang.org/x/sys"
   packages = ["unix"]
   pruneopts = "UT"
-  revision = "fae7ac547cb717d141c433a2a173315e216b64c4"
+  revision = "d223b2b6db03988709bac9e66576ad6ec0d83695"
 
 [[projects]]
   digest = "1:b936b904b1cfa23889f61635efcbc2ef3ea600c864378db0b164c29ff1cd762b"
@@ -90,12 +90,20 @@
   version = "v1.0.0"
 
 [[projects]]
-  branch = "master"
-  digest = "1:66282860dbab37411099bb34f00f60f588f40e12fbdfee6719a38d5a78f70df8"
+  digest = "1:51bf76e62dfeecaad2810c21f8b83a2e10ba25e829200351aca209d13dec3e99"
   name = "golift.io/imessage"
   packages = ["."]
   pruneopts = "UT"
-  revision = "b08d1f2ce0bf31f850815c403954b986bf5153fe"
+  revision = "0612a6f03b343493004f208fa9c497d4b760f209"
+  version = "v2.0.0"
+
+[[projects]]
+  digest = "1:2b77b61626c18da0dfac4bbe9ad4972dc3fa2dc132c1509b816ab6eedb9bf22a"
+  name = "golift.io/securityspy"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "f5638de9d7ab89e8e5e9be67a48e86a6ed276c41"
+  version = "v2.0.0"
 
 [[projects]]
   digest = "1:57227eab565a6634e2ef46d30bd15ca864cbbfa85ec323ca6530e179985ca307"
@@ -122,10 +130,9 @@
     "github.com/pkg/errors",
     "github.com/spf13/pflag",
     "github.com/stretchr/testify/assert",
-    "golift.io/ffmpeg",
     "golift.io/imessage",
+    "golift.io/securityspy",
     "golift.io/subscribe",
-    "gopkg.in/yaml.v2",
   ]
   solver-name = "gps-cdcl"
   solver-version = 1
