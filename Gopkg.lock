@@ -75,11 +75,11 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:1a89869b4fcee01c6d2e596260fb1a0f1c9b4fb449f6ba5cd2e2faa73799ec95"
+  digest = "1:9a9d873379b3a947a4a1606caea86ce9c4aec8e5b0fae406c5785b052664eb16"
   name = "golang.org/x/sys"
   packages = ["unix"]
   pruneopts = "UT"
-  revision = "d223b2b6db03988709bac9e66576ad6ec0d83695"
+  revision = "bbd175535a8b9969bb0b33f1502f681ee0b122bd"
 
 [[projects]]
   digest = "1:b936b904b1cfa23889f61635efcbc2ef3ea600c864378db0b164c29ff1cd762b"
@@ -125,6 +125,7 @@
   analyzer-name = "dep"
   analyzer-version = 1
   input-imports = [
+    "crawshaw.io/sqlite",
     "github.com/BurntSushi/toml",
     "github.com/gorilla/mux",
     "github.com/pkg/errors",

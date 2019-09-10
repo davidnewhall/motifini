@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"encoding/xml"
-	"expvar"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -16,12 +15,9 @@ import (
 	"syscall"
 	"time"
 
-	flag "github.com/spf13/pflag"
-
 	"github.com/BurntSushi/toml"
-	"github.com/gorilla/mux"
 	"github.com/pkg/errors"
-
+	"github.com/spf13/pflag"
 	"golift.io/imessage"
 	"golift.io/securityspy"
 	"golift.io/subscribe"
@@ -43,14 +39,13 @@ const (
 type Motifini struct {
 	Flags   *Flags
 	Config  *Config
-	Server  *http.Server
-	exports exportData
-	flag    *flag.FlagSet
-	stopChn chan os.Signal
 	Debug   *Log
+	Server  *http.Server
 	Spy     *securityspy.Server
 	Subs    *subscribe.Subscribe
 	Msgs    *imessage.Messages
+	exports exportData
+	stopChn chan os.Signal
 }
 
 // Flags defines our application's CLI arguments.
@@ -58,6 +53,7 @@ type Flags struct {
 	Debug      bool
 	VersionReq bool
 	ConfigFile string
+	*pflag.FlagSet
 }
 
 // Config struct
@@ -80,94 +76,35 @@ type Config struct {
 	} `toml:"security_spy"`
 }
 
-// Contains our expvar exports.
-type exportData struct {
-	*expvar.Map
-	startAt    expvar.String
-	version    expvar.String
-	configFile expvar.String
-	listenPort expvar.Int
-	httpVisits expvar.Int
-	defaultURL expvar.Int
-	videos     expvar.Int
-	pics       expvar.Int
-	texts      expvar.Int
-	errors     expvar.Int
+// ParseArgs runs the parser for CLI arguments.
+func (flag *Flags) ParseArgs(args []string) {
+	*flag = Flags{FlagSet: pflag.NewFlagSet(Binary, pflag.ExitOnError)}
+	flag.Usage = func() {
+		fmt.Printf("Usage: %s [--config=filepath] [--version] [--debug]", Binary)
+		flag.PrintDefaults()
+	}
+	flag.StringVarP(&flag.ConfigFile, "config", "c", "/usr/local/etc/"+Binary+".conf", "Config File")
+	flag.BoolVarP(&flag.Debug, "debug", "D", false, "Turn on the Spam.")
+	flag.BoolVarP(&flag.VersionReq, "version", "v", false, "Print the version and exit")
+	_ = flag.Parse(args) // flag.ExitOnError means this will never return != nil
 }
 
 // Start the daemon.
 func Start() error {
 	rand.Seed(time.Now().UnixNano())
 	log.SetFlags(log.LstdFlags)
-	m := &Motifini{Config: &Config{}}
-	if m.ParseFlags(os.Args[1:]); m.Flags.VersionReq {
+	m := &Motifini{Config: &Config{}, Flags: &Flags{}}
+	if m.Flags.ParseArgs(os.Args[1:]); m.Flags.VersionReq {
 		fmt.Printf("%s v%s\n", Binary, Version)
 		return nil // don't run anything else w/ version request.
 	}
 	m.Debug = &Log{Muted: !m.Flags.Debug}
 	if err := m.Config.ParseFile(m.Flags.ConfigFile); err != nil {
-		m.flag.Usage()
+		m.Flags.Usage()
 		return err
 	}
 	m.Config.Validate()
 	return m.Run()
-}
-
-// Run starts the app after all configs are collected.
-func (m *Motifini) Run() error {
-	if m.stopChn != nil {
-		return errors.New("cannot run twice")
-	}
-	log.Printf("Motifini %v Starting! (PID: %v)", Version, os.Getpid())
-	var err error
-	spyConfig := &securityspy.Config{URL: m.Config.SecuritySpy.URL}
-	if m.Spy, err = securityspy.GetServer(spyConfig); err != nil {
-		return err
-	}
-	if m.Subs, err = subscribe.GetDB(m.Config.Global.StateFile); err != nil {
-		return errors.Wrap(err, "sub state")
-	}
-	if err := m.startiMessage(); err != nil {
-		return err
-	}
-	m.exportData()
-	// StopChan is how we exit. Can be used in tests.
-	m.stopChn = make(chan os.Signal, 1)
-	go m.taskPoller()
-	return m.StartServer()
-}
-
-func (m *Motifini) startiMessage() error {
-	var err error
-	m.Msgs, err = imessage.Init(&imessage.Config{
-		SQLPath:   strings.Replace(m.Config.Imessage.DBPath, "~", os.Getenv("HOME"), 1),
-		QueueSize: m.Config.Imessage.QueueSize,
-		ClearMsgs: m.Config.Imessage.ClearMessages,
-		Retries:   m.Config.Imessage.Retries,
-		Interval:  m.Config.Imessage.Interval,
-		ErrorLog:  &Log{Affix: "[ERROR] "},
-		DebugLog:  &Log{Affix: "[DEBUG] ", Muted: !m.Flags.Debug},
-	})
-	if err != nil {
-		return errors.Wrap(err, "initializing imessage")
-	}
-	// Listen to all incoming imessages, pass them to our handler.
-	m.Msgs.IncomingCall(".*", m.recvMessageHandler)
-	return errors.Wrap(m.Msgs.Start(), "starting imessage")
-}
-
-// ParseFlags runs the parser for CLI arguments.
-func (m *Motifini) ParseFlags(args []string) {
-	m.Flags = &Flags{}
-	m.flag = flag.NewFlagSet(Binary, flag.ExitOnError)
-	m.flag.Usage = func() {
-		fmt.Printf("Usage: %s [--config=filepath] [--version] [--debug]", Binary)
-		m.flag.PrintDefaults()
-	}
-	m.flag.StringVarP(&m.Flags.ConfigFile, "config", "c", "/usr/local/etc/"+Binary+".conf", "Config File")
-	m.flag.BoolVarP(&m.Flags.Debug, "debug", "D", false, "Turn on the Spam.")
-	m.flag.BoolVarP(&m.Flags.VersionReq, "version", "v", false, "Print the version and exit")
-	_ = m.flag.Parse(args)
 }
 
 // ParseFile parses and returns our configuration data.
@@ -211,47 +148,47 @@ func (c *Config) Validate() {
 	}
 }
 
-// exportData makes all the expvar data available. Only needs to run once.
-func (m *Motifini) exportData() {
-	m.exports.Map = GetPublishedMap("iMessageRelay")
-	m.exports.Set("app_started", &m.exports.startAt)
-	m.exports.Set("app_version", &m.exports.version)
-	m.exports.Set("config_file", &m.exports.configFile)
-	m.exports.Set("listen_port", &m.exports.listenPort)
-	m.exports.Set("http_visits", &m.exports.httpVisits)
-	m.exports.Set("default_url", &m.exports.defaultURL)
-	m.exports.Set("videos_sent", &m.exports.videos)
-	m.exports.Set("photos_sent", &m.exports.pics)
-	m.exports.Set("messge_sent", &m.exports.texts)
-	m.exports.Set("error_count", &m.exports.errors)
-	// Set static data now.
-	m.exports.startAt.Set(time.Now().String())
-	m.exports.version.Set(Version)
-	m.exports.configFile.Set(m.Flags.ConfigFile)
-	m.exports.listenPort.Set(int64(m.Config.Global.Port))
+// Run starts the app after all configs are collected.
+func (m *Motifini) Run() error {
+	if m.stopChn != nil {
+		return errors.New("cannot run twice")
+	}
+	log.Printf("Motifini %v Starting! (PID: %v)", Version, os.Getpid())
+	var err error
+	spyConfig := &securityspy.Config{URL: m.Config.SecuritySpy.URL}
+	if m.Spy, err = securityspy.GetServer(spyConfig); err != nil {
+		return err
+	}
+	if m.Subs, err = subscribe.GetDB(m.Config.Global.StateFile); err != nil {
+		return errors.Wrap(err, "sub state")
+	}
+	if err := m.startiMessage(); err != nil {
+		return err
+	}
+	m.exportData()
+	// StopChan is how we exit. Can be used in tests.
+	m.stopChn = make(chan os.Signal, 1)
+	go m.taskPoller()
+	return m.StartServer()
 }
 
-// StartServer creates the http routers and starts http server
-func (m *Motifini) StartServer() error {
-	log.Printf("Listening on port %d", m.Config.Global.Port)
-	r := mux.NewRouter()
-	r.Handle("/debug/vars", http.DefaultServeMux).Methods("GET")
-	r.HandleFunc("/api/v1.0/send/imessage/video/{to}/{camera}", m.sendVideoHandler).Methods("GET")
-	r.HandleFunc("/api/v1.0/send/imessage/picture/{to}/{camera}", m.sendPictureHandler).Methods("GET")
-	r.HandleFunc("/api/v1.0/send/imessage/msg/{to}", m.sendMessageHandler).Methods("GET").Queries("msg", "{msg}")
-	r.HandleFunc("/api/v1.0/event/{cmd:remove|update|add|notify}/{event}", m.eventsHandler).Methods("POST")
-	// need to figure out what user interface will use these methods.
-	r.HandleFunc("/api/v1.0/sub/{cmd:subscribe|unsubscribe|pause|unpause}/{api}/{contact}/{event}", m.subsHandler).Methods("GET")
-	r.PathPrefix("/").HandlerFunc(m.handleAll)
-	http.Handle("/", r)
-	m.Server = &http.Server{
-		Addr:         fmt.Sprintf("127.0.0.1:%d", m.Config.Global.Port),
-		WriteTimeout: time.Second * 15,
-		ReadTimeout:  time.Second * 15,
-		IdleTimeout:  time.Second * 60,
-		Handler:      r, // *mux.Router
+func (m *Motifini) startiMessage() error {
+	var err error
+	m.Msgs, err = imessage.Init(&imessage.Config{
+		SQLPath:   strings.Replace(m.Config.Imessage.DBPath, "~", os.Getenv("HOME"), 1),
+		QueueSize: m.Config.Imessage.QueueSize,
+		ClearMsgs: m.Config.Imessage.ClearMessages,
+		Retries:   m.Config.Imessage.Retries,
+		Interval:  m.Config.Imessage.Interval,
+		ErrorLog:  &Log{Affix: "[ERROR] "},
+		DebugLog:  &Log{Affix: "[DEBUG] ", Muted: !m.Flags.Debug},
+	})
+	if err != nil {
+		return errors.Wrap(err, "initializing imessage")
 	}
-	return m.Server.ListenAndServe()
+	// Listen to all incoming imessages, pass them to our handler.
+	m.Msgs.IncomingCall(".*", m.recvMessageHandler)
+	return errors.Wrap(m.Msgs.Start(), "starting imessage")
 }
 
 // taskPoller runs things at an interval and
