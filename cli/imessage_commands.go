@@ -12,69 +12,6 @@ import (
 	"golift.io/subscribe"
 )
 
-// recvMessageHandler is a callback binding from the imessage library.
-func (m *Motifini) recvMessageHandler(msg imessage.Incoming) {
-	id := ReqID(4)
-	text := strings.Fields(msg.Text)
-	reply := imessage.Outgoing{To: msg.From, ID: id}
-
-	requestor, err := m.Subs.GetSubscriber(msg.From, APIiMessage)
-	if err != nil {
-		// Every account we receive a message from gets logged as a subscriber with no subscriptions.
-		requestor = m.Subs.CreateSub(msg.From, APIiMessage, len(m.Subs.GetAdmins()) == 0, false)
-	}
-
-	if !requestor.Ignored {
-		switch strings.ToLower(text[0]) {
-		case "cams":
-			reply.Text = m.iMessageCams()
-		case "events":
-			reply.Text = m.iMessageEvents()
-		case "pics":
-			reply.Text = m.iMessagePics(msg.From, id, text)
-		case "sub":
-			reply.Text = m.iMessageSub(text, requestor)
-		case "subs":
-			reply.Text = m.iMessageSubs(text, requestor)
-		case "unsub":
-			reply.Text = m.iMessageUnsub(text, requestor)
-		case "stop":
-			reply.Text = m.iMessageStop(text, requestor)
-		case "help":
-			reply.Text = m.iMessageHelp()
-		}
-	}
-	if requestor.Admin {
-		reply.Text += m.handleAdminCmds(text)
-	}
-	if reply.Text != "" {
-		m.Msgs.Send(reply)
-	}
-}
-
-func (m *Motifini) handleAdminCmds(text []string) string {
-	switch strings.ToLower(text[0]) {
-	case "ignores":
-		return m.iMessageAdminIgnores()
-	case "ignore":
-		return m.iMessageAdminIgnore(text)
-	case "unignore":
-		return m.iMessageAdminUnignore(text)
-	case "admins":
-		return m.iMessageAdminAdmins()
-	case "admin":
-		return m.iMessageAdminAdmin(text)
-	case "unadmin":
-		return m.iMessageAdminUnadmin(text)
-	case "subs":
-		return m.iMessageAdminSubs(text)
-	case "help":
-		return m.iMessageAdminHelp()
-	default:
-		return ""
-	}
-}
-
 func (m *Motifini) iMessageHelp() string {
 	msg := `- iMessageSpy Help -
 Available User Commands:

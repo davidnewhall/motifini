@@ -6,9 +6,7 @@ import (
 	"strings"
 
 	"github.com/gorilla/mux"
-	"golift.io/imessage"
 	"golift.io/securityspy"
-	"golift.io/subscribe"
 )
 
 // /api/v1.0/event/{cmd:remove|update|add|notify}/{event}
@@ -42,20 +40,4 @@ func (m *Motifini) notifyHandler(id string, vars map[string]string, w http.Respo
 	msg := r.FormValue("msg")
 	m.sendFileOrMsg(id, msg, path, subs)
 	m.finishReq(w, r, id, code, reply, msg)
-}
-
-func (m *Motifini) sendFileOrMsg(id, msg, path string, subs []*subscribe.Subscriber) {
-	for _, sub := range subs {
-		switch sub.API {
-		case APIiMessage:
-			if path != "" {
-				m.Msgs.Send(imessage.Outgoing{ID: id, To: sub.Contact, Text: path, File: true, Call: m.pictureCallback})
-			}
-			if msg != "" {
-				m.Msgs.Send(imessage.Outgoing{ID: id, To: sub.Contact, Text: msg})
-			}
-		default:
-			log.Printf("[%v] Unknown Notification API '%v' for contact: %v", id, sub.API, sub.Contact)
-		}
-	}
 }

@@ -45,7 +45,7 @@ type Motifini struct {
 	Subs    *subscribe.Subscribe
 	Msgs    *imessage.Messages
 	exports exportData
-	stopChn chan os.Signal
+	sigChan chan os.Signal
 }
 
 // Flags defines our application's CLI arguments.
@@ -150,77 +150,56 @@ func (c *Config) Validate() {
 
 // Run starts the app after all configs are collected.
 func (m *Motifini) Run() error {
-	if m.stopChn != nil {
+	if m.sigChan != nil {
 		return errors.New("cannot run twice")
 	}
 	log.Printf("Motifini %v Starting! (PID: %v)", Version, os.Getpid())
 	var err error
+	log.Printf("Connecting to SecuritySpy: %v", m.Config.SecuritySpy.URL)
 	spyConfig := &securityspy.Config{URL: m.Config.SecuritySpy.URL}
 	if m.Spy, err = securityspy.GetServer(spyConfig); err != nil {
 		return err
 	}
+	log.Printf("Opening Subscriber Database: %v", m.Config.Global.StateFile)
 	if m.Subs, err = subscribe.GetDB(m.Config.Global.StateFile); err != nil {
 		return errors.Wrap(err, "sub state")
 	}
+	log.Printf("Opening iMessage Database: %v", m.Config.Imessage.DBPath)
 	if err := m.startiMessage(); err != nil {
 		return err
 	}
 	m.exportData()
 	// StopChan is how we exit. Can be used in tests.
-	m.stopChn = make(chan os.Signal, 1)
+	m.sigChan = make(chan os.Signal, 1)
 	go m.taskPoller()
 	go m.processEventStream()
 	return m.StartServer()
 }
 
-func (m *Motifini) startiMessage() error {
-	var err error
-	m.Msgs, err = imessage.Init(&imessage.Config{
-		SQLPath:   strings.Replace(m.Config.Imessage.DBPath, "~", os.Getenv("HOME"), 1),
-		QueueSize: m.Config.Imessage.QueueSize,
-		ClearMsgs: m.Config.Imessage.ClearMessages,
-		Retries:   m.Config.Imessage.Retries,
-		Interval:  m.Config.Imessage.Interval,
-		ErrorLog:  &Log{Affix: "[ERROR] "},
-		DebugLog:  &Log{Affix: "[DEBUG] ", Muted: !m.Flags.Debug},
-	})
-	if err != nil {
-		return errors.Wrap(err, "initializing imessage")
+// taskPoller runs things at an interval and looks for an exit signal
+// then shuts down the http server and event stream watcher.
+func (m *Motifini) taskPoller() {
+	signal.Notify(m.sigChan, os.Interrupt, syscall.SIGTERM, syscall.SIGQUIT)
+	log.Printf("Exiting! Caught Signal: %v", <-m.sigChan)
+	m.save()
+	if m.Spy.Events.Running {
+		m.Spy.Events.Stop()
 	}
-	// Listen to all incoming imessages, pass them to our handler.
-	m.Msgs.IncomingCall(".*", m.recvMessageHandler)
-	return errors.Wrap(m.Msgs.Start(), "starting imessage")
+	// Give the http server up to 3 seconds to finish any open requests.
+	if m.Server != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		defer cancel()
+		_ = m.Server.Shutdown(ctx)
+	}
+	log.Printf("Good bye!")
 }
 
-// taskPoller runs things at an interval and
-// looks for an exit signal to shut down the http server.
-func (m *Motifini) taskPoller() {
-	ticker := time.NewTicker(10 * time.Minute)
-	signal.Notify(m.stopChn, os.Interrupt, syscall.SIGTERM, syscall.SIGQUIT)
-	for {
-		select {
-		case <-ticker.C:
-			if err := m.Spy.Refresh(); err != nil {
-				log.Printf("[WARN] SecuritySpy Refresh: %v", err)
-			}
-			if err := m.Subs.SaveStateFile(); err != nil {
-				log.Printf("[ERROR] saving subscribers state file: %v", err)
-			}
-		case sig := <-m.stopChn:
-			log.Printf("Exiting! Caught Signal: %v", sig)
-			if m.Spy.Events.Running {
-				m.Spy.Events.Stop()
-			}
-			if err := m.Subs.SaveStateFile(); err != nil {
-				log.Printf("[ERROR] saving subscribers state file: %v", err)
-			}
-			// Give the http server up to 3 seconds to finish any open requests.
-			if m.Server != nil {
-				ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-				defer cancel()
-				_ = m.Server.Shutdown(ctx)
-			}
-			return
-		}
+// save just saves the state file/db and logs any error.
+// called from a few places. SaveStateFile() provides the file lock.
+func (m *Motifini) save() {
+	if err := m.Subs.SaveStateFile(); err != nil {
+		log.Printf("[ERROR] saving subscribers state file: %v", err)
+		return
 	}
+	m.Debug.Print("[DEBUG] Saved State File")
 }

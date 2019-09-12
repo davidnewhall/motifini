@@ -3,7 +3,6 @@ package cli
 import (
 	"log"
 	"net/http"
-	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -66,28 +65,6 @@ func (m *Motifini) processVideoRequest(id string, cam *securityspy.Camera, to st
 	}
 }
 
-// videoCallback runs in a go routine after the video iMessage is processed.
-func (m *Motifini) videoCallback(msg *imessage.Response) {
-	var size int64
-	if fi, errStat := os.Stat(msg.Text); errStat == nil {
-		size = fi.Size()
-	}
-	if msg.Errs != nil {
-		m.exports.errors.Add(1)
-		log.Printf("[ERROR] [%v] msgs.Msgs.Send '%v': %v", msg.ID, msg.To, msg.Errs)
-	} else {
-		m.exports.videos.Add(1)
-		log.Printf("[REPLY] [%v] Video '%v' (%.2fMb) sent to: %v", msg.ID, msg.Text, float32(size)/1024/1024, msg.To)
-	}
-	// Might take a while to upload.
-	time.Sleep(20 * time.Minute)
-	if err := os.Remove(msg.Text); err != nil && !os.IsNotExist(err) {
-		log.Printf("[ERROR] [%v] Remove(path): %v", msg.ID, err)
-		return
-	}
-	m.Debug.Printf("[%v] Deleted: %v", msg.ID, msg.Text)
-}
-
 // /api/v1.0/send/imessage/picture/{to}/{camera}
 func (m *Motifini) sendPictureHandler(w http.ResponseWriter, r *http.Request) {
 	m.exports.httpVisits.Add(1)
@@ -126,26 +103,6 @@ func (m *Motifini) sendPictureHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	// There's a better way to do this....
 	m.finishReq(w, r, id, code, reply, "-")
-}
-
-// This runs in a go routine after the iMessage is processed.
-// Possibly more than once...
-func (m *Motifini) pictureCallback(msg *imessage.Response) {
-	if msg.Errs != nil {
-		m.exports.errors.Add(1)
-		log.Printf("[ERROR] [%v] msgs.Msgs.Send '%v': %v", msg.ID, msg.To, msg.Errs)
-
-	} else {
-		m.exports.pics.Add(1)
-		log.Printf("[REPLY] [%v] Picture '%v' sent to: %v", msg.ID, msg.Text, msg.To)
-	}
-	// Might take a while to upload.
-	time.Sleep(5 * time.Second)
-	if err := os.Remove(msg.Text); err != nil && !os.IsNotExist(err) {
-		log.Printf("[ERROR] [%v] Remove(path): %v", msg.ID, err)
-	} else if err == nil {
-		m.Debug.Printf("[%v] Deleted: %v", msg.ID, msg.Text)
-	}
 }
 
 // /api/v1.0/send/imessage/msg

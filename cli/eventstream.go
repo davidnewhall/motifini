@@ -34,15 +34,18 @@ func (m *Motifini) processEventStream() {
 			log.Println("[INFO] SecuritySpy Event Stream Connected!")
 		case securityspy.EventStreamDisconnect:
 			log.Println("[ERROR] SecuritySpy Event Stream Disconnected")
-
+		case securityspy.EventConfigChange:
+			m.save()
+			fallthrough
 		default:
 			camName := ""
 			if event.Camera != nil {
 				camName = "camera: " + event.Camera.Name
 			}
-			m.Debug.Println("[EVENT]", event.Type, camName, event.String(), event.Msg)
+			m.Debug.Println("[EVENT]", event.String(), camName, event.Msg)
 		}
 	}
+	log.Println("[INFO] Event Stream Watcher Closed")
 }
 
 func (m *Motifini) handleCameraMotion(e securityspy.Event) {

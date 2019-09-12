@@ -11,7 +11,7 @@ import (
 
 // StartServer creates the http routers and starts http server
 func (m *Motifini) StartServer() error {
-	log.Printf("Listening on port %d", m.Config.Global.Port)
+	log.Printf("Webserver listening on port %d", m.Config.Global.Port)
 	r := mux.NewRouter()
 	r.Handle("/debug/vars", http.DefaultServeMux).Methods("GET")
 	r.HandleFunc("/api/v1.0/send/imessage/video/{to}/{camera}", m.sendVideoHandler).Methods("GET")
