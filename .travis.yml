@@ -26,8 +26,6 @@ addons:
     - zip
 go:
   - 1.12.x
-services:
-  - docker
 install:
   - mkdir -p $GOPATH/bin
   # Download the `dep` binary to bin folder in $GOPATH
@@ -44,11 +42,7 @@ before_script:
   - source .metadata.sh
   - make vendor
 script:
-  # Test Go and Docker.
   - make test
-  - make docker
-  # Test built docker image.
-  - docker run $BINARY -v 2>&1 | grep -Eq "^$BINARY v$VERSION"
   # Build everything
   - rvm 2.0.0 do make formula
 after_success:

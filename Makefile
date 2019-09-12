@@ -20,28 +20,6 @@ else
 	ITERATION:=$(_ITERATION)
 endif
 
-# rpm is wierd and changes - to _ in versions.
-RPMVERSION:=$(shell echo $(VERSION) | tr -- - _)
-
-PACKAGE_SCRIPTS=
-ifeq ($(FORMULA),service)
-	PACKAGE_SCRIPTS=--after-install scripts/after-install.sh --before-remove scripts/before-remove.sh
-endif
-
-define PACKAGE_ARGS
-$(PACKAGE_SCRIPTS) \
---name $(BINARY) \
---deb-no-default-config-files \
---rpm-os linux \
---iteration $(ITERATION) \
---license $(LICENSE) \
---url $(URL) \
---maintainer "$(MAINT)" \
---vendor "$(VENDOR)" \
---description "$(DESC)" \
---config-files "/etc/$(BINARY)/$(CONFIG_FILE)"
-endef
-
 # Makefile targets follow.
 
 all: build

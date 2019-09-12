@@ -46,27 +46,33 @@ func (m *Motifini) recvMessageHandler(msg imessage.Incoming) {
 		}
 	}
 	if requestor.Admin {
-		switch strings.ToLower(text[0]) {
-		case "ignores":
-			reply.Text = m.iMessageAdminIgnores()
-		case "ignore":
-			reply.Text = m.iMessageAdminIgnore(text)
-		case "unignore":
-			reply.Text = m.iMessageAdminUnignore(text)
-		case "admins":
-			reply.Text = m.iMessageAdminAdmins()
-		case "admin":
-			reply.Text = m.iMessageAdminAdmin(text)
-		case "unadmin":
-			reply.Text = m.iMessageAdminUnadmin(text)
-		case "subs":
-			reply.Text += m.iMessageAdminSubs(text)
-		case "help":
-			reply.Text += m.iMessageAdminHelp()
-		}
-		if reply.Text != "" {
-			m.Msgs.Send(reply)
-		}
+		reply.Text += m.handleAdminCmds(text)
+	}
+	if reply.Text != "" {
+		m.Msgs.Send(reply)
+	}
+}
+
+func (m *Motifini) handleAdminCmds(text []string) string {
+	switch strings.ToLower(text[0]) {
+	case "ignores":
+		return m.iMessageAdminIgnores()
+	case "ignore":
+		return m.iMessageAdminIgnore(text)
+	case "unignore":
+		return m.iMessageAdminUnignore(text)
+	case "admins":
+		return m.iMessageAdminAdmins()
+	case "admin":
+		return m.iMessageAdminAdmin(text)
+	case "unadmin":
+		return m.iMessageAdminUnadmin(text)
+	case "subs":
+		return m.iMessageAdminSubs(text)
+	case "help":
+		return m.iMessageAdminHelp()
+	default:
+		return ""
 	}
 }
 
