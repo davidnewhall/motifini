@@ -19,10 +19,8 @@ before_script:
   # Create your own deploy key, tar it, and encrypt the file to make this work. Optionally add a bitly_token file to the archive.
   - openssl aes-256-cbc -K $encrypted_ef062ca318f1_key -iv $encrypted_ef062ca318f1_iv -in .secret-files.tar.enc -out .secret-files.tar -d
   - tar -xf .secret-files.tar
-  - cat .metadata.sh
   - source .metadata.sh
   - make vendor
-  - cat .metadata.make
 script:
   - make test
   # Build everything
