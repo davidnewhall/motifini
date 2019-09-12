@@ -17,12 +17,8 @@ go_import_path: github.com/davidnewhall/motifini
 addons:
   apt:
     packages:
-    - ruby-dev
-    - rpm
     - build-essential
     - git
-    - libgnome-keyring-dev
-    - fakeroot
     - zip
 go:
   - 1.12.x
