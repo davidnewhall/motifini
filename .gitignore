@@ -1,4 +1,36 @@
-/motifini
-/motifini*.gz
+# In case you copy a config in locally.
+/motifni.conf
+
+# These are all built by the Makefile.
+# Binaries, Packages, Formula, Manual
+/motifni
+/motifni*.gz
+/motifni*.zip
+/motifni*.1
+/motifni*.deb
+/motifni*.rpm
+/motifni.*.arm
+/motifni.exe
+/motifni.*.macos
+/motifni.*.linux
+/motifni.rb
+
+# Random things the Makefile creates.
+*.sha256
 /vendor
+/package_build_*
+/release
+MANUAL
+MANUAL.html
+README
+README.html
+/motifni_manual.html
+/homebrew_release_repo
+/.metadata.make
+/.secret-files.tar
+/bitly_token
+/github_deploy_key
+
+# extra junk
+.DS_Store
 *~
