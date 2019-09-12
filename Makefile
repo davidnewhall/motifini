@@ -3,7 +3,7 @@
 # See more: https://github.com/golift/application-builder
 
 # Suck in our application information.
-IGNORED:=$(shell bash -c "source .metadata.sh ; env | sed 's/=/:=/;s/^/export /' > .metadata.make")
+IGNORED:=$(shell bash -c "source .metadata.sh ; env | grep -iv 'func_' | sed 's/=/:=/;s/^/export /' > .metadata.make")
 
 # md2roff turns markdown into man files and html files.
 MD2ROFF_BIN=github.com/github/hub/md2roff-bin
