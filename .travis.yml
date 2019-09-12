@@ -22,6 +22,7 @@ before_script:
   - cat .metadata.sh
   - source .metadata.sh
   - make vendor
+  - cat .metadata.make
 script:
   - make test
   # Build everything
