@@ -13,7 +13,7 @@ git:
   depth: false
 # If your repo name is different than the binary name, you may need to set this.
 # Either set this, or change the $GHPATH variable in .metadata.sh.
-go_import_path: github.com/golift/hello-world
+go_import_path: github.com/davidnewhall/motifini
 addons:
   apt:
     packages:

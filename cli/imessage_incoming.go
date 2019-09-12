@@ -30,7 +30,7 @@ func (m *Motifini) recvMessageHandler(msg imessage.Incoming) {
 		case "cams":
 			reply.Text = m.iMessageCams()
 		case "events":
-			reply.Text = m.iMessageEvents(text)
+			reply.Text = m.iMessageEvents()
 		case "pics":
 			reply.Text = m.iMessagePics(msg.From, id, text)
 		case "sub":
@@ -99,7 +99,8 @@ func (m *Motifini) iMessageAdminAdmins() string {
 	admins := m.Subs.GetAdmins()
 	msg := "There are " + strconv.Itoa(len(admins)) + " admins:"
 	for i, admin := range admins {
-		msg += "\n" + strconv.Itoa(i+1) + ": (" + admin.API + ") " + admin.Contact + " (" + strconv.Itoa(len(admin.Subscriptions())) + " subscriptions)"
+		msg += fmt.Sprintf("\n%v: (%v) %v (%v subscriptions)",
+			strconv.Itoa(i+1), admin.API, admin.Contact, len(admin.Subscriptions()))
 	}
 	return msg
 }
@@ -108,7 +109,8 @@ func (m *Motifini) iMessageAdminIgnores() string {
 	ignores := m.Subs.GetIgnored()
 	msg := "There are " + strconv.Itoa(len(ignores)) + " ignored subscribers:"
 	for i, ignore := range ignores {
-		msg += "\n" + strconv.Itoa(i+1) + ": (" + ignore.API + ") " + ignore.Contact + " (" + strconv.Itoa(len(ignore.Subscriptions())) + " subscriptions)"
+		msg += fmt.Sprintf("\n%v: (%v) %v (%v subscriptions)",
+			strconv.Itoa(i+1), ignore.API, ignore.Contact, len(ignore.Subscriptions()))
 	}
 	return msg
 }
@@ -124,7 +126,8 @@ func (m *Motifini) iMessageAdminSubs(text []string) string {
 			} else if target.Admin {
 				x = ", admin"
 			}
-			msg += "\n" + strconv.Itoa(i+1) + ": (" + target.API + ") " + target.Contact + x + " (" + strconv.Itoa(len(target.Subscriptions())) + " subscriptions)"
+			msg += fmt.Sprintf("\n%v: (%v) %v%v (%v subscriptions)",
+				strconv.Itoa(i+1), target.API, target.Contact, x, len(target.Subscriptions()))
 		}
 		return msg
 	}
@@ -223,7 +226,7 @@ func (m *Motifini) iMessageCams() string {
 	return msg
 }
 
-func (m *Motifini) iMessageEvents(text []string) string {
+func (m *Motifini) iMessageEvents() string {
 	events := m.Subs.GetEvents()
 	msg := "There are " + strconv.Itoa(len(events)) + " events:\n"
 	i := 0

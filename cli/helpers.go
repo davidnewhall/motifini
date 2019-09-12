@@ -7,7 +7,8 @@ import (
 )
 
 func (m *Motifini) finishReq(w http.ResponseWriter, r *http.Request, id string, code int, reply string, cmd string) {
-	log.Printf(`[REQST] [%v] %v %v "%v %v" %d %d "%v" "%v"`, id, r.RemoteAddr, r.Host, r.Method, r.URL.String(), code, len(reply), r.UserAgent(), cmd)
+	log.Printf(`[REQST] [%v] %v %v "%v %v" %d %d "%v" "%v"`,
+		id, r.RemoteAddr, r.Host, r.Method, r.URL.String(), code, len(reply), r.UserAgent(), cmd)
 	w.WriteHeader(code)
 	if _, err := w.Write([]byte(reply)); err != nil {
 		log.Printf("[ERROR] [%v] Error Sending Reply: %v", id, err)

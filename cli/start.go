@@ -24,14 +24,14 @@ import (
 )
 
 var (
-	// Version of the aplication. Injected at build time.
+	// Version of the application. Injected at build time.
 	Version = "development"
 	// Binary is the app name.
 	Binary = "motifini"
 )
 
 const (
-	// APIiMessage is just an identifer for an imessage contact type.
+	// APIiMessage is just an identifier for an imessage contact type.
 	APIiMessage = "imessage"
 )
 
