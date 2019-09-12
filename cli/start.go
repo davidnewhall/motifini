@@ -45,7 +45,6 @@ type Motifini struct {
 	Subs    *subscribe.Subscribe
 	Msgs    *imessage.Messages
 	exports exportData
-	sigChan chan os.Signal
 }
 
 // Flags defines our application's CLI arguments.
@@ -150,9 +149,6 @@ func (c *Config) Validate() {
 
 // Run starts the app after all configs are collected.
 func (m *Motifini) Run() error {
-	if m.sigChan != nil {
-		return errors.New("cannot run twice")
-	}
 	log.Printf("Motifini %v Starting! (PID: %v)", Version, os.Getpid())
 	var err error
 	log.Printf("Connecting to SecuritySpy: %v", m.Config.SecuritySpy.URL)
@@ -164,34 +160,36 @@ func (m *Motifini) Run() error {
 	if m.Subs, err = subscribe.GetDB(m.Config.Global.StateFile); err != nil {
 		return errors.Wrap(err, "sub state")
 	}
-	log.Printf("Opening iMessage Database: %v", m.Config.Imessage.DBPath)
+	log.Printf("Watching iMessage Database: %v", m.Config.Imessage.DBPath)
 	if err := m.startiMessage(); err != nil {
 		return err
 	}
 	m.exportData()
 	// StopChan is how we exit. Can be used in tests.
-	m.sigChan = make(chan os.Signal, 1)
 	go m.taskPoller()
 	go m.processEventStream()
+	defer func() {
+		if m.Spy.Events.Running {
+			m.Spy.Events.Stop()
+		}
+		log.Printf("[INFO] Good bye!")
+	}()
 	return m.StartServer()
 }
 
 // taskPoller runs things at an interval and looks for an exit signal
 // then shuts down the http server and event stream watcher.
 func (m *Motifini) taskPoller() {
-	signal.Notify(m.sigChan, os.Interrupt, syscall.SIGTERM, syscall.SIGQUIT)
-	log.Printf("Exiting! Caught Signal: %v", <-m.sigChan)
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM, syscall.SIGQUIT)
+	log.Printf("[INFO] Exiting! Caught Signal: %v", <-sigChan)
 	m.save()
-	if m.Spy.Events.Running {
-		m.Spy.Events.Stop()
-	}
 	// Give the http server up to 3 seconds to finish any open requests.
 	if m.Server != nil {
 		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 		defer cancel()
 		_ = m.Server.Shutdown(ctx)
 	}
-	log.Printf("Good bye!")
 }
 
 // save just saves the state file/db and logs any error.

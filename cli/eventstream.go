@@ -45,7 +45,7 @@ func (m *Motifini) processEventStream() {
 			m.Debug.Println("[EVENT]", event.String(), camName, event.Msg)
 		}
 	}
-	log.Println("[INFO] Event Stream Watcher Closed")
+	log.Println("[WARN] Event Stream Watcher Closed")
 }
 
 func (m *Motifini) handleCameraMotion(e securityspy.Event) {

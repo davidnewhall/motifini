@@ -9,6 +9,6 @@ import (
 
 func main() {
 	if err := cli.Start(); err != nil && err != http.ErrServerClosed {
-		log.Println("[ERROR]", err)
+		log.Fatalln("[ERROR]", err)
 	}
 }
