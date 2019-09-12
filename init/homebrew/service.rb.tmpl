@@ -31,7 +31,7 @@ class {{Class}} < Formula
 
   def caveats
     <<-EOS
-  Edit the config file at #{etc}/#{name}/{{CONFIG_FILE}} then start #{name} with
+  Edit the config file at #{etc}/{{CONFIG_FILE}} then start #{name} with
   brew services start #{name} ~ log file: #{var}/log/#{name}.log
   The manual explains the config file options: man #{name}
     EOS
@@ -51,7 +51,7 @@ class {{Class}} < Formula
          <array>
              <string>#{bin}/#{name}</string>
              <string>--config</string>
-             <string>#{etc}/#{name}/{{CONFIG_FILE}}</string>
+             <string>#{etc}/{{CONFIG_FILE}}</string>
          </array>
          <key>RunAtLoad</key>
          <true/>
