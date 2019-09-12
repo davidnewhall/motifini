@@ -30,7 +30,7 @@ func (m *Motifini) recvMessageHandler(msg imessage.Incoming) {
 		case "cams":
 			reply.Text = m.iMessageCams()
 		case "events":
-			reply.Text = m.iMessageEvents(text)
+			reply.Text = m.iMessageEvents()
 		case "pics":
 			reply.Text = m.iMessagePics(msg.From, id, text)
 		case "sub":
@@ -46,27 +46,33 @@ func (m *Motifini) recvMessageHandler(msg imessage.Incoming) {
 		}
 	}
 	if requestor.Admin {
-		switch strings.ToLower(text[0]) {
-		case "ignores":
-			reply.Text = m.iMessageAdminIgnores()
-		case "ignore":
-			reply.Text = m.iMessageAdminIgnore(text)
-		case "unignore":
-			reply.Text = m.iMessageAdminUnignore(text)
-		case "admins":
-			reply.Text = m.iMessageAdminAdmins()
-		case "admin":
-			reply.Text = m.iMessageAdminAdmin(text)
-		case "unadmin":
-			reply.Text = m.iMessageAdminUnadmin(text)
-		case "subs":
-			reply.Text += m.iMessageAdminSubs(text)
-		case "help":
-			reply.Text += m.iMessageAdminHelp()
-		}
-		if reply.Text != "" {
-			m.Msgs.Send(reply)
-		}
+		reply.Text += m.handleAdminCmds(text)
+	}
+	if reply.Text != "" {
+		m.Msgs.Send(reply)
+	}
+}
+
+func (m *Motifini) handleAdminCmds(text []string) string {
+	switch strings.ToLower(text[0]) {
+	case "ignores":
+		return m.iMessageAdminIgnores()
+	case "ignore":
+		return m.iMessageAdminIgnore(text)
+	case "unignore":
+		return m.iMessageAdminUnignore(text)
+	case "admins":
+		return m.iMessageAdminAdmins()
+	case "admin":
+		return m.iMessageAdminAdmin(text)
+	case "unadmin":
+		return m.iMessageAdminUnadmin(text)
+	case "subs":
+		return m.iMessageAdminSubs(text)
+	case "help":
+		return m.iMessageAdminHelp()
+	default:
+		return ""
 	}
 }
 
@@ -99,7 +105,8 @@ func (m *Motifini) iMessageAdminAdmins() string {
 	admins := m.Subs.GetAdmins()
 	msg := "There are " + strconv.Itoa(len(admins)) + " admins:"
 	for i, admin := range admins {
-		msg += "\n" + strconv.Itoa(i+1) + ": (" + admin.API + ") " + admin.Contact + " (" + strconv.Itoa(len(admin.Subscriptions())) + " subscriptions)"
+		msg += fmt.Sprintf("\n%v: (%v) %v (%v subscriptions)",
+			strconv.Itoa(i+1), admin.API, admin.Contact, len(admin.Subscriptions()))
 	}
 	return msg
 }
@@ -108,7 +115,8 @@ func (m *Motifini) iMessageAdminIgnores() string {
 	ignores := m.Subs.GetIgnored()
 	msg := "There are " + strconv.Itoa(len(ignores)) + " ignored subscribers:"
 	for i, ignore := range ignores {
-		msg += "\n" + strconv.Itoa(i+1) + ": (" + ignore.API + ") " + ignore.Contact + " (" + strconv.Itoa(len(ignore.Subscriptions())) + " subscriptions)"
+		msg += fmt.Sprintf("\n%v: (%v) %v (%v subscriptions)",
+			strconv.Itoa(i+1), ignore.API, ignore.Contact, len(ignore.Subscriptions()))
 	}
 	return msg
 }
@@ -124,7 +132,8 @@ func (m *Motifini) iMessageAdminSubs(text []string) string {
 			} else if target.Admin {
 				x = ", admin"
 			}
-			msg += "\n" + strconv.Itoa(i+1) + ": (" + target.API + ") " + target.Contact + x + " (" + strconv.Itoa(len(target.Subscriptions())) + " subscriptions)"
+			msg += fmt.Sprintf("\n%v: (%v) %v%v (%v subscriptions)",
+				strconv.Itoa(i+1), target.API, target.Contact, x, len(target.Subscriptions()))
 		}
 		return msg
 	}
@@ -223,7 +232,7 @@ func (m *Motifini) iMessageCams() string {
 	return msg
 }
 
-func (m *Motifini) iMessageEvents(text []string) string {
+func (m *Motifini) iMessageEvents() string {
 	events := m.Subs.GetEvents()
 	msg := "There are " + strconv.Itoa(len(events)) + " events:\n"
 	i := 0

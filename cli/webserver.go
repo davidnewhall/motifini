@@ -19,7 +19,8 @@ func (m *Motifini) StartServer() error {
 	r.HandleFunc("/api/v1.0/send/imessage/msg/{to}", m.sendMessageHandler).Methods("GET").Queries("msg", "{msg}")
 	r.HandleFunc("/api/v1.0/event/{cmd:remove|update|add|notify}/{event}", m.eventsHandler).Methods("POST")
 	// need to figure out what user interface will use these methods.
-	r.HandleFunc("/api/v1.0/sub/{cmd:subscribe|unsubscribe|pause|unpause}/{api}/{contact}/{event}", m.subsHandler).Methods("GET")
+	r.HandleFunc("/api/v1.0/sub/{cmd:subscribe|unsubscribe|pause|unpause}/{api}/{contact}/{event}",
+		m.subsHandler).Methods("GET")
 	r.PathPrefix("/").HandlerFunc(m.handleAll)
 	http.Handle("/", r)
 	m.Server = &http.Server{
