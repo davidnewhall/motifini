@@ -14,7 +14,6 @@ import (
 
 // recvMessageHandler is a callback binding from the imessage library.
 func (m *Motifini) recvMessageHandler(msg imessage.Incoming) {
-	log.Println("msg", msg.From, msg.Text)
 	id := ReqID(4)
 	text := strings.Fields(msg.Text)
 	reply := imessage.Outgoing{To: msg.From, ID: id}

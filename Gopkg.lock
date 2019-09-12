@@ -90,12 +90,12 @@
   version = "v1.0.0"
 
 [[projects]]
+  branch = "master"
   digest = "1:d380e6ded2a23823caeed1293586038d30ae49b0139d8add616c4ee685804cb4"
   name = "golift.io/imessage"
   packages = ["."]
   pruneopts = "UT"
   revision = "8676786ccd15a11591359dccdebdcafdcbec0e3d"
-  version = "v2.0.1"
 
 [[projects]]
   digest = "1:2b77b61626c18da0dfac4bbe9ad4972dc3fa2dc132c1509b816ab6eedb9bf22a"
@@ -125,6 +125,7 @@
   analyzer-name = "dep"
   analyzer-version = 1
   input-imports = [
+    "crawshaw.io/sqlite",
     "github.com/BurntSushi/toml",
     "github.com/gorilla/mux",
     "github.com/pkg/errors",

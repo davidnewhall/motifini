@@ -169,6 +169,7 @@ func (m *Motifini) Run() error {
 	// StopChan is how we exit. Can be used in tests.
 	m.stopChn = make(chan os.Signal, 1)
 	go m.taskPoller()
+	go m.processEventStream()
 	return m.StartServer()
 }
 
@@ -207,6 +208,9 @@ func (m *Motifini) taskPoller() {
 			}
 		case sig := <-m.stopChn:
 			log.Printf("Exiting! Caught Signal: %v", sig)
+			if m.Spy.Events.Running {
+				m.Spy.Events.Stop()
+			}
 			if err := m.Subs.SaveStateFile(); err != nil {
 				log.Printf("[ERROR] saving subscribers state file: %v", err)
 			}

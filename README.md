@@ -1,8 +1,7 @@
 # Motifini
 
 This application allows you to send messages via iMessage using Messages.app with
-an API call. It also integrates with ffmpeg to capture videos from IP cameras,
-and SecuritySpy to capture still images (or.. videos).
+an API call. It also integrates with ffmpeg to capture videos from SecuritySpy.
 
 This code is still very crude, under construction and lacking full documentation.
 
@@ -76,34 +75,8 @@ except Exception as err:
 
 ## SecuritySpy
 
-You can use the following simple script to send yourself a picture any time motion is detected.
-
-```applescript
--- Change Gate to a real camera name to test this in Script Editor
-property TestCam : "Gate"
-property Subscriber : "user@email.tld"
-
-on run arg
-	if (count of arg) is not 2 then set arg to {0, TestCam}
-	set Camera to item 2 of arg -- item 1 is the cam number.
-  do shell script ("curl 'http://127.0.0.1:8765/api/v1.0/send/imessage/picture/" & Subscriber & "/" & Camera & "'")
-end run
-
-```
-
-If you're going for the full subscription integration, use this script instead,
-and only recipients subscribed to the camera will be notified.
-```applescript
--- Change Porch to a real camera name to test this in Script Editor
-property TestCam : "Porch"
-
-on run arg
-	if (count of arg) is not 2 then set arg to {0, TestCam}
-	set Camera to item 2 of arg -- item 1 is the cam number.
-	do shell script ("curl -s -X POST -A SecuritySpy 'http://127.0.0.1:8765/api/v1.0/event/notify/" & Camera & "'")
-end run
-```
-The above script is installed into `~/SecuritySpy/Scripts` when you use `make install`.
+This library taps into the SecuritySpy API and Event Stream. You do not need to do
+much besides provide a URL. You can then subscribe to any camera.
 
 # TODO
 

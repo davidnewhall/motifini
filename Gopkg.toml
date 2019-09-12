@@ -3,6 +3,10 @@
   name = "golift.io/subscribe"
   version = "0.9.0"
 
+[[constraint]]
+  name = "golift.io/imessage"
+  branch = "master"
+
 [prune]
   go-tests = true
   unused-packages = true
