@@ -77,6 +77,7 @@ func (m *Motifini) iMessageAdminSubs(text []string) string {
 	if err != nil {
 		return "Subscriber does not exist: " + text[1]
 	}
+
 	subs := s.Subscriptions()
 	if len(subs) == 0 {
 		return text[1] + " has no subscriptions."
@@ -89,11 +90,11 @@ func (m *Motifini) iMessageAdminSubs(text []string) string {
 	}
 	msg := s.Contact + x + " has " + strconv.Itoa(len(subs)) + " subscriptions:"
 	i := 0
-	for event, resume := range subs {
+	for _, event := range subs {
 		i++
 		msg += "\n" + strconv.Itoa(i) + ": " + event
-		if resume.After(time.Now()) {
-			msg += " (paused " + time.Until(resume).Round(time.Second).String() + ")"
+		if s.IsPaused(event) {
+			msg += " (paused)"
 		}
 	}
 	return msg
@@ -169,16 +170,17 @@ func (m *Motifini) iMessageCams() string {
 }
 
 func (m *Motifini) iMessageEvents() string {
-	events := m.Subs.GetEvents()
+	events := m.Subs.Events.Names()
 	msg := "There are " + strconv.Itoa(len(events)) + " events:\n"
-	i := 0
-	for eventName, event := range events {
-		i++
+	for i, name := range events {
 		description := "no description"
-		if d, ok := event["description"]; ok {
-			description = d
+		event, err := m.Subs.Events.Get(name)
+		if err == nil {
+			if d, ok := event["description"]; ok {
+				description = d
+			}
 		}
-		msg += strconv.Itoa(i) + ": " + eventName + " - " + description + "\n"
+		msg += strconv.Itoa(i) + ": " + name + " - " + description + "\n"
 	}
 	return msg
 }
@@ -221,7 +223,7 @@ func (m *Motifini) iMessageSub(text []string, requestor *subscribe.Subscriber) s
 		return msg
 	}
 	event := strings.Join(text[1:], " ")
-	if _, ok := m.Subs.GetEvents()[event]; !ok {
+	if _, err := m.Subs.Events.Get(event); err != nil {
 		kind = "camera"
 		if cam := m.Spy.Cameras.ByName(event); cam == nil {
 			msg = "Event or Camera not found: " + event + "\n" + msg
@@ -242,12 +244,10 @@ func (m *Motifini) iMessageSubs(text []string, requestor *subscribe.Subscriber) 
 		return ""
 	}
 	msg := "Your Subscriptions:"
-	i := 0
-	for event, resume := range requestor.Subscriptions() {
-		i++
+	for i, event := range requestor.Subscriptions() {
 		msg += "\n" + strconv.Itoa(i) + ": " + event
-		if resume.After(time.Now()) {
-			msg += " (paused " + time.Until(resume).Round(time.Second).String() + ")"
+		if requestor.IsPaused(event) {
+			msg += " (paused)"
 		}
 	}
 	if msg += "\n"; len(requestor.Subscriptions()) == 0 {
@@ -264,7 +264,7 @@ func (m *Motifini) iMessageUnsub(text []string, requestor *subscribe.Subscriber)
 	event := strings.Join(text[1:], " ")
 	msg = "You've been unsubscribed from: " + event
 	if event == "*" {
-		for e := range requestor.Subscriptions() {
+		for _, e := range requestor.Subscriptions() {
 			_ = requestor.UnSubscribe(e)
 		}
 		return "You've been unsubscribed all events."
@@ -297,7 +297,7 @@ func (m *Motifini) iMessageStop(text []string, requestor *subscribe.Subscriber) 
 		}
 		return msg
 	}
-	for event := range requestor.Subscriptions() {
+	for _, event := range requestor.Subscriptions() {
 		_ = requestor.Pause(event, time.Duration(dur)*time.Minute)
 	}
 	msg = "Notifications paused for at least " + text[1] + " minutes."

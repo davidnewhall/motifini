@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"context"
 	"encoding/json"
 	"encoding/xml"
 	"fmt"
@@ -70,9 +69,7 @@ type Config struct {
 		Interval      imessage.Duration `toml:"interval"`
 		ClearMessages bool              `toml:"clear_messages"`
 	} `toml:"imessage"`
-	SecuritySpy struct {
-		URL string `toml:"url"`
-	} `toml:"security_spy"`
+	SecuritySpy *securityspy.Config `toml:"security_spy"`
 }
 
 // ParseArgs runs the parser for CLI arguments.
@@ -103,6 +100,8 @@ func Start() error {
 		return err
 	}
 	m.Config.Validate()
+	log.Printf("[INFO] Motifini %v Starting! (PID: %v)", Version, os.Getpid())
+	defer log.Printf("[WARN] Exiting!")
 	return m.Run()
 }
 
@@ -111,7 +110,7 @@ func Start() error {
 func (c *Config) ParseFile(configFile string) error {
 	// Preload our defaults.
 	*c = Config{}
-	log.Printf("Loading Configuration File: %s", configFile)
+	log.Printf("[INFO] Loading Configuration File: %s", configFile)
 	switch buf, err := ioutil.ReadFile(configFile); {
 	case err != nil:
 		return err
@@ -139,65 +138,50 @@ func (c *Config) Validate() {
 	} else if c.Imessage.QueueSize > 500 {
 		c.Imessage.QueueSize = 500
 	}
-	if c.SecuritySpy.URL != "" && !strings.Contains(c.SecuritySpy.URL, "://") {
-		log.Printf("[WARN] Security Spy URL appears malformed. Ignoring it and using AppleScript!")
-		c.SecuritySpy.URL = ""
-	} else if c.SecuritySpy.URL != "" && !strings.HasSuffix(c.SecuritySpy.URL, "/") {
+	if c.SecuritySpy.URL != "" && !strings.HasSuffix(c.SecuritySpy.URL, "/") {
 		c.SecuritySpy.URL += "/"
 	}
 }
 
 // Run starts the app after all configs are collected.
 func (m *Motifini) Run() error {
-	log.Printf("Motifini %v Starting! (PID: %v)", Version, os.Getpid())
 	var err error
-	log.Printf("Connecting to SecuritySpy: %v", m.Config.SecuritySpy.URL)
-	spyConfig := &securityspy.Config{URL: m.Config.SecuritySpy.URL}
-	if m.Spy, err = securityspy.GetServer(spyConfig); err != nil {
+	log.Println("[INFO] Connecting to SecuritySpy:", m.Config.SecuritySpy.URL)
+	if m.Spy, err = securityspy.GetServer(m.Config.SecuritySpy); err != nil {
 		return err
 	}
-	log.Printf("Opening Subscriber Database: %v", m.Config.Global.StateFile)
+	log.Println("[INFO] Opening Subscriber Database:", m.Config.Global.StateFile)
 	if m.Subs, err = subscribe.GetDB(m.Config.Global.StateFile); err != nil {
 		return errors.Wrap(err, "sub state")
 	}
-	log.Printf("Watching iMessage Database: %v", m.Config.Imessage.DBPath)
+	log.Println("[INFO] Watching iMessage Database:", m.Config.Imessage.DBPath)
 	if err := m.startiMessage(); err != nil {
 		return err
 	}
+
 	m.exportData()
-	// StopChan is how we exit. Can be used in tests.
-	go m.taskPoller()
-	go m.processEventStream()
-	defer func() {
-		if m.Spy.Events.Running {
-			m.Spy.Events.Stop()
-		}
-		log.Printf("[INFO] Good bye!")
-	}()
-	return m.StartServer()
+	m.processEventStream()
+	defer m.Spy.Events.Stop()
+	go m.waitForSignal()
+	return m.StartWebServer()
 }
 
-// taskPoller runs things at an interval and looks for an exit signal
+// waitForSignal runs things at an interval and looks for an exit signal
 // then shuts down the http server and event stream watcher.
-func (m *Motifini) taskPoller() {
+func (m *Motifini) waitForSignal() {
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM, syscall.SIGQUIT)
-	log.Printf("[INFO] Exiting! Caught Signal: %v", <-sigChan)
-	m.save()
-	// Give the http server up to 3 seconds to finish any open requests.
-	if m.Server != nil {
-		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-		defer cancel()
-		_ = m.Server.Shutdown(ctx)
-	}
+	log.Printf("[INFO] Shutting down! Caught Signal: %v", <-sigChan)
+	m.saveSubDB()
+	m.StopWebServer()
 }
 
-// save just saves the state file/db and logs any error.
+// saveSubDB just saves the state file/db and logs any error.
 // called from a few places. SaveStateFile() provides the file lock.
-func (m *Motifini) save() {
-	if err := m.Subs.SaveStateFile(); err != nil {
+func (m *Motifini) saveSubDB() {
+	if err := m.Subs.StateFileSave(); err != nil {
 		log.Printf("[ERROR] saving subscribers state file: %v", err)
 		return
 	}
-	m.Debug.Print("[DEBUG] Saved State File")
+	m.Debug.Print("[DEBUG] Saved state DB file")
 }

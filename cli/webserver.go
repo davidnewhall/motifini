@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"net/http"
@@ -9,9 +10,8 @@ import (
 	"github.com/gorilla/mux"
 )
 
-// StartServer creates the http routers and starts http server
-func (m *Motifini) StartServer() error {
-	log.Printf("Webserver listening on port %d", m.Config.Global.Port)
+// StartWebServer creates the http routers and starts http server
+func (m *Motifini) StartWebServer() error {
 	r := mux.NewRouter()
 	r.Handle("/debug/vars", http.DefaultServeMux).Methods("GET")
 	r.HandleFunc("/api/v1.0/send/imessage/video/{to}/{camera}", m.sendVideoHandler).Methods("GET")
@@ -30,7 +30,21 @@ func (m *Motifini) StartServer() error {
 		IdleTimeout:  time.Second * 60,
 		Handler:      r, // *mux.Router
 	}
+	log.Print("[INFO] Web server listening at http://", m.Server.Addr)
 	return m.Server.ListenAndServe()
+}
+
+// StopWebServer shuts down the HTTP listener.
+func (m *Motifini) StopWebServer() {
+	// Give the http server up to 3 seconds to finish any open requests.
+	if m.Server == nil {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	if err := m.Server.Shutdown(ctx); err != nil {
+		log.Println("[ERROR] Shutting down web server:", err)
+	}
 }
 
 func (m *Motifini) finishReq(w http.ResponseWriter, r *http.Request, id string, code int, reply string, cmd string) {

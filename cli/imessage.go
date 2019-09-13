@@ -6,7 +6,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/pkg/errors"
 	"golift.io/imessage"
 	"golift.io/subscribe"
 )
@@ -23,73 +22,78 @@ func (m *Motifini) startiMessage() error {
 		DebugLog:  &Log{Affix: "[DEBUG] ", Muted: !m.Flags.Debug},
 	})
 	if err != nil {
-		return errors.Wrap(err, "initializing imessage")
+		return err
 	}
 	// Listen to all incoming imessages, pass them to our handler.
 	m.Msgs.IncomingCall(".*", m.recvMessageHandler)
-	return errors.Wrap(m.Msgs.Start(), "starting imessage")
+	return m.Msgs.Start()
 }
 
 // recvMessageHandler is a callback binding from the imessage library.
 func (m *Motifini) recvMessageHandler(msg imessage.Incoming) {
 	id := ReqID(4)
-	text := strings.Fields(msg.Text)
 	reply := imessage.Outgoing{To: msg.From, ID: id}
-
 	requestor, err := m.Subs.GetSubscriber(msg.From, APIiMessage)
 	if err != nil {
 		// Every account we receive a message from gets logged as a subscriber with no subscriptions.
 		requestor = m.Subs.CreateSub(msg.From, APIiMessage, len(m.Subs.GetAdmins()) == 0, false)
 	}
 
-	if !requestor.Ignored {
-		switch strings.ToLower(text[0]) {
-		case "cams":
-			reply.Text = m.iMessageCams()
-		case "events":
-			reply.Text = m.iMessageEvents()
-		case "pics":
-			reply.Text = m.iMessagePics(msg.From, id, text)
-		case "sub":
-			defer m.save()
-			reply.Text = m.iMessageSub(text, requestor)
-		case "subs":
-			reply.Text = m.iMessageSubs(text, requestor)
-		case "unsub":
-			defer m.save()
-			reply.Text = m.iMessageUnsub(text, requestor)
-		case "stop":
-			defer m.save()
-			reply.Text = m.iMessageStop(text, requestor)
-		case "help":
-			reply.Text = m.iMessageHelp()
-		}
+	if requestor.Ignored {
+		return
 	}
+	reply.Text = m.handleCmds(id, requestor, msg)
 	if requestor.Admin {
-		reply.Text += m.handleAdminCmds(text)
+		reply.Text += m.handleAdminCmds(msg)
 	}
 	if reply.Text != "" {
 		m.Msgs.Send(reply)
 	}
 }
 
-func (m *Motifini) handleAdminCmds(text []string) string {
-	switch strings.ToLower(text[0]) {
+func (m *Motifini) handleCmds(id string, from *subscribe.Subscriber, msg imessage.Incoming) string {
+	switch text := strings.Fields(msg.Text); strings.ToLower(text[0]) {
+	case "cams":
+		return m.iMessageCams()
+	case "events":
+		return m.iMessageEvents()
+	case "pics":
+		return m.iMessagePics(msg.From, id, text)
+	case "sub":
+		defer m.saveSubDB()
+		return m.iMessageSub(text, from)
+	case "subs":
+		return m.iMessageSubs(text, from)
+	case "unsub":
+		defer m.saveSubDB()
+		return m.iMessageUnsub(text, from)
+	case "stop":
+		defer m.saveSubDB()
+		return m.iMessageStop(text, from)
+	case "help":
+		return m.iMessageHelp()
+	default:
+		return ""
+	}
+}
+
+func (m *Motifini) handleAdminCmds(msg imessage.Incoming) string {
+	switch text := strings.Fields(msg.Text); strings.ToLower(text[0]) {
 	case "ignores":
 		return m.iMessageAdminIgnores()
 	case "ignore":
-		defer m.save()
+		defer m.saveSubDB()
 		return m.iMessageAdminIgnore(text)
 	case "unignore":
-		defer m.save()
+		defer m.saveSubDB()
 		return m.iMessageAdminUnignore(text)
 	case "admins":
 		return m.iMessageAdminAdmins()
 	case "admin":
-		defer m.save()
+		defer m.saveSubDB()
 		return m.iMessageAdminAdmin(text)
 	case "unadmin":
-		defer m.save()
+		defer m.saveSubDB()
 		return m.iMessageAdminUnadmin(text)
 	case "subs":
 		return m.iMessageAdminSubs(text)

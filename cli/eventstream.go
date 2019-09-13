@@ -15,7 +15,12 @@ func (m *Motifini) processEventStream() {
 	c := make(chan securityspy.Event, 100)
 	m.Spy.Events.BindChan(securityspy.EventAllEvents, c)
 	go m.Spy.Events.Watch(5*time.Second, true)
+	go m.handleEvents(c)
+}
+
+func (m *Motifini) handleEvents(c chan securityspy.Event) {
 	log.Println("[INFO] Event Stream Watcher Started")
+	defer log.Println("[WARN] Event Stream Watcher Closed")
 	for event := range c {
 		switch event.Type {
 		case securityspy.EventKeepAlive:
@@ -35,7 +40,7 @@ func (m *Motifini) processEventStream() {
 		case securityspy.EventStreamDisconnect:
 			log.Println("[ERROR] SecuritySpy Event Stream Disconnected")
 		case securityspy.EventConfigChange:
-			m.save()
+			m.saveSubDB()
 			fallthrough
 		default:
 			camName := ""
@@ -45,7 +50,6 @@ func (m *Motifini) processEventStream() {
 			m.Debug.Println("[EVENT]", event.String(), camName, event.Msg)
 		}
 	}
-	log.Println("[WARN] Event Stream Watcher Closed")
 }
 
 func (m *Motifini) handleCameraMotion(e securityspy.Event) {
