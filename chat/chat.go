@@ -16,11 +16,10 @@ import (
 // If any of these are blank, the library doesn't work.
 // Set all these variables before calling HandleCommand
 type Chat struct {
-	Subs      *subscribe.Subscribe
-	Spy       *securityspy.Server
-	TempDir   string
-	Cmds      []*CommandMap
-	AdminCmds []*CommandMap
+	Subs    *subscribe.Subscribe
+	Spy     *securityspy.Server
+	TempDir string
+	Cmds    []*CommandMap
 }
 
 // ErrorBadUsage is a standard error
@@ -62,10 +61,7 @@ func New(c *Chat) *Chat {
 		c.TempDir = "/tmp"
 	}
 	if c.Cmds == nil {
-		c.Cmds = []*CommandMap{c.NonAdminCommands()}
-	}
-	if c.AdminCmds == nil {
-		c.AdminCmds = []*CommandMap{c.AdminCommands()}
+		c.Cmds = []*CommandMap{c.NonAdminCommands(), c.AdminCommands()}
 	}
 	return c
 }
@@ -97,14 +93,10 @@ func (c *Chat) doHelp(h *CommandHandle) *CommandReply {
 	resp := &CommandReply{}
 
 	for i := range c.Cmds {
-		r := &CommandReply{Reply: c.Cmds[i].help(h.Text[1])}
-		resp.Reply += r.Reply
-	}
-	if h.Sub.Admin {
-		for i := range c.AdminCmds {
-			r := &CommandReply{Reply: c.AdminCmds[i].help(h.Text[1])}
-			resp.Reply += r.Reply
+		if !h.Sub.Admin && c.Cmds[i].Level > 2 {
+			continue
 		}
+		resp.Reply += c.Cmds[i].help(h.Text[1])
 	}
 	return resp
 }
@@ -112,20 +104,14 @@ func (c *Chat) doHelp(h *CommandHandle) *CommandReply {
 func (c *Chat) doCmd(h *CommandHandle) (*CommandReply, bool) {
 	resp := &CommandReply{}
 	var save bool
-	do := func(cmds *CommandMap) {
-		r, s := cmds.run(h)
+	for i := range c.Cmds {
+		if !h.Sub.Admin && c.Cmds[i].Level > 2 {
+			continue
+		}
+		r, s := c.Cmds[i].run(h)
 		resp.Reply += r.Reply
 		resp.Files = append(resp.Files, r.Files...)
 		save = save || s
-	}
-	for i := range c.Cmds {
-		do(c.Cmds[i])
-	}
-	if !h.Sub.Admin {
-		return resp, save
-	}
-	for i := range c.AdminCmds {
-		do(c.AdminCmds[i])
 	}
 	return resp, save
 }
