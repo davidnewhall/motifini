@@ -62,14 +62,17 @@ func (m *Motifini) handleCameraMotion(e securityspy.Event) {
 		return // no one to notify of this camera's motion
 	}
 	id := ReqID(3)
-	path := filepath.Join(m.Config.Global.TempDir, fmt.Sprintf("imessage_relay_%s_%s.jpg", id, e.Camera.Name))
+	path := filepath.Join(m.Config.Global.TempDir, fmt.Sprintf("camera_motion_%s_%s.jpg", id, e.Camera.Name))
 	if err := e.Camera.SaveJPEG(&securityspy.VidOps{}, path); err != nil {
 		log.Printf("[ERROR] [%v] event.Camera.SaveJPEG: %v", id, err)
 	}
 	m.sendFileOrMsg(id, "", path, subs)
 	for _, sub := range subs {
-		// one per minute until we upgrade the subscribe module.
-		_ = sub.Pause(e.Camera.Name, time.Minute)
+		delay, ok := sub.Events.RuleGetD(e.Camera.Name, "delay")
+		if ok {
+			_ = sub.Events.Pause(e.Camera.Name, delay)
+		}
+		_ = sub.Events.Pause(e.Camera.Name, time.Minute)
 	}
-	m.Debug.Printf("[%v] Event '%v' triggered subscription messages. Subscribers: %v", id, e.Camera.Name, subCount)
+	log.Printf("[%v] Event '%v' triggered subscription messages. Subscribers: %v", id, e.Camera.Name, subCount)
 }

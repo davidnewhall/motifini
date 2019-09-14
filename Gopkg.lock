@@ -75,11 +75,11 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:6465a0bb4bc14250ff15eeef30d436baa62aabccb803306a047865790fcf5297"
+  digest = "1:31ca8823684b4b0c204df1d4a9f3c511f41cc3e7ab6decc2ca5ffacc358d2818"
   name = "golang.org/x/sys"
   packages = ["unix"]
   pruneopts = "UT"
-  revision = "bc967efca4b87fb45e946a3ea4cb891883404fd0"
+  revision = "c3b328c6e5a763a2bfc82a48b4bd855037210934"
 
 [[projects]]
   digest = "1:b936b904b1cfa23889f61635efcbc2ef3ea600c864378db0b164c29ff1cd762b"
@@ -106,12 +106,12 @@
   version = "v2.0.1"
 
 [[projects]]
-  digest = "1:c4c4885decb09b627a8f7c8bdf3148ce630179f5dc1f4ec82ddd3442e89fb6a8"
+  digest = "1:1006588717b8a892769f616e46e34a33419832ce472a5b25df6f6fb7f821592b"
   name = "golift.io/subscribe"
   packages = ["."]
   pruneopts = "UT"
-  revision = "995de7ef1b703cebbc75f8cec09fb069d5205564"
-  version = "v1.0.0"
+  revision = "6eca7fe4ea6f5abd5ae1265852df2eccc1fc8131"
+  version = "v1.1.0"
 
 [[projects]]
   digest = "1:4d2e5a73dc1500038e504a8d78b986630e3626dc027bc030ba5c75da257cdb96"

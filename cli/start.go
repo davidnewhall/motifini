@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/BurntSushi/toml"
+	"github.com/davidnewhall/motifini/chat"
 	"github.com/pkg/errors"
 	"github.com/spf13/pflag"
 	"golift.io/imessage"
@@ -146,22 +147,29 @@ func (c *Config) Validate() {
 // Run starts the app after all configs are collected.
 func (m *Motifini) Run() error {
 	var err error
-	log.Println("[INFO] Connecting to SecuritySpy:", m.Config.SecuritySpy.URL)
-	if m.Spy, err = securityspy.GetServer(m.Config.SecuritySpy); err != nil {
-		return err
+	if m.Config.SecuritySpy.URL != "" {
+		log.Println("[INFO] Connecting to SecuritySpy:", m.Config.SecuritySpy.URL)
+		if m.Spy, err = securityspy.GetServer(m.Config.SecuritySpy); err != nil {
+			return err
+		}
+		m.processEventStream()
+		defer m.Spy.Events.Stop()
 	}
 	log.Println("[INFO] Opening Subscriber Database:", m.Config.Global.StateFile)
 	if m.Subs, err = subscribe.GetDB(m.Config.Global.StateFile); err != nil {
 		return errors.Wrap(err, "sub state")
 	}
+	// Configure chat library.
+	// Maybe later we'll pass this into imessage somehow.
+	chat.TempDir = m.Config.Global.TempDir
+	chat.Subs = m.Subs
+	chat.Spy = m.Spy
 	log.Println("[INFO] Watching iMessage Database:", m.Config.Imessage.DBPath)
 	if err := m.startiMessage(); err != nil {
 		return err
 	}
 
 	m.exportData()
-	m.processEventStream()
-	defer m.Spy.Events.Stop()
 	go m.waitForSignal()
 	return m.StartWebServer()
 }
