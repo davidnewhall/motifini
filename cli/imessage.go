@@ -39,29 +39,17 @@ func (m *Motifini) recviMessageHandler(msg imessage.Incoming) {
 		// Every account we receive a message from gets logged as a subscriber with no subscriptions.
 		sub = m.Subs.CreateSub(msg.From, APIiMessage, len(m.Subs.GetAdmins()) == 0, false)
 	}
-	if sub.Ignored {
-		return
-	}
 	cmdHandle := &chat.CommandHandle{
 		API:  APIiMessage,
-		Cmds: chat.NonAdminCommands,
 		ID:   id,
 		Sub:  sub,
 		Text: strings.Fields(msg.Text),
 		From: msg.From,
 	}
-	resp := chat.HandleCommand(cmdHandle)
+	resp := m.Chat.HandleCommand(cmdHandle)
 	reply.Text = resp.Reply
 	for _, path := range resp.Files {
 		m.sendFileOrMsg(id, "", path, []*subscribe.Subscriber{sub})
-	}
-	if sub.Admin {
-		cmdHandle.Cmds = chat.AdminCommands
-		resp := chat.HandleCommand(cmdHandle)
-		reply.Text += resp.Reply
-		for _, path := range resp.Files {
-			m.sendFileOrMsg(id, "", path, []*subscribe.Subscriber{sub})
-		}
 	}
 	if reply.Text != "" {
 		m.Msgs.Send(reply)

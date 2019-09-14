@@ -44,6 +44,7 @@ type Motifini struct {
 	Spy     *securityspy.Server
 	Subs    *subscribe.Subscribe
 	Msgs    *imessage.Messages
+	Chat    *chat.Chat
 	exports exportData
 }
 
@@ -160,10 +161,7 @@ func (m *Motifini) Run() error {
 		return errors.Wrap(err, "sub state")
 	}
 	// Configure chat library.
-	// Maybe later we'll pass this into imessage somehow.
-	chat.TempDir = m.Config.Global.TempDir
-	chat.Subs = m.Subs
-	chat.Spy = m.Spy
+	m.Chat = chat.New(&chat.Chat{TempDir: m.Config.Global.TempDir, Subs: m.Subs, Spy: m.Spy})
 	log.Println("[INFO] Watching iMessage Database:", m.Config.Imessage.DBPath)
 	if err := m.startiMessage(); err != nil {
 		return err

@@ -3,7 +3,6 @@
 package chat
 
 import (
-	"errors"
 	"fmt"
 	"strings"
 
@@ -13,74 +12,131 @@ import (
 
 /* Do not include message-provider-specific code in chat_* files. */
 
+// Chat is the input data to initialize the library.
 // If any of these are blank, the library doesn't work.
 // Set all these variables before calling HandleCommand
-var (
-	Subs    *subscribe.Subscribe
-	Spy     *securityspy.Server
-	TempDir string
-)
+type Chat struct {
+	Subs      *subscribe.Subscribe
+	Spy       *securityspy.Server
+	TempDir   string
+	Cmds      []*CommandMap
+	AdminCmds []*CommandMap
+}
 
 // ErrorBadUsage is a standard error
-var ErrorBadUsage = errors.New("invalid command usage")
+var ErrorBadUsage = fmt.Errorf("invalid command usage")
 
-type chatCommands struct {
+// Command is the configuration for a chat command handler.
+type Command struct {
 	Description string
 	Usage       string
-	Run         func(handle *CommandHandle) (string, []string, error)
+	Run         func(handle *CommandHandle) (reply string, files []string, err error)
 	Save        bool
 }
 
-type commandMap struct {
-	Kind string
-	Map  map[string]chatCommands
+// CommandMap contains a list of related or grouped commands.
+type CommandMap struct {
+	Kind  string
+	Level int // not used yet
+	Map   map[string]Command
 }
 
-// CommandHandle contains the data to handle a command.
+// CommandHandle contains the data to handle a command. ie. an incoming message.
 type CommandHandle struct {
 	API  string
-	Cmds commandMap
 	ID   string
 	Sub  *subscribe.Subscriber
 	Text []string
 	From string
 }
 
-// CommandReply is what the requestor gets in return.
+// CommandReply is what the requestor gets in return. A message and/or some files.
 type CommandReply struct {
 	Reply string
 	Files []string
 }
 
-// HandleCommand builds responses and runs actions from incoming chat commands.
-func HandleCommand(c *CommandHandle) *CommandReply {
-	if Subs == nil || Spy == nil || TempDir == "" {
-		return &CommandReply{}
+// New just adds the basic commands to a Chat struct.
+func New(c *Chat) *Chat {
+	if c.TempDir == "" {
+		c.TempDir = "/tmp"
 	}
-	if strings.EqualFold("help", c.Text[0]) {
-		if len(c.Text) < 2 {
-			return &CommandReply{Reply: c.Cmds.Help(c.Cmds.Kind, "")}
-		}
-		return &CommandReply{Reply: c.Cmds.Help(c.Cmds.Kind, c.Text[1])}
+	if c.Cmds == nil {
+		c.Cmds = []*CommandMap{c.NonAdminCommands()}
 	}
-	for name, Cmd := range c.Cmds.Map {
-		if !strings.EqualFold(name, c.Text[0]) {
-			continue
-		}
-		reply, files, err := Cmd.Run(c)
-		if err != nil {
-			return &CommandReply{Reply: fmt.Sprintf("ERROR: %v\n%s Usage: %s %s\n%s\nDescription: %s\n",
-				err, c.Cmds.Kind, name, Cmd.Usage, reply, Cmd.Description)}
-		}
-		if Cmd.Save {
-			_ = Subs.StateFileSave()
-		}
-		return &CommandReply{Reply: reply, Files: files}
+	if c.AdminCmds == nil {
+		c.AdminCmds = []*CommandMap{c.AdminCommands()}
 	}
-	return &CommandReply{}
+	return c
 }
 
-func (c *commandMap) Help(kind string, cmdName string) string {
+// HandleCommand builds responses and runs actions from incoming chat commands.
+func (c *Chat) HandleCommand(h *CommandHandle) *CommandReply {
+	if c.Subs == nil || c.Spy == nil || c.TempDir == "" || h.Sub.Ignored {
+		return &CommandReply{}
+	}
+
+	if strings.EqualFold("help", h.Text[0]) {
+		return c.doHelp(h)
+	}
+
+	// Run a command.
+	resp, save := c.doCmd(h)
+	if save {
+		_ = c.Subs.StateFileSave()
+	}
+	return resp
+}
+
+func (c *Chat) doHelp(h *CommandHandle) *CommandReply {
+	if len(h.Text) < 2 {
+		// Request general help.
+		h.Text = append(h.Text, "")
+	}
+	// Request help for specific command.
+	resp := &CommandReply{Reply: c.NonAdminCommands().help(h.Text[1])}
+	if h.Sub.Admin {
+		resp.Reply += c.AdminCommands().help(h.Text[1])
+	}
+	return resp
+}
+
+func (c *Chat) doCmd(h *CommandHandle) (*CommandReply, bool) {
+	resp := &CommandReply{}
+	var save bool
+	do := func(cmds *CommandMap) {
+		r, s := cmds.run(h)
+		resp.Reply += r.Reply
+		resp.Files = append(resp.Files, r.Files...)
+		save = save || s
+	}
+	for i := range c.Cmds {
+		do(c.Cmds[i])
+	}
+	if !h.Sub.Admin {
+		return resp, save
+	}
+	for i := range c.AdminCmds {
+		do(c.AdminCmds[i])
+	}
+	return resp, save
+}
+
+func (c *CommandMap) run(h *CommandHandle) (*CommandReply, bool) {
+	name := strings.ToLower(h.Text[0])
+	Cmd, ok := c.Map[name]
+	if !ok {
+		return &CommandReply{}, false
+	}
+	reply, files, err := Cmd.Run(h)
+	if err != nil {
+		return &CommandReply{Reply: fmt.Sprintf("ERROR: %v\n%s Usage: %s %s\n%s\nDescription: %s\n",
+			err, c.Kind, name, Cmd.Usage, reply, Cmd.Description)}, false
+	}
+	return &CommandReply{Reply: reply, Files: files}, Cmd.Save
+}
+
+func (c *CommandMap) help(cmdName string) string {
 	if cmdName != "" {
 		Cmd, ok := c.Map[cmdName]
 		if !ok {
@@ -89,9 +145,9 @@ func (c *commandMap) Help(kind string, cmdName string) string {
 		return fmt.Sprintf("%s Usage: %s %s\n%s Description: %s\n",
 			c.Kind, cmdName, Cmd.Usage, c.Kind, Cmd.Description)
 	}
-	msg := "\n=== " + kind + " Commands ===\n"
+	msg := "\n=== " + c.Kind + " Commands ===\n"
 	for name, Cmd := range c.Map {
-		msg += name + " " + Cmd.Usage
+		msg += name + " " + Cmd.Usage + "\n"
 	}
 	msg += "- Use 'help <cmd>' for more.\n"
 	return msg
