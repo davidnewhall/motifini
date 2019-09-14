@@ -29,7 +29,7 @@ var ErrorBadUsage = fmt.Errorf("invalid command usage")
 type Command struct {
 	Description string
 	Usage       string
-	Run         func(handle *CommandHandle) (reply string, files []string, err error)
+	Run         func(handle *CommandHandler) (reply string, files []string, err error)
 	Save        bool
 }
 
@@ -40,8 +40,8 @@ type CommandMap struct {
 	Map   map[string]Command
 }
 
-// CommandHandle contains the data to handle a command. ie. an incoming message.
-type CommandHandle struct {
+// CommandHandler contains the data to handle a command. ie. an incoming message.
+type CommandHandler struct {
 	API  string
 	ID   string
 	Sub  *subscribe.Subscriber
@@ -60,14 +60,13 @@ func New(c *Chat) *Chat {
 	if c.TempDir == "" {
 		c.TempDir = "/tmp"
 	}
-	if c.Cmds == nil {
-		c.Cmds = []*CommandMap{c.NonAdminCommands(), c.AdminCommands()}
-	}
+	defaults := []*CommandMap{c.NonAdminCommands(), c.AdminCommands()}
+	c.Cmds = append(defaults, c.Cmds...)
 	return c
 }
 
 // HandleCommand builds responses and runs actions from incoming chat commands.
-func (c *Chat) HandleCommand(h *CommandHandle) *CommandReply {
+func (c *Chat) HandleCommand(h *CommandHandler) *CommandReply {
 	if c.Subs == nil || c.Spy == nil || c.TempDir == "" || h.Sub.Ignored {
 		return &CommandReply{}
 	}
@@ -84,14 +83,13 @@ func (c *Chat) HandleCommand(h *CommandHandle) *CommandReply {
 	return resp
 }
 
-func (c *Chat) doHelp(h *CommandHandle) *CommandReply {
+func (c *Chat) doHelp(h *CommandHandler) *CommandReply {
 	if len(h.Text) < 2 {
 		// Request general help.
 		h.Text = append(h.Text, "")
 	}
 	// Request help for specific command.
 	resp := &CommandReply{}
-
 	for i := range c.Cmds {
 		if !h.Sub.Admin && c.Cmds[i].Level > 2 {
 			continue
@@ -101,7 +99,7 @@ func (c *Chat) doHelp(h *CommandHandle) *CommandReply {
 	return resp
 }
 
-func (c *Chat) doCmd(h *CommandHandle) (*CommandReply, bool) {
+func (c *Chat) doCmd(h *CommandHandler) (*CommandReply, bool) {
 	resp := &CommandReply{}
 	var save bool
 	for i := range c.Cmds {
@@ -116,7 +114,7 @@ func (c *Chat) doCmd(h *CommandHandle) (*CommandReply, bool) {
 	return resp, save
 }
 
-func (c *CommandMap) run(h *CommandHandle) (*CommandReply, bool) {
+func (c *CommandMap) run(h *CommandHandler) (*CommandReply, bool) {
 	name := strings.ToLower(h.Text[0])
 	Cmd, ok := c.Map[name]
 	if !ok {

@@ -10,7 +10,7 @@ import (
 	"golift.io/securityspy"
 )
 
-// NonAdminCommands contains all the non-admin commands.
+// NonAdminCommands contains all the built-in non-admin commands.
 func (c *Chat) NonAdminCommands() *CommandMap {
 	return &CommandMap{
 		Kind:  "User",
@@ -59,7 +59,7 @@ func (c *Chat) NonAdminCommands() *CommandMap {
 	}
 }
 
-func (c *Chat) cmdCams(h *CommandHandle) (string, []string, error) {
+func (c *Chat) cmdCams(h *CommandHandler) (string, []string, error) {
 	msg := "There are " + strconv.Itoa(len(c.Spy.Cameras.All())) + " cameras:\n"
 	for _, cam := range c.Spy.Cameras.All() {
 		msg += fmt.Sprintf("%v: %v\n", cam.Number, cam.Name)
@@ -67,7 +67,7 @@ func (c *Chat) cmdCams(h *CommandHandle) (string, []string, error) {
 	return msg, nil, nil
 }
 
-func (c *Chat) cmdEvents(h *CommandHandle) (string, []string, error) {
+func (c *Chat) cmdEvents(h *CommandHandler) (string, []string, error) {
 	events := c.Subs.Events.Names()
 	msg := "There are " + strconv.Itoa(len(events)) + " events:\n"
 	for i, event := range events {
@@ -77,7 +77,7 @@ func (c *Chat) cmdEvents(h *CommandHandle) (string, []string, error) {
 	return msg, nil, nil
 }
 
-func (c *Chat) cmdPics(h *CommandHandle) (string, []string, error) {
+func (c *Chat) cmdPics(h *CommandHandler) (string, []string, error) {
 	msg := ""
 	if len(h.Text) > 1 {
 		name := strings.Join(h.Text[1:], " ")
@@ -107,7 +107,7 @@ func (c *Chat) cmdPics(h *CommandHandle) (string, []string, error) {
 	return msg, paths, nil
 }
 
-func (c *Chat) cmdSub(h *CommandHandle) (string, []string, error) {
+func (c *Chat) cmdSub(h *CommandHandler) (string, []string, error) {
 	kind := "event"
 	if len(h.Text) < 2 {
 		return "", nil, ErrorBadUsage
@@ -127,7 +127,7 @@ func (c *Chat) cmdSub(h *CommandHandle) (string, []string, error) {
 	return msg, nil, nil
 }
 
-func (c *Chat) cmdSubs(h *CommandHandle) (string, []string, error) {
+func (c *Chat) cmdSubs(h *CommandHandler) (string, []string, error) {
 	if h.Sub.Admin && len(h.Text) > 1 {
 		// admin asking for subs for someone else. handled by iMessageAdminSubs()
 		return "", nil, nil
@@ -145,7 +145,7 @@ func (c *Chat) cmdSubs(h *CommandHandle) (string, []string, error) {
 	return msg, nil, nil
 }
 
-func (c *Chat) cmdUnsub(h *CommandHandle) (string, []string, error) {
+func (c *Chat) cmdUnsub(h *CommandHandler) (string, []string, error) {
 	if len(h.Text) < 2 {
 		return "", nil, ErrorBadUsage
 	}
@@ -165,7 +165,7 @@ func (c *Chat) cmdUnsub(h *CommandHandle) (string, []string, error) {
 	return msg, nil, nil
 }
 
-func (c *Chat) cmdStop(h *CommandHandle) (string, []string, error) {
+func (c *Chat) cmdStop(h *CommandHandler) (string, []string, error) {
 	if len(h.Text) < 2 {
 		return "", nil, ErrorBadUsage
 	}

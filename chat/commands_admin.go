@@ -5,7 +5,7 @@ import (
 	"strconv"
 )
 
-// AdminCommands contains all the admin commands like 'ignore'
+// AdminCommands contains all the built-in admin commands like 'ignore'
 func (c *Chat) AdminCommands() *CommandMap {
 	return &CommandMap{
 		Kind:  "Admin",
@@ -55,7 +55,7 @@ func (c *Chat) AdminCommands() *CommandMap {
 	}
 }
 
-func (c *Chat) cmdAdminAdmins(h *CommandHandle) (string, []string, error) {
+func (c *Chat) cmdAdminAdmins(h *CommandHandler) (string, []string, error) {
 	admins := c.Subs.GetAdmins()
 	msg := "There are " + strconv.Itoa(len(admins)) + " admins:"
 	for i, admin := range admins {
@@ -65,7 +65,7 @@ func (c *Chat) cmdAdminAdmins(h *CommandHandle) (string, []string, error) {
 	return msg, nil, nil
 }
 
-func (c *Chat) cmdAdminIgnores(h *CommandHandle) (string, []string, error) {
+func (c *Chat) cmdAdminIgnores(h *CommandHandler) (string, []string, error) {
 	ignores := c.Subs.GetIgnored()
 	msg := "There are " + strconv.Itoa(len(ignores)) + " ignored subscribers:"
 	for i, ignore := range ignores {
@@ -75,7 +75,7 @@ func (c *Chat) cmdAdminIgnores(h *CommandHandle) (string, []string, error) {
 	return msg, nil, nil
 }
 
-func (c *Chat) cmdAdminSubs(h *CommandHandle) (string, []string, error) {
+func (c *Chat) cmdAdminSubs(h *CommandHandler) (string, []string, error) {
 	if len(h.Text) == 1 {
 		subs := c.Subs.Subscribers
 		msg := "There are " + strconv.Itoa(len(subs)) + " total subscribers:"
@@ -118,7 +118,7 @@ func (c *Chat) cmdAdminSubs(h *CommandHandle) (string, []string, error) {
 	return msg, nil, nil
 }
 
-func (c *Chat) cmdAdminUnadmin(h *CommandHandle) (string, []string, error) {
+func (c *Chat) cmdAdminUnadmin(h *CommandHandler) (string, []string, error) {
 	if len(h.Text) != 2 {
 		return "", nil, ErrorBadUsage
 	}
@@ -130,7 +130,7 @@ func (c *Chat) cmdAdminUnadmin(h *CommandHandle) (string, []string, error) {
 	return "Subscriber '" + target.Contact + "' updated without admin privileges.", nil, nil
 }
 
-func (c *Chat) cmdAdminAdmin(h *CommandHandle) (string, []string, error) {
+func (c *Chat) cmdAdminAdmin(h *CommandHandler) (string, []string, error) {
 	if len(h.Text) != 2 {
 		return "", nil, ErrorBadUsage
 	}
@@ -142,7 +142,7 @@ func (c *Chat) cmdAdminAdmin(h *CommandHandle) (string, []string, error) {
 	return "Subscriber '" + target.Contact + "' updated with admin privileges.", nil, nil
 }
 
-func (c *Chat) cmdAdminUnignore(h *CommandHandle) (string, []string, error) {
+func (c *Chat) cmdAdminUnignore(h *CommandHandler) (string, []string, error) {
 	if len(h.Text) != 2 {
 		return "", nil, ErrorBadUsage
 	}
@@ -154,7 +154,7 @@ func (c *Chat) cmdAdminUnignore(h *CommandHandle) (string, []string, error) {
 	return "Subscriber '" + target.Contact + "' no longer ignored.", nil, nil
 }
 
-func (c *Chat) cmdAdminIgnore(h *CommandHandle) (string, []string, error) {
+func (c *Chat) cmdAdminIgnore(h *CommandHandler) (string, []string, error) {
 	if len(h.Text) != 2 {
 		return "", nil, ErrorBadUsage
 	}

@@ -61,7 +61,7 @@ func (m *Motifini) processVideoRequest(id string, cam *securityspy.Camera, to st
 	}
 	// Input data OK, video grabbed, send an attachment to each recipient.
 	for _, t := range strings.Split(to, ",") {
-		m.Msgs.Send(imessage.Outgoing{ID: id, To: t, Text: path, File: true, Call: m.fileCallback})
+		m.Imsg.Send(imessage.Outgoing{ID: id, To: t, Text: path, File: true, Call: m.fileCallback})
 	}
 }
 
@@ -97,7 +97,7 @@ func (m *Motifini) sendPictureHandler(w http.ResponseWriter, r *http.Request) {
 		time.Sleep(150 * time.Millisecond)
 		// Input data OK, send a message to each recipient.
 		for _, t := range to {
-			m.Msgs.Send(imessage.Outgoing{ID: id, To: t, Text: path, File: true, Call: m.fileCallback})
+			m.Imsg.Send(imessage.Outgoing{ID: id, To: t, Text: path, File: true, Call: m.fileCallback})
 		}
 		reply = "REQ ID: " + id + ", msg: " + reply + "\n"
 	}
@@ -134,7 +134,7 @@ func (m *Motifini) sendMessageHandler(w http.ResponseWriter, r *http.Request) {
 	} else {
 		// Input data OK, send a message to each recipient.
 		for _, t := range to {
-			m.Msgs.Send(imessage.Outgoing{ID: id, To: t, Text: msg, File: false, Call: callback})
+			m.Imsg.Send(imessage.Outgoing{ID: id, To: t, Text: msg, File: false, Call: callback})
 		}
 	}
 	reply = "REQ ID: " + id + ", msg: " + reply + "\n"

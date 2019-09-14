@@ -43,7 +43,7 @@ type Motifini struct {
 	Server  *http.Server
 	Spy     *securityspy.Server
 	Subs    *subscribe.Subscribe
-	Msgs    *imessage.Messages
+	Imsg    *imessage.Messages
 	Chat    *chat.Chat
 	exports exportData
 }

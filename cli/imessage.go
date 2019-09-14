@@ -13,7 +13,7 @@ import (
 
 func (m *Motifini) startiMessage() error {
 	var err error
-	m.Msgs, err = imessage.Init(&imessage.Config{
+	m.Imsg, err = imessage.Init(&imessage.Config{
 		SQLPath:   strings.Replace(m.Config.Imessage.DBPath, "~", os.Getenv("HOME"), 1),
 		QueueSize: m.Config.Imessage.QueueSize,
 		ClearMsgs: m.Config.Imessage.ClearMessages,
@@ -26,33 +26,32 @@ func (m *Motifini) startiMessage() error {
 		return err
 	}
 	// Listen to all incoming imessages, pass them to our handler.
-	m.Msgs.IncomingCall(".*", m.recviMessageHandler)
-	return m.Msgs.Start()
+	m.Imsg.IncomingCall(".*", m.recviMessageHandler)
+	return m.Imsg.Start()
 }
 
 // recviMessageHandler is a callback binding from the imessage library.
 func (m *Motifini) recviMessageHandler(msg imessage.Incoming) {
-	id := ReqID(4)
-	reply := imessage.Outgoing{To: msg.From, ID: id}
 	sub, err := m.Subs.GetSubscriber(msg.From, APIiMessage)
 	if err != nil {
 		// Every account we receive a message from gets logged as a subscriber with no subscriptions.
 		sub = m.Subs.CreateSub(msg.From, APIiMessage, len(m.Subs.GetAdmins()) == 0, false)
 	}
-	cmdHandle := &chat.CommandHandle{
+	// Pass the message off to the chat command handler routines.
+	h := &chat.CommandHandler{
 		API:  APIiMessage,
-		ID:   id,
+		ID:   ReqID(4),
 		Sub:  sub,
 		Text: strings.Fields(msg.Text),
 		From: msg.From,
 	}
-	resp := m.Chat.HandleCommand(cmdHandle)
-	reply.Text = resp.Reply
-	for _, path := range resp.Files {
-		m.sendFileOrMsg(id, "", path, []*subscribe.Subscriber{sub})
+	resp := m.Chat.HandleCommand(h)
+	// Send the reply as files and/or text.
+	if resp.Reply != "" {
+		m.Imsg.Send(imessage.Outgoing{To: msg.From, ID: h.ID, Text: resp.Reply})
 	}
-	if reply.Text != "" {
-		m.Msgs.Send(reply)
+	for _, path := range resp.Files {
+		m.Imsg.Send(imessage.Outgoing{To: msg.From, ID: h.ID, Text: path, File: true, Call: m.fileCallback})
 	}
 }
 
@@ -61,10 +60,10 @@ func (m *Motifini) sendFileOrMsg(id, msg, path string, subs []*subscribe.Subscri
 		switch sub.API {
 		case APIiMessage:
 			if path != "" {
-				m.Msgs.Send(imessage.Outgoing{ID: id, To: sub.Contact, Text: path, File: true, Call: m.fileCallback})
+				m.Imsg.Send(imessage.Outgoing{ID: id, To: sub.Contact, Text: path, File: true, Call: m.fileCallback})
 			}
 			if msg != "" {
-				m.Msgs.Send(imessage.Outgoing{ID: id, To: sub.Contact, Text: msg})
+				m.Imsg.Send(imessage.Outgoing{ID: id, To: sub.Contact, Text: msg})
 			}
 		default:
 			log.Printf("[%v] Unknown Notification API '%v' for contact: %v", id, sub.API, sub.Contact)
@@ -72,7 +71,7 @@ func (m *Motifini) sendFileOrMsg(id, msg, path string, subs []*subscribe.Subscri
 	}
 }
 
-// fileCallback runs in a go routine after a video iMessage is processed.
+// fileCallback runs in a go routine after a video or picture iMessage is processed.
 func (m *Motifini) fileCallback(msg *imessage.Response) {
 	var size int64
 	if fi, errStat := os.Stat(msg.Text); errStat == nil {
@@ -80,7 +79,7 @@ func (m *Motifini) fileCallback(msg *imessage.Response) {
 	}
 	if msg.Errs != nil {
 		m.exports.errors.Add(1)
-		log.Printf("[ERROR] [%v] msgs.Msgs.Send '%v': %v", msg.ID, msg.To, msg.Errs)
+		log.Printf("[ERROR] [%v] m.Msgs.Send '%v': %v", msg.ID, msg.To, msg.Errs)
 	} else {
 		m.exports.videos.Add(1)
 		log.Printf("[REPLY] [%v] File '%v' (%.2fMb) sent to: %v", msg.ID, msg.Text, float32(size)/1024/1024, msg.To)
