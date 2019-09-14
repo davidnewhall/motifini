@@ -94,9 +94,17 @@ func (c *Chat) doHelp(h *CommandHandle) *CommandReply {
 		h.Text = append(h.Text, "")
 	}
 	// Request help for specific command.
-	resp := &CommandReply{Reply: c.NonAdminCommands().help(h.Text[1])}
+	resp := &CommandReply{}
+
+	for i := range c.Cmds {
+		r := &CommandReply{Reply: c.Cmds[i].help(h.Text[1])}
+		resp.Reply += r.Reply
+	}
 	if h.Sub.Admin {
-		resp.Reply += c.AdminCommands().help(h.Text[1])
+		for i := range c.AdminCmds {
+			r := &CommandReply{Reply: c.AdminCmds[i].help(h.Text[1])}
+			resp.Reply += r.Reply
+		}
 	}
 	return resp
 }
