@@ -92,7 +92,7 @@ func (c *Chat) cmdPics(h *CommandHandle) (string, []string, error) {
 		}
 		return msg, []string{path}, nil
 	}
-	var paths []string
+	paths := []string{}
 	for _, cam := range c.Spy.Cameras.All() {
 		path := fmt.Sprintf("%vchat_command_%v_%v.jpg", c.TempDir, h.ID, cam.Name)
 		if err := cam.SaveJPEG(&securityspy.VidOps{}, path); err != nil {
