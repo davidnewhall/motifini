@@ -3,7 +3,6 @@ package cli
 import (
 	"context"
 	"fmt"
-	"log"
 	"net/http"
 	"time"
 
@@ -23,36 +22,37 @@ func (m *Motifini) StartWebServer() error {
 		m.subsHandler).Methods("GET")
 	r.PathPrefix("/").HandlerFunc(m.handleAll)
 	http.Handle("/", r)
-	m.Server = &http.Server{
-		Addr:         fmt.Sprintf("127.0.0.1:%d", m.Config.Global.Port),
+	m.HTTP = &http.Server{
+		Addr:         fmt.Sprintf("127.0.0.1:%d", m.Conf.Global.Port),
 		WriteTimeout: time.Second * 15,
 		ReadTimeout:  time.Second * 15,
 		IdleTimeout:  time.Second * 60,
 		Handler:      r, // *mux.Router
 	}
-	log.Print("[INFO] Web server listening at http://", m.Server.Addr)
-	return m.Server.ListenAndServe()
+	m.Info.Print("Web server listening at http://", m.HTTP.Addr)
+	return m.HTTP.ListenAndServe()
 }
 
 // StopWebServer shuts down the HTTP listener.
 func (m *Motifini) StopWebServer() {
 	// Give the http server up to 3 seconds to finish any open requests.
-	if m.Server == nil {
+	if m.HTTP == nil {
 		return
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
-	if err := m.Server.Shutdown(ctx); err != nil {
-		log.Println("[ERROR] Shutting down web server:", err)
+	if err := m.HTTP.Shutdown(ctx); err != nil {
+		m.Error.Println("Shutting down web server:", err)
 	}
 }
 
 func (m *Motifini) finishReq(w http.ResponseWriter, r *http.Request, id string, code int, reply string, cmd string) {
-	log.Printf(`[REQST] [%v] %v %v "%v %v" %d %d "%v" "%v"`,
+	m.exports.httpVisits.Add(1)
+	m.WReq.Printf(`[%v] %v %v "%v %v" %d %d "%v" "%v"`,
 		id, r.RemoteAddr, r.Host, r.Method, r.URL.String(), code, len(reply), r.UserAgent(), cmd)
 	w.WriteHeader(code)
 	if _, err := w.Write([]byte(reply)); err != nil {
-		log.Printf("[ERROR] [%v] Error Sending Reply: %v", id, err)
+		m.Error.Printf("[%v] Error Sending Reply: %v", id, err)
 	}
 }
 

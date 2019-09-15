@@ -17,7 +17,7 @@ import (
 // Set all these variables before calling HandleCommand
 type Chat struct {
 	Subs    *subscribe.Subscribe
-	Spy     *securityspy.Server
+	SSpy    *securityspy.Server
 	TempDir string
 	Cmds    []*CommandMap
 }
@@ -67,7 +67,7 @@ func New(c *Chat) *Chat {
 
 // HandleCommand builds responses and runs actions from incoming chat commands.
 func (c *Chat) HandleCommand(h *CommandHandler) *CommandReply {
-	if c.Subs == nil || c.Spy == nil || c.TempDir == "" || h.Sub.Ignored {
+	if c.Subs == nil || c.SSpy == nil || c.TempDir == "" || h.Sub.Ignored {
 		return &CommandReply{}
 	}
 

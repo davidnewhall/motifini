@@ -5,6 +5,7 @@ import (
 	"log"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"golift.io/securityspy"
@@ -60,8 +61,8 @@ func (c *Chat) NonAdminCommands() *CommandMap {
 }
 
 func (c *Chat) cmdCams(h *CommandHandler) (string, []string, error) {
-	msg := "There are " + strconv.Itoa(len(c.Spy.Cameras.All())) + " cameras:\n"
-	for _, cam := range c.Spy.Cameras.All() {
+	msg := "There are " + strconv.Itoa(len(c.SSpy.Cameras.All())) + " cameras:\n"
+	for _, cam := range c.SSpy.Cameras.All() {
 		msg += fmt.Sprintf("%v: %v\n", cam.Number, cam.Name)
 	}
 	return msg, nil, nil
@@ -81,7 +82,7 @@ func (c *Chat) cmdPics(h *CommandHandler) (string, []string, error) {
 	msg := ""
 	if len(h.Text) > 1 {
 		name := strings.Join(h.Text[1:], " ")
-		cam := c.Spy.Cameras.ByName(name)
+		cam := c.SSpy.Cameras.ByName(name)
 		if cam == nil {
 			return "Unknown Camera: " + name, nil, ErrorBadUsage
 		}
@@ -93,17 +94,21 @@ func (c *Chat) cmdPics(h *CommandHandler) (string, []string, error) {
 		return msg, []string{path}, nil
 	}
 	paths := []string{}
-	for _, cam := range c.Spy.Cameras.All() {
-		path := fmt.Sprintf("%vchat_command_%v_%v.jpg", c.TempDir, h.ID, cam.Name)
-		if err := cam.SaveJPEG(&securityspy.VidOps{}, path); err != nil {
-			log.Printf("[ERROR] [%v] cam.SaveJPEG: %v", h.ID, err)
-			msg += "Error Getting '" + cam.Name + "' Picture: " + err.Error() + "\n"
-			continue
-		}
-		paths = append(paths, path)
+	var wg sync.WaitGroup
+	for _, cam := range c.SSpy.Cameras.All() {
+		wg.Add(1)
+		go func(cam *securityspy.Camera) {
+			defer wg.Done()
+			path := fmt.Sprintf("%vchat_command_%v_%v.jpg", c.TempDir, h.ID, cam.Name)
+			if err := cam.SaveJPEG(&securityspy.VidOps{}, path); err != nil {
+				log.Printf("[ERROR] [%v] cam.SaveJPEG: %v", h.ID, err)
+				msg += "Error Getting '" + cam.Name + "' Picture: " + err.Error() + "\n"
+				return
+			}
+			paths = append(paths, path)
+		}(cam)
 	}
-	// Give the file system time to sync
-	time.Sleep(200 * time.Millisecond)
+	wg.Wait()
 	return msg, paths, nil
 }
 
@@ -115,7 +120,7 @@ func (c *Chat) cmdSub(h *CommandHandler) (string, []string, error) {
 	event := strings.Join(h.Text[1:], " ")
 	if !c.Subs.Events.Exists(event) {
 		kind = "camera"
-		if cam := c.Spy.Cameras.ByName(event); cam == nil {
+		if cam := c.SSpy.Cameras.ByName(event); cam == nil {
 			return "Event or Camera not found: " + event, nil, ErrorBadUsage
 		}
 	}

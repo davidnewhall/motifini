@@ -2,7 +2,6 @@ package cli
 
 import (
 	"fmt"
-	"log"
 	"path/filepath"
 	"strings"
 	"time"
@@ -13,21 +12,21 @@ import (
 // processEventStream processes the securityspy event stream.
 func (m *Motifini) processEventStream() {
 	c := make(chan securityspy.Event, 100)
-	m.Spy.Events.BindChan(securityspy.EventAllEvents, c)
-	go m.Spy.Events.Watch(5*time.Second, true)
+	m.SSpy.Events.BindChan(securityspy.EventAllEvents, c)
+	go m.SSpy.Events.Watch(5*time.Second, true)
 	go m.handleEvents(c)
 }
 
 func (m *Motifini) handleEvents(c chan securityspy.Event) {
-	log.Println("[INFO] Event Stream Watcher Started")
-	defer log.Println("[WARN] Event Stream Watcher Closed")
+	m.Info.Println("Event Stream Watcher Started")
+	defer m.Warn.Println("Event Stream Watcher Closed")
 	for event := range c {
 		switch event.Type {
 		case securityspy.EventKeepAlive:
 			// ignore.
 		case securityspy.EventMotionDetected:
 			// v4 motion event.
-			if strings.HasPrefix(m.Spy.Info.Version, "4") {
+			if strings.HasPrefix(m.SSpy.Info.Version, "4") {
 				m.handleCameraMotion(event)
 			}
 		case securityspy.EventTriggerAction:
@@ -36,9 +35,9 @@ func (m *Motifini) handleEvents(c chan securityspy.Event) {
 		case securityspy.EventTriggerMotion:
 			// ignore this for now.
 		case securityspy.EventStreamConnect:
-			log.Println("[INFO] SecuritySpy Event Stream Connected!")
+			m.Info.Println("SecuritySpy Event Stream Connected!")
 		case securityspy.EventStreamDisconnect:
-			log.Println("[ERROR] SecuritySpy Event Stream Disconnected")
+			m.Error.Println("SecuritySpy Event Stream Disconnected")
 		case securityspy.EventConfigChange:
 			m.saveSubDB()
 			fallthrough
@@ -47,7 +46,7 @@ func (m *Motifini) handleEvents(c chan securityspy.Event) {
 			if event.Camera != nil {
 				camName = "camera: " + event.Camera.Name
 			}
-			m.Debug.Println("[EVENT]", event.String(), camName, event.Msg)
+			m.Debug.Println("Event:", event.String(), camName, event.Msg)
 		}
 	}
 }
@@ -62,9 +61,9 @@ func (m *Motifini) handleCameraMotion(e securityspy.Event) {
 		return // no one to notify of this camera's motion
 	}
 	id := ReqID(3)
-	path := filepath.Join(m.Config.Global.TempDir, fmt.Sprintf("camera_motion_%s_%s.jpg", id, e.Camera.Name))
+	path := filepath.Join(m.Conf.Global.TempDir, fmt.Sprintf("camera_motion_%s_%s.jpg", id, e.Camera.Name))
 	if err := e.Camera.SaveJPEG(&securityspy.VidOps{}, path); err != nil {
-		log.Printf("[ERROR] [%v] event.Camera.SaveJPEG: %v", id, err)
+		m.Error.Printf("[%v] event.Camera.SaveJPEG: %v", id, err)
 	}
 	m.sendFileOrMsg(id, "", path, subs)
 	for _, sub := range subs {
@@ -74,5 +73,5 @@ func (m *Motifini) handleCameraMotion(e securityspy.Event) {
 		}
 		_ = sub.Events.Pause(e.Camera.Name, time.Minute)
 	}
-	log.Printf("[%v] Event '%v' triggered subscription messages. Subscribers: %v", id, e.Camera.Name, subCount)
+	m.Info.Printf("[%v] Event '%v' triggered subscription messages. Subscribers: %v", id, e.Camera.Name, subCount)
 }

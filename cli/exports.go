@@ -15,8 +15,7 @@ type exportData struct {
 	listenPort expvar.Int
 	httpVisits expvar.Int
 	defaultURL expvar.Int
-	videos     expvar.Int
-	pics       expvar.Int
+	files      expvar.Int
 	texts      expvar.Int
 	errors     expvar.Int
 }
@@ -39,15 +38,14 @@ func (m *Motifini) exportData() {
 	m.exports.Set("listen_port", &m.exports.listenPort)
 	m.exports.Set("http_visits", &m.exports.httpVisits)
 	m.exports.Set("default_url", &m.exports.defaultURL)
-	m.exports.Set("videos_sent", &m.exports.videos)
-	m.exports.Set("photos_sent", &m.exports.pics)
+	m.exports.Set("files_sent", &m.exports.files)
 	m.exports.Set("messge_sent", &m.exports.texts)
 	m.exports.Set("error_count", &m.exports.errors)
 	// Set static data now.
 	m.exports.startAt.Set(time.Now().String())
 	m.exports.version.Set(Version)
-	m.exports.configFile.Set(m.Flags.ConfigFile)
-	m.exports.listenPort.Set(int64(m.Config.Global.Port))
+	m.exports.configFile.Set(m.Flag.ConfigFile)
+	m.exports.listenPort.Set(int64(m.Conf.Global.Port))
 }
 
 // GetMap returns an unpublished map if one exists, or returns a new one.
