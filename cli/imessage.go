@@ -43,7 +43,8 @@ func (m *Motifini) recviMessageHandler(msg imessage.Incoming) {
 		Text: strings.Fields(msg.Text),
 		From: msg.From,
 	}
-	m.MReq.Printf("[%s] iMessage Received from %s (admin:%v, ignored:%v), size: %d, cmd: %s", h.ID, msg.From, sub.Admin, sub.Ignored, len(msg.Text), h.Text[0])
+	m.MReq.Printf("[%s] iMessage Received from %s (admin:%v, ignored:%v), size: %d, cmd: %s",
+		h.ID, msg.From, sub.Admin, sub.Ignored, len(msg.Text), h.Text[0])
 	resp := m.Chat.HandleCommand(h)
 	// Send the reply as files and/or text.
 	if resp.Reply != "" {

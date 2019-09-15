@@ -125,7 +125,6 @@
   analyzer-name = "dep"
   analyzer-version = 1
   input-imports = [
-    "crawshaw.io/sqlite",
     "github.com/BurntSushi/toml",
     "github.com/gorilla/mux",
     "github.com/pkg/errors",

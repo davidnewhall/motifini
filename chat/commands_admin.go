@@ -11,41 +11,41 @@ func (c *Chat) AdminCommands() *CommandMap {
 		Title: "Admin",
 		Level: 10,
 		Map: map[string]Command{
-			"subs": Command{
+			"subs": {
 				Usage:       "[subscriber]",
 				Description: "Displays all subscribers.",
 				Run:         c.cmdAdminSubs,
 				Save:        false,
 			},
-			"ignores": Command{
+			"ignores": {
 				Description: "Displays all ignored subscribers.",
 				Run:         c.cmdAdminIgnores,
 				Save:        false,
 			},
-			"ignore": Command{
+			"ignore": {
 				Usage:       "<subscriber>",
 				Description: "Ignores a subscriber.",
 				Run:         c.cmdAdminIgnore,
 				Save:        true,
 			},
-			"unignore": Command{
+			"unignore": {
 				Usage:       "<subscriber>",
 				Description: "Removes a subscriber's ignore.",
 				Run:         c.cmdAdminUnignore,
 				Save:        true,
 			},
-			"admins": Command{
+			"admins": {
 				Description: "Displays all administrative subscribers.",
 				Run:         c.cmdAdminAdmins,
 				Save:        false,
 			},
-			"admin": Command{
+			"admin": {
 				Usage:       "<subscriber>",
 				Description: "Gives a subscriber administrative access.",
 				Run:         c.cmdAdminAdmin,
 				Save:        true,
 			},
-			"unadmin": Command{
+			"unadmin": {
 				Usage:       "<subscriber>",
 				Description: "Removes a subscriber's administrative access.",
 				Run:         c.cmdAdminUnadmin,
