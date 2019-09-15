@@ -35,7 +35,7 @@ type Command struct {
 
 // CommandMap contains a list of related or grouped commands.
 type CommandMap struct {
-	Kind  string
+	Title string
 	Level int // not used yet
 	Map   map[string]Command
 }
@@ -123,7 +123,7 @@ func (c *CommandMap) run(h *CommandHandler) (*CommandReply, bool) {
 	reply, files, err := Cmd.Run(h)
 	if err != nil {
 		return &CommandReply{Reply: fmt.Sprintf("ERROR: %v\n%s Usage: %s %s\n%s\nDescription: %s\n",
-			err, c.Kind, name, Cmd.Usage, reply, Cmd.Description)}, false
+			err, c.Title, name, Cmd.Usage, reply, Cmd.Description)}, false
 	}
 	return &CommandReply{Reply: reply, Files: files}, Cmd.Save
 }
@@ -135,12 +135,12 @@ func (c *CommandMap) help(cmdName string) string {
 			return ""
 		}
 		return fmt.Sprintf("%s Usage: %s %s\n%s Description: %s\n",
-			c.Kind, cmdName, Cmd.Usage, c.Kind, Cmd.Description)
+			c.Title, cmdName, Cmd.Usage, c.Title, Cmd.Description)
 	}
-	msg := "\n=== " + c.Kind + " Commands ===\n"
+	msg := "\n* " + c.Title + " Commands *\n"
 	for name, Cmd := range c.Map {
 		msg += name + " " + Cmd.Usage + "\n"
 	}
-	msg += "- Use 'help <cmd>' for more.\n"
+	msg += "- More Info: help <cmd>\n"
 	return msg
 }

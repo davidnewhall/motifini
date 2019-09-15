@@ -74,7 +74,7 @@ func (m *Motifini) sendFileOrMsg(id, msg, path string, subs []*subscribe.Subscri
 // fileCallback runs in a go routine after a video or picture iMessage is processed.
 func (m *Motifini) fileCallback(msg *imessage.Response) {
 	var size int64
-	if fi, errStat := os.Stat(msg.Text); errStat == nil {
+	if fi, err := os.Stat(msg.Text); err == nil {
 		size = fi.Size()
 	}
 	if msg.Errs != nil {
@@ -85,7 +85,7 @@ func (m *Motifini) fileCallback(msg *imessage.Response) {
 		m.MReq.Printf("[%v] iMessage File '%v' (%.2fMb) sent to: %v", msg.ID, msg.Text, float32(size)/1024/1024, msg.To)
 	}
 	// Might take a while to upload.
-	time.Sleep(30 * time.Second)
+	time.Sleep(20 * time.Second)
 	if err := os.Remove(msg.Text); err != nil && !os.IsNotExist(err) {
 		m.Error.Printf("[%v] Remove(path): %v", msg.ID, err)
 		return

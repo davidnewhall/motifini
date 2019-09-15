@@ -90,8 +90,6 @@ func (m *Motifini) sendPictureHandler(w http.ResponseWriter, r *http.Request) {
 		code, reply = 500, "ERROR: "+err.Error()
 
 	} else {
-		// Give the file system time to sync
-		time.Sleep(150 * time.Millisecond)
 		// Input data OK, send a message to each recipient.
 		for _, t := range to {
 			m.Imsg.Send(imessage.Outgoing{ID: id, To: t, Text: path, File: true, Call: m.fileCallback})

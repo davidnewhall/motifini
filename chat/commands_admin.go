@@ -8,7 +8,7 @@ import (
 // AdminCommands contains all the built-in admin commands like 'ignore'
 func (c *Chat) AdminCommands() *CommandMap {
 	return &CommandMap{
-		Kind:  "Admin",
+		Title: "Admin",
 		Level: 10,
 		Map: map[string]Command{
 			"subs": Command{

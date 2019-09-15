@@ -14,7 +14,7 @@ import (
 // NonAdminCommands contains all the built-in non-admin commands.
 func (c *Chat) NonAdminCommands() *CommandMap {
 	return &CommandMap{
-		Kind:  "User",
+		Title: "User",
 		Level: 1,
 		Map: map[string]Command{
 			"cams": Command{
@@ -27,10 +27,9 @@ func (c *Chat) NonAdminCommands() *CommandMap {
 				Run:         c.cmdEvents,
 				Save:        false,
 			},
-			"pics": Command{
-				Usage:       "[camera]",
-				Description: "Sends pictures from all cameras, or from [camera].",
-				Run:         c.cmdPics,
+			"subs": Command{
+				Description: "Shows your subscriptions.",
+				Run:         c.cmdSubs,
 				Save:        false,
 			},
 			"sub": Command{
@@ -39,22 +38,23 @@ func (c *Chat) NonAdminCommands() *CommandMap {
 				Run:         c.cmdSub,
 				Save:        true,
 			},
-			"subs": Command{
-				Description: "Shows your subscriptions.",
-				Run:         c.cmdSubs,
-				Save:        false,
-			},
 			"unsub": Command{
-				Usage:       "<camera|event|*>",
-				Description: "Stops notifications from <camera>, or <event> or everything if '*' is passed.",
+				Usage:       "<cam|event>",
+				Description: "Stops notifications from <cam>, or <event> or everything if '*' is passed.",
 				Run:         c.cmdUnsub,
 				Save:        true,
 			},
 			"stop": Command{
-				Usage:       "[minutes] [camera]",
-				Description: "Stops all motion notifications for 10 minutes or [minutes] on all cameras or [camera].",
+				Usage:       "[mins] [camera]",
+				Description: "Stops all motion notifications for 10 minutes or [mins] on all cameras or [camera].",
 				Run:         c.cmdStop,
 				Save:        true,
+			},
+			"pics": Command{
+				Usage:       "[camera]",
+				Description: "Sends pictures from all cameras, or from [camera].",
+				Run:         c.cmdPics,
+				Save:        false,
 			},
 		},
 	}
