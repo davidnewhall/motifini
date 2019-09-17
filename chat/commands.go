@@ -17,40 +17,40 @@ func (c *Chat) NonAdminCommands() *CommandMap {
 		Title: "User",
 		Level: 1,
 		Map: map[string]Command{
-			"cams": Command{
+			"cams": {
 				Description: "Displays all available cameras by name.",
 				Run:         c.cmdCams,
 				Save:        false,
 			},
-			"events": Command{
+			"events": {
 				Description: "Displays all available events.",
 				Run:         c.cmdEvents,
 				Save:        false,
 			},
-			"subs": Command{
+			"subs": {
 				Description: "Shows your subscriptions.",
 				Run:         c.cmdSubs,
 				Save:        false,
 			},
-			"sub": Command{
+			"sub": {
 				Usage:       "<camera|event>",
 				Description: "Enables notifications from <camera> or <event>.",
 				Run:         c.cmdSub,
 				Save:        true,
 			},
-			"unsub": Command{
+			"unsub": {
 				Usage:       "<cam|event>",
 				Description: "Stops notifications from <cam>, or <event> or everything if '*' is passed.",
 				Run:         c.cmdUnsub,
 				Save:        true,
 			},
-			"stop": Command{
+			"stop": {
 				Usage:       "[mins] [camera]",
 				Description: "Stops all motion notifications for 10 minutes or [mins] on all cameras or [camera].",
 				Run:         c.cmdStop,
 				Save:        true,
 			},
-			"pics": Command{
+			"pics": {
 				Usage:       "[camera]",
 				Description: "Sends pictures from all cameras, or from [camera].",
 				Run:         c.cmdPics,
