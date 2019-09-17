@@ -27,9 +27,10 @@ var ErrorBadUsage = fmt.Errorf("invalid command usage")
 
 // Command is the configuration for a chat command handler.
 type Command struct {
+	Aliases     []string
 	Description string
 	Usage       string
-	Run         func(handle *CommandHandler) (reply string, files []string, err error)
+	Run         func(handle *CommandHandler) (reply *CommandReply, err error)
 	Save        bool
 }
 
@@ -37,7 +38,7 @@ type Command struct {
 type CommandMap struct {
 	Title string
 	Level int // not used yet
-	Map   map[string]Command
+	List  []*Command
 }
 
 // CommandHandler contains the data to handle a command. ie. an incoming message.
@@ -53,6 +54,27 @@ type CommandHandler struct {
 type CommandReply struct {
 	Reply string
 	Files []string
+	Found bool
+}
+
+// HasAlias returns true if a command matches a specific alias.
+// Use this to determine if a command should be run based in input text.
+func (c *Command) HasAlias(alias string) bool {
+	for _, a := range c.Aliases {
+		if strings.EqualFold(a, alias) {
+			return true
+		}
+	}
+	return false
+}
+
+func (c *CommandMap) GetCommand(alias string) *Command {
+	for i, cmd := range c.List {
+		if cmd.HasAlias(alias) {
+			return c.List[i]
+		}
+	}
+	return nil
 }
 
 // New just adds the basic commands to a Chat struct.
@@ -90,11 +112,17 @@ func (c *Chat) doHelp(h *CommandHandler) *CommandReply {
 	}
 	// Request help for specific command.
 	resp := &CommandReply{}
+	var cmdFound bool
 	for i := range c.Cmds {
 		if !h.Sub.Admin && c.Cmds[i].Level > 2 {
 			continue
 		}
-		resp.Reply += c.Cmds[i].help(h.Text[1])
+		reply, ok := c.Cmds[i].help(h.Text[1])
+		cmdFound = ok || cmdFound
+		resp.Reply += reply
+	}
+	if !cmdFound {
+		resp.Reply += "Command not found: " + h.Text[1]
 	}
 	return resp
 }
@@ -102,45 +130,57 @@ func (c *Chat) doHelp(h *CommandHandler) *CommandReply {
 func (c *Chat) doCmd(h *CommandHandler) (*CommandReply, bool) {
 	resp := &CommandReply{}
 	var save bool
+	var found bool
 	for i := range c.Cmds {
 		if !h.Sub.Admin && c.Cmds[i].Level > 2 {
 			continue
 		}
 		r, s := c.Cmds[i].run(h)
+		if r == nil {
+			continue
+		}
+		found = r.Found || found
 		resp.Reply += r.Reply
 		resp.Files = append(resp.Files, r.Files...)
 		save = save || s
+	}
+	if !found && h.Sub.Admin {
+		resp.Reply = "Command not found: " + h.Text[0]
 	}
 	return resp, save
 }
 
 func (c *CommandMap) run(h *CommandHandler) (*CommandReply, bool) {
 	name := strings.ToLower(h.Text[0])
-	Cmd, ok := c.Map[name]
-	if !ok || Cmd.Run == nil {
-		return &CommandReply{}, false
+	Cmd := c.GetCommand(name)
+	if Cmd == nil || Cmd.Run == nil {
+		return &CommandReply{Found: false}, false
 	}
-	reply, files, err := Cmd.Run(h)
+	reply, err := Cmd.Run(h)
+	if reply == nil {
+		reply = &CommandReply{Found: true}
+	}
+	reply.Found = true
 	if err != nil {
-		return &CommandReply{Reply: fmt.Sprintf("ERROR: %v\n%s Usage: %s %s\n%s\nDescription: %s\n",
-			err, c.Title, name, Cmd.Usage, reply, Cmd.Description)}, false
+		reply.Reply = fmt.Sprintf("ERROR: %v\n%s Usage: %s %s\n%s\nDescription: %s\n",
+			err, c.Title, name, Cmd.Usage, reply.Reply, Cmd.Description)
 	}
-	return &CommandReply{Reply: reply, Files: files}, Cmd.Save
+	return reply, Cmd.Save && err == nil
 }
 
-func (c *CommandMap) help(cmdName string) string {
+func (c *CommandMap) help(cmdName string) (string, bool) {
 	if cmdName != "" {
-		Cmd, ok := c.Map[cmdName]
-		if !ok {
-			return ""
+		Cmd := c.GetCommand(cmdName)
+		if Cmd == nil {
+			return "", false
 		}
-		return fmt.Sprintf("%s Usage: %s %s\n%s Description: %s\n",
-			c.Title, cmdName, Cmd.Usage, c.Title, Cmd.Description)
+		return fmt.Sprintf("* %s Usage: %s %s\nDescription: %s\nAliases: %s\n",
+			c.Title, cmdName, Cmd.Usage, Cmd.Description, strings.Join(Cmd.Aliases, ", ")), true
 	}
 	msg := "\n* " + c.Title + " Commands *\n"
-	for name, Cmd := range c.Map {
-		msg += name + " " + Cmd.Usage + "\n"
+	for _, Cmd := range c.List {
+		msg += Cmd.Aliases[0] + " " + Cmd.Usage + "\n"
 	}
 	msg += "- More Info: help <cmd>\n"
-	return msg
+	return msg, true
 }

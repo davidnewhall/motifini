@@ -10,42 +10,49 @@ func (c *Chat) AdminCommands() *CommandMap {
 	return &CommandMap{
 		Title: "Admin",
 		Level: 10,
-		Map: map[string]Command{
-			"subs": {
+		List: []*Command{
+			{
+				Aliases:     []string{"subs", "subscribers"},
 				Usage:       "[subscriber]",
 				Description: "Displays all subscribers.",
 				Run:         c.cmdAdminSubs,
 				Save:        false,
 			},
-			"ignores": {
+			{
+				Aliases:     []string{"ignores"},
 				Description: "Displays all ignored subscribers.",
 				Run:         c.cmdAdminIgnores,
 				Save:        false,
 			},
-			"ignore": {
+			{
+				Aliases:     []string{"ignore"},
 				Usage:       "<subscriber>",
 				Description: "Ignores a subscriber.",
 				Run:         c.cmdAdminIgnore,
 				Save:        true,
 			},
-			"unignore": {
+			{
+				Aliases:     []string{"unignore"},
 				Usage:       "<subscriber>",
 				Description: "Removes a subscriber's ignore.",
 				Run:         c.cmdAdminUnignore,
 				Save:        true,
 			},
-			"admins": {
+			{
+				Aliases:     []string{"admins"},
 				Description: "Displays all administrative subscribers.",
 				Run:         c.cmdAdminAdmins,
 				Save:        false,
 			},
-			"admin": {
+			{
+				Aliases:     []string{"admin"},
 				Usage:       "<subscriber>",
 				Description: "Gives a subscriber administrative access.",
 				Run:         c.cmdAdminAdmin,
 				Save:        true,
 			},
-			"unadmin": {
+			{
+				Aliases:     []string{"unadmin", "unmasking", "inadmissible", "unassuming"},
 				Usage:       "<subscriber>",
 				Description: "Removes a subscriber's administrative access.",
 				Run:         c.cmdAdminUnadmin,
@@ -55,27 +62,27 @@ func (c *Chat) AdminCommands() *CommandMap {
 	}
 }
 
-func (c *Chat) cmdAdminAdmins(h *CommandHandler) (string, []string, error) {
+func (c *Chat) cmdAdminAdmins(h *CommandHandler) (*CommandReply, error) {
 	admins := c.Subs.GetAdmins()
 	msg := "There are " + strconv.Itoa(len(admins)) + " admins:"
 	for i, admin := range admins {
 		msg += fmt.Sprintf("\n%v: (%v) %v (%v subscriptions)",
 			strconv.Itoa(i+1), admin.API, admin.Contact, admin.Events.Len())
 	}
-	return msg, nil, nil
+	return &CommandReply{Reply: msg}, nil
 }
 
-func (c *Chat) cmdAdminIgnores(h *CommandHandler) (string, []string, error) {
+func (c *Chat) cmdAdminIgnores(h *CommandHandler) (*CommandReply, error) {
 	ignores := c.Subs.GetIgnored()
 	msg := "There are " + strconv.Itoa(len(ignores)) + " ignored subscribers:"
 	for i, ignore := range ignores {
 		msg += fmt.Sprintf("\n%v: (%v) %v (%v subscriptions)",
 			strconv.Itoa(i+1), ignore.API, ignore.Contact, ignore.Events.Len())
 	}
-	return msg, nil, nil
+	return &CommandReply{Reply: msg}, nil
 }
 
-func (c *Chat) cmdAdminSubs(h *CommandHandler) (string, []string, error) {
+func (c *Chat) cmdAdminSubs(h *CommandHandler) (*CommandReply, error) {
 	if len(h.Text) == 1 {
 		subs := c.Subs.Subscribers
 		msg := "There are " + strconv.Itoa(len(subs)) + " total subscribers:"
@@ -89,16 +96,16 @@ func (c *Chat) cmdAdminSubs(h *CommandHandler) (string, []string, error) {
 			msg += fmt.Sprintf("\n%v: (%v) %v%v (%v subscriptions)",
 				strconv.Itoa(i+1), target.API, target.Contact, x, target.Events.Len())
 		}
-		return msg, nil, nil
+		return &CommandReply{Reply: msg}, nil
 	}
 	s, err := c.Subs.GetSubscriber(h.Text[1], h.API)
 	if err != nil {
-		return "Subscriber does not exist: " + h.Text[1], nil, nil
+		return &CommandReply{Reply: "Subscriber does not exist: " + h.Text[1]}, nil
 	}
 
 	subs := s.Events.Names()
 	if len(subs) == 0 {
-		return h.Text[1] + " has no subscriptions.", nil, nil
+		return &CommandReply{Reply: h.Text[1] + " has no subscriptions."}, nil
 	}
 	var x string
 	if s.Ignored {
@@ -115,54 +122,54 @@ func (c *Chat) cmdAdminSubs(h *CommandHandler) (string, []string, error) {
 			msg += " (paused)"
 		}
 	}
-	return msg, nil, nil
+	return &CommandReply{Reply: msg}, nil
 }
 
-func (c *Chat) cmdAdminUnadmin(h *CommandHandler) (string, []string, error) {
+func (c *Chat) cmdAdminUnadmin(h *CommandHandler) (*CommandReply, error) {
 	if len(h.Text) != 2 {
-		return "", nil, ErrorBadUsage
+		return &CommandReply{}, ErrorBadUsage
 	}
 	target, err := c.Subs.GetSubscriber(h.Text[1], h.API)
 	if err != nil {
-		return "Subscriber does not exist: " + h.Text[1], nil, ErrorBadUsage
+		return &CommandReply{Reply: "Subscriber does not exist: " + h.Text[1]}, ErrorBadUsage
 	}
 	target.Admin = false
-	return "Subscriber '" + target.Contact + "' updated without admin privileges.", nil, nil
+	return &CommandReply{Reply: "Subscriber '" + target.Contact + "' updated without admin privileges."}, nil
 }
 
-func (c *Chat) cmdAdminAdmin(h *CommandHandler) (string, []string, error) {
+func (c *Chat) cmdAdminAdmin(h *CommandHandler) (*CommandReply, error) {
 	if len(h.Text) != 2 {
-		return "", nil, ErrorBadUsage
+		return &CommandReply{}, ErrorBadUsage
 	}
 	target, err := c.Subs.GetSubscriber(h.Text[1], h.API)
 	if err != nil {
-		return "Subscriber does not exist: " + h.Text[1], nil, ErrorBadUsage
+		return &CommandReply{Reply: "Subscriber does not exist: " + h.Text[1]}, ErrorBadUsage
 	}
 	target.Admin = true
-	return "Subscriber '" + target.Contact + "' updated with admin privileges.", nil, nil
+	return &CommandReply{Reply: "Subscriber '" + target.Contact + "' updated with admin privileges."}, nil
 }
 
-func (c *Chat) cmdAdminUnignore(h *CommandHandler) (string, []string, error) {
+func (c *Chat) cmdAdminUnignore(h *CommandHandler) (*CommandReply, error) {
 	if len(h.Text) != 2 {
-		return "", nil, ErrorBadUsage
+		return &CommandReply{}, ErrorBadUsage
 	}
 	target, err := c.Subs.GetSubscriber(h.Text[1], h.API)
 	if err != nil {
-		return "Subscriber does not exist: " + h.Text[1], nil, ErrorBadUsage
+		return &CommandReply{Reply: "Subscriber does not exist: " + h.Text[1]}, ErrorBadUsage
 	}
 	target.Ignored = false
-	return "Subscriber '" + target.Contact + "' no longer ignored.", nil, nil
+	return &CommandReply{Reply: "Subscriber '" + target.Contact + "' no longer ignored."}, nil
 }
 
-func (c *Chat) cmdAdminIgnore(h *CommandHandler) (string, []string, error) {
+func (c *Chat) cmdAdminIgnore(h *CommandHandler) (*CommandReply, error) {
 	if len(h.Text) != 2 {
-		return "", nil, ErrorBadUsage
+		return &CommandReply{}, ErrorBadUsage
 	}
 	target, err := c.Subs.GetSubscriber(h.Text[1], h.API)
 	if err != nil {
-		return "Subscriber does not exist: " + h.Text[1], nil, ErrorBadUsage
+		return &CommandReply{Reply: "Subscriber does not exist: " + h.Text[1]}, ErrorBadUsage
 	}
 	target.Ignored = true
 	target.Admin = false
-	return "Subscriber '" + target.Contact + "' ignored.", nil, nil
+	return &CommandReply{Reply: "Subscriber '" + target.Contact + "' ignored."}, nil
 }
