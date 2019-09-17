@@ -122,7 +122,7 @@ func (c *Chat) cmdPics(h *CommandHandler) (*CommandReply, error) {
 func (c *Chat) cmdSub(h *CommandHandler) (*CommandReply, error) {
 	kind := "event"
 	if len(h.Text) < 2 {
-		return nil, ErrorBadUsage
+		return &CommandReply{Reply: "must provide an event or camera name to subscribe"}, ErrorBadUsage
 	}
 	event := strings.Join(h.Text[1:], " ")
 	if !c.Subs.Events.Exists(event) {
@@ -159,7 +159,7 @@ func (c *Chat) cmdSubs(h *CommandHandler) (*CommandReply, error) {
 
 func (c *Chat) cmdUnsub(h *CommandHandler) (*CommandReply, error) {
 	if len(h.Text) < 2 {
-		return nil, ErrorBadUsage
+		return &CommandReply{Reply: "must provide an event or camera name to unsubscribe"}, ErrorBadUsage
 	}
 	event := strings.Join(h.Text[1:], " ")
 	msg := "You've been unsubscribed from: " + event
@@ -178,8 +178,8 @@ func (c *Chat) cmdUnsub(h *CommandHandler) (*CommandReply, error) {
 }
 
 func (c *Chat) cmdStop(h *CommandHandler) (*CommandReply, error) {
-	if len(h.Text) < 2 {
-		return nil, ErrorBadUsage
+	if len(h.Text) == 1 {
+		h.Text = append(h.Text, "10")
 	}
 	dur, err := strconv.Atoi(h.Text[1])
 	if err != nil {

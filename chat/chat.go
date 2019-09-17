@@ -109,19 +109,15 @@ func (c *Chat) doHelp(h *CommandHandler) *CommandReply {
 
 func (c *Chat) doCmd(h *CommandHandler) (*CommandReply, bool) {
 	resp := &CommandReply{}
-	var save bool
-	var found bool
+	var save, found bool
 	for i := range c.Cmds {
 		if !h.Sub.Admin && c.Cmds[i].Level > 2 {
 			continue
 		}
 		r, s := c.Cmds[i].run(h)
-		if r == nil {
-			continue
-		}
-		found = r.Found || found
 		resp.Reply += r.Reply
 		resp.Files = append(resp.Files, r.Files...)
+		found = r.Found || found
 		save = save || s
 	}
 	if !found && h.Sub.Admin {
@@ -131,8 +127,8 @@ func (c *Chat) doCmd(h *CommandHandler) (*CommandReply, bool) {
 }
 
 func (c *CommandMap) run(h *CommandHandler) (*CommandReply, bool) {
-	name := strings.ToLower(h.Text[0])
-	cmd := c.GetCommand(name)
+	cmdName := strings.ToLower(h.Text[0])
+	cmd := c.GetCommand(cmdName)
 	if cmd == nil || cmd.Run == nil {
 		return &CommandReply{Found: false}, false
 	}
@@ -142,7 +138,7 @@ func (c *CommandMap) run(h *CommandHandler) (*CommandReply, bool) {
 	}
 	reply.Found = true
 	if err != nil {
-		usage, _ := c.help(name)
+		usage, _ := c.help(cmdName)
 		reply.Reply = fmt.Sprintf("ERROR: %v\n%s\n%s\n", err, reply.Reply, usage)
 	}
 	return reply, cmd.Save && err == nil
