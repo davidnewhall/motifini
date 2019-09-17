@@ -37,7 +37,7 @@ type Command struct {
 // CommandMap contains a list of related or grouped commands.
 type CommandMap struct {
 	Title string
-	Level int // not used yet
+	Level int // not really used yet
 	List  []*Command
 }
 
@@ -55,26 +55,6 @@ type CommandReply struct {
 	Reply string
 	Files []string
 	Found bool
-}
-
-// HasAlias returns true if a command matches a specific alias.
-// Use this to determine if a command should be run based in input text.
-func (c *Command) HasAlias(alias string) bool {
-	for _, a := range c.Aliases {
-		if strings.EqualFold(a, alias) {
-			return true
-		}
-	}
-	return false
-}
-
-func (c *CommandMap) GetCommand(alias string) *Command {
-	for i, cmd := range c.List {
-		if cmd.HasAlias(alias) {
-			return c.List[i]
-		}
-	}
-	return nil
 }
 
 // New just adds the basic commands to a Chat struct.
@@ -152,35 +132,56 @@ func (c *Chat) doCmd(h *CommandHandler) (*CommandReply, bool) {
 
 func (c *CommandMap) run(h *CommandHandler) (*CommandReply, bool) {
 	name := strings.ToLower(h.Text[0])
-	Cmd := c.GetCommand(name)
-	if Cmd == nil || Cmd.Run == nil {
+	cmd := c.GetCommand(name)
+	if cmd == nil || cmd.Run == nil {
 		return &CommandReply{Found: false}, false
 	}
-	reply, err := Cmd.Run(h)
+	reply, err := cmd.Run(h)
 	if reply == nil {
 		reply = &CommandReply{Found: true}
 	}
 	reply.Found = true
 	if err != nil {
 		reply.Reply = fmt.Sprintf("ERROR: %v\n%s Usage: %s %s\n%s\nDescription: %s\n",
-			err, c.Title, name, Cmd.Usage, reply.Reply, Cmd.Description)
+			err, c.Title, name, cmd.Usage, reply.Reply, cmd.Description)
 	}
-	return reply, Cmd.Save && err == nil
+	return reply, cmd.Save && err == nil
 }
 
 func (c *CommandMap) help(cmdName string) (string, bool) {
 	if cmdName != "" {
-		Cmd := c.GetCommand(cmdName)
-		if Cmd == nil {
+		cmd := c.GetCommand(cmdName)
+		if cmd == nil {
 			return "", false
 		}
 		return fmt.Sprintf("* %s Usage: %s %s\nDescription: %s\nAliases: %s\n",
-			c.Title, cmdName, Cmd.Usage, Cmd.Description, strings.Join(Cmd.Aliases, ", ")), true
+			c.Title, cmdName, cmd.Usage, cmd.Description, strings.Join(cmd.Aliases, ", ")), true
 	}
 	msg := "\n* " + c.Title + " Commands *\n"
-	for _, Cmd := range c.List {
-		msg += Cmd.Aliases[0] + " " + Cmd.Usage + "\n"
+	for _, cmd := range c.List {
+		msg += cmd.Aliases[0] + " " + cmd.Usage + "\n"
 	}
 	msg += "- More Info: help <cmd>\n"
 	return msg, true
+}
+
+// GetCommand returns a command for an alias. Or nil. Check for nil.
+func (c *CommandMap) GetCommand(command string) *Command {
+	for i, cmd := range c.List {
+		if cmd.HasCmdAlias(command) {
+			return c.List[i]
+		}
+	}
+	return nil
+}
+
+// HasCmdAlias returns true if a command matches a specific alias.
+// Use this to determine if a command should be run based in input text.
+func (c *Command) HasCmdAlias(alias string) bool {
+	for _, a := range c.Aliases {
+		if strings.EqualFold(a, alias) {
+			return true
+		}
+	}
+	return false
 }
