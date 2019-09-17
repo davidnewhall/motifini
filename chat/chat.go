@@ -117,7 +117,7 @@ func (c *Chat) doCmd(h *CommandHandler) (*CommandReply, bool) {
 func (c *CommandMap) run(h *CommandHandler) (*CommandReply, bool) {
 	name := strings.ToLower(h.Text[0])
 	Cmd, ok := c.Map[name]
-	if !ok {
+	if !ok || Cmd.Run == nil {
 		return &CommandReply{}, false
 	}
 	reply, files, err := Cmd.Run(h)
