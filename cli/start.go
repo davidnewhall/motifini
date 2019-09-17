@@ -174,7 +174,7 @@ func (m *Motifini) Run() error {
 			return err
 		}
 		m.processEventStream()
-		defer m.SSpy.Events.Stop()
+		defer m.SSpy.Events.Stop(true)
 	}
 	m.Info.Println("Opening Subscriber Database:", m.Conf.Global.StateFile)
 	if m.Subs, err = subscribe.GetDB(m.Conf.Global.StateFile); err != nil {

@@ -75,11 +75,11 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:31ca8823684b4b0c204df1d4a9f3c511f41cc3e7ab6decc2ca5ffacc358d2818"
+  digest = "1:ec9d9815894f067c7878330735b9e4dfa6dc61234d2ba136b60a1436d6b5ea94"
   name = "golang.org/x/sys"
   packages = ["unix"]
   pruneopts = "UT"
-  revision = "c3b328c6e5a763a2bfc82a48b4bd855037210934"
+  revision = "b4ddaad3f8a36719f2b8bc6486c14cc468ca2bb5"
 
 [[projects]]
   digest = "1:b936b904b1cfa23889f61635efcbc2ef3ea600c864378db0b164c29ff1cd762b"
@@ -98,12 +98,12 @@
   version = "v2.0.2"
 
 [[projects]]
-  digest = "1:e92c02efc9cc883c10376efa4667513fe169d81ad4ad73329c9b6eee758435cd"
+  digest = "1:7b9840c515b8fcfe4db49ffdebfa49944fa2b248b6a32497f53e55e6fd4bf0a2"
   name = "golift.io/securityspy"
   packages = ["."]
   pruneopts = "UT"
-  revision = "8a6907c5b3bba1a8aa549e5f459493bc5d4f4bab"
-  version = "v2.0.1"
+  revision = "b2c9a7102c90dd2126ee640e75c07ce5dea65e6f"
+  version = "v2.0.2"
 
 [[projects]]
   digest = "1:1006588717b8a892769f616e46e34a33419832ce472a5b25df6f6fb7f821592b"

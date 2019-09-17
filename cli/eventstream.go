@@ -11,9 +11,9 @@ import (
 
 // processEventStream processes the securityspy event stream.
 func (m *Motifini) processEventStream() {
-	c := make(chan securityspy.Event, 100)
+	c := make(chan securityspy.Event, m.Conf.Imessage.QueueSize)
 	m.SSpy.Events.BindChan(securityspy.EventAllEvents, c)
-	go m.SSpy.Events.Watch(5*time.Second, true)
+	m.SSpy.Events.Watch(5*time.Second, true)
 	go m.handleEvents(c)
 }
 
