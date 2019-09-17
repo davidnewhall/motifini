@@ -19,7 +19,7 @@ type Chat struct {
 	Subs    *subscribe.Subscribe
 	SSpy    *securityspy.Server
 	TempDir string
-	Cmds    []*CommandMap
+	Cmds    []*Commands
 }
 
 // ErrorBadUsage is a standard error
@@ -30,19 +30,19 @@ type Command struct {
 	AKA  []string
 	Desc string
 	Use  string
-	Run  func(handle *CommandHandler) (reply *CommandReply, err error)
+	Run  func(handle *Handler) (reply *Reply, err error)
 	Save bool
 }
 
-// CommandMap contains a list of related or grouped commands.
-type CommandMap struct {
+// Commands contains a list of related or grouped commands.
+type Commands struct {
 	Title string
 	Level int // not really used yet
 	List  []*Command
 }
 
-// CommandHandler contains the data to handle a command. ie. an incoming message.
-type CommandHandler struct {
+// Handler contains the data to handle a command. ie. an incoming message.
+type Handler struct {
 	API  string
 	ID   string
 	Sub  *subscribe.Subscriber
@@ -50,8 +50,8 @@ type CommandHandler struct {
 	From string
 }
 
-// CommandReply is what the requestor gets in return. A message and/or some files.
-type CommandReply struct {
+// Reply is what the requestor gets in return. A message and/or some files.
+type Reply struct {
 	Reply string
 	Files []string
 	Found bool
@@ -62,15 +62,15 @@ func New(c *Chat) *Chat {
 	if c.TempDir == "" {
 		c.TempDir = "/tmp"
 	}
-	defaults := []*CommandMap{c.NonAdminCommands(), c.AdminCommands()}
+	defaults := []*Commands{c.NonAdminCommands(), c.AdminCommands()}
 	c.Cmds = append(defaults, c.Cmds...)
 	return c
 }
 
 // HandleCommand builds responses and runs actions from incoming chat commands.
-func (c *Chat) HandleCommand(h *CommandHandler) *CommandReply {
+func (c *Chat) HandleCommand(h *Handler) *Reply {
 	if c.Subs == nil || c.SSpy == nil || c.TempDir == "" || h.Sub.Ignored {
-		return &CommandReply{}
+		return &Reply{}
 	}
 
 	if strings.EqualFold("help", h.Text[0]) {
@@ -85,13 +85,13 @@ func (c *Chat) HandleCommand(h *CommandHandler) *CommandReply {
 	return resp
 }
 
-func (c *Chat) doHelp(h *CommandHandler) *CommandReply {
+func (c *Chat) doHelp(h *Handler) *Reply {
 	if len(h.Text) < 2 {
 		// Request general help.
 		h.Text = append(h.Text, "")
 	}
 	// Request help for specific command.
-	resp := &CommandReply{}
+	resp := &Reply{}
 	var cmdFound bool
 	for i := range c.Cmds {
 		if !h.Sub.Admin && c.Cmds[i].Level > 2 {
@@ -107,8 +107,8 @@ func (c *Chat) doHelp(h *CommandHandler) *CommandReply {
 	return resp
 }
 
-func (c *Chat) doCmd(h *CommandHandler) (*CommandReply, bool) {
-	resp := &CommandReply{}
+func (c *Chat) doCmd(h *Handler) (*Reply, bool) {
+	resp := &Reply{}
 	var save, found bool
 	for i := range c.Cmds {
 		if !h.Sub.Admin && c.Cmds[i].Level > 2 {
@@ -126,15 +126,15 @@ func (c *Chat) doCmd(h *CommandHandler) (*CommandReply, bool) {
 	return resp, save
 }
 
-func (c *CommandMap) run(h *CommandHandler) (*CommandReply, bool) {
+func (c *Commands) run(h *Handler) (*Reply, bool) {
 	cmdName := strings.ToLower(h.Text[0])
 	cmd := c.GetCommand(cmdName)
 	if cmd == nil || cmd.Run == nil {
-		return &CommandReply{Found: false}, false
+		return &Reply{Found: false}, false
 	}
 	reply, err := cmd.Run(h)
 	if reply == nil {
-		reply = &CommandReply{Found: true}
+		reply = &Reply{Found: true}
 	}
 	reply.Found = true
 	if err != nil {
@@ -144,7 +144,7 @@ func (c *CommandMap) run(h *CommandHandler) (*CommandReply, bool) {
 	return reply, cmd.Save && err == nil
 }
 
-func (c *CommandMap) help(cmdName string) (string, bool) {
+func (c *Commands) help(cmdName string) (string, bool) {
 	if cmdName != "" {
 		cmd := c.GetCommand(cmdName)
 		if cmd == nil {
@@ -162,7 +162,7 @@ func (c *CommandMap) help(cmdName string) (string, bool) {
 }
 
 // GetCommand returns a command for an alias. Or nil. Check for nil.
-func (c *CommandMap) GetCommand(command string) *Command {
+func (c *Commands) GetCommand(command string) *Command {
 	for i, cmd := range c.List {
 		if cmd.HasCmdAlias(command) {
 			return c.List[i]

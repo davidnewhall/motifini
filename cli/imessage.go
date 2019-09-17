@@ -36,7 +36,7 @@ func (m *Motifini) recviMessageHandler(msg imessage.Incoming) {
 		sub = m.Subs.CreateSub(msg.From, APIiMessage, len(m.Subs.GetAdmins()) == 0, false)
 	}
 	// Pass the message off to the chat command handler routines.
-	h := &chat.CommandHandler{
+	h := &chat.Handler{
 		API:  APIiMessage,
 		ID:   ReqID(4),
 		Sub:  sub,

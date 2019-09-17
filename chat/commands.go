@@ -12,8 +12,8 @@ import (
 )
 
 // NonAdminCommands contains all the built-in non-admin commands.
-func (c *Chat) NonAdminCommands() *CommandMap {
-	return &CommandMap{
+func (c *Chat) NonAdminCommands() *Commands {
+	return &Commands{
 		Title: "User",
 		Level: 1,
 		List: []*Command{
@@ -67,38 +67,38 @@ func (c *Chat) NonAdminCommands() *CommandMap {
 	}
 }
 
-func (c *Chat) cmdCams(h *CommandHandler) (*CommandReply, error) {
+func (c *Chat) cmdCams(h *Handler) (*Reply, error) {
 	msg := "There are " + strconv.Itoa(len(c.SSpy.Cameras.All())) + " cameras:\n"
 	for _, cam := range c.SSpy.Cameras.All() {
 		msg += fmt.Sprintf("%v: %v\n", cam.Number, cam.Name)
 	}
-	return &CommandReply{Reply: msg}, nil
+	return &Reply{Reply: msg}, nil
 }
 
-func (c *Chat) cmdEvents(h *CommandHandler) (*CommandReply, error) {
+func (c *Chat) cmdEvents(h *Handler) (*Reply, error) {
 	events := c.Subs.Events.Names()
 	msg := "There are " + strconv.Itoa(len(events)) + " events:\n"
 	for i, event := range events {
 		description, _ := c.Subs.Events.RuleGetS(event, "description")
 		msg += strconv.Itoa(i) + ": " + event + " - " + description + "\n"
 	}
-	return &CommandReply{Reply: msg}, nil
+	return &Reply{Reply: msg}, nil
 }
 
-func (c *Chat) cmdPics(h *CommandHandler) (*CommandReply, error) {
+func (c *Chat) cmdPics(h *Handler) (*Reply, error) {
 	msg := ""
 	if len(h.Text) > 1 {
 		name := strings.Join(h.Text[1:], " ")
 		cam := c.SSpy.Cameras.ByName(name)
 		if cam == nil {
-			return &CommandReply{Reply: "Unknown Camera: " + name}, ErrorBadUsage
+			return &Reply{Reply: "Unknown Camera: " + name}, ErrorBadUsage
 		}
 		path := fmt.Sprintf("%vchat_command_%v_%v.jpg", c.TempDir, h.ID, cam.Name)
 		if err := cam.SaveJPEG(&securityspy.VidOps{}, path); err != nil {
 			log.Printf("[ERROR] [%v] cam.SaveJPEG: %v", h.ID, err)
 			msg = "Error Getting '" + name + "' Picture: " + err.Error()
 		}
-		return &CommandReply{Reply: msg, Files: []string{path}}, nil
+		return &Reply{Reply: msg, Files: []string{path}}, nil
 	}
 	paths := []string{}
 	var wg sync.WaitGroup
@@ -116,19 +116,19 @@ func (c *Chat) cmdPics(h *CommandHandler) (*CommandReply, error) {
 		}(cam)
 	}
 	wg.Wait()
-	return &CommandReply{Reply: msg, Files: paths}, nil
+	return &Reply{Reply: msg, Files: paths}, nil
 }
 
-func (c *Chat) cmdSub(h *CommandHandler) (*CommandReply, error) {
+func (c *Chat) cmdSub(h *Handler) (*Reply, error) {
 	kind := "event"
 	if len(h.Text) < 2 {
-		return &CommandReply{Reply: "must provide an event or camera name to subscribe"}, ErrorBadUsage
+		return &Reply{Reply: "must provide an event or camera name to subscribe"}, ErrorBadUsage
 	}
 	event := strings.Join(h.Text[1:], " ")
 	if !c.Subs.Events.Exists(event) {
 		kind = "camera"
 		if cam := c.SSpy.Cameras.ByName(event); cam == nil {
-			return &CommandReply{Reply: "Event or Camera not found: " + event}, ErrorBadUsage
+			return &Reply{Reply: "Event or Camera not found: " + event}, ErrorBadUsage
 		}
 	}
 	msg := "You've been subscribed to " + kind + ": " + event
@@ -136,10 +136,10 @@ func (c *Chat) cmdSub(h *CommandHandler) (*CommandReply, error) {
 		msg = "You're already subscribed to: " + kind + ": " + event
 	}
 	msg += "\nYou have " + strconv.Itoa(h.Sub.Events.Len()) + " event subscriptions."
-	return &CommandReply{Reply: msg}, nil
+	return &Reply{Reply: msg}, nil
 }
 
-func (c *Chat) cmdSubs(h *CommandHandler) (*CommandReply, error) {
+func (c *Chat) cmdSubs(h *Handler) (*Reply, error) {
 	if h.Sub.Admin && len(h.Text) > 1 {
 		// admin asking for subs for someone else. handled by iMessageAdminSubs()
 		return nil, nil
@@ -154,12 +154,12 @@ func (c *Chat) cmdSubs(h *CommandHandler) (*CommandReply, error) {
 	if msg += "\n"; h.Sub.Events.Len() == 0 {
 		msg += "(none)\n"
 	}
-	return &CommandReply{Reply: msg}, nil
+	return &Reply{Reply: msg}, nil
 }
 
-func (c *Chat) cmdUnsub(h *CommandHandler) (*CommandReply, error) {
+func (c *Chat) cmdUnsub(h *Handler) (*Reply, error) {
 	if len(h.Text) < 2 {
-		return &CommandReply{Reply: "must provide an event or camera name to unsubscribe"}, ErrorBadUsage
+		return &Reply{Reply: "must provide an event or camera name to unsubscribe"}, ErrorBadUsage
 	}
 	event := strings.Join(h.Text[1:], " ")
 	msg := "You've been unsubscribed from: " + event
@@ -167,23 +167,23 @@ func (c *Chat) cmdUnsub(h *CommandHandler) (*CommandReply, error) {
 		for _, e := range h.Sub.Events.Names() {
 			h.Sub.Events.Remove(e)
 		}
-		return &CommandReply{Reply: "You've been unsubscribed all events."}, nil
+		return &Reply{Reply: "You've been unsubscribed all events."}, nil
 	}
 	if !h.Sub.Events.Exists(event) {
 		msg = "You're not subscribed to: " + event
 	}
 	h.Sub.Events.Remove(event)
 	msg += "\nYou have " + strconv.Itoa(h.Sub.Events.Len()) + " event subscriptions."
-	return &CommandReply{Reply: msg}, nil
+	return &Reply{Reply: msg}, nil
 }
 
-func (c *Chat) cmdStop(h *CommandHandler) (*CommandReply, error) {
+func (c *Chat) cmdStop(h *Handler) (*Reply, error) {
 	if len(h.Text) == 1 {
-		h.Text = append(h.Text, "10")
+		h.Text = append(h.Text, "10") // default pause time of 10 minutes.
 	}
 	dur, err := strconv.Atoi(h.Text[1])
 	if err != nil {
-		return &CommandReply{Reply: "Unable to parse into a number: " + h.Text[1]}, ErrorBadUsage
+		return &Reply{Reply: "Unable to parse into a number: " + h.Text[1]}, ErrorBadUsage
 	}
 
 	// Pause a single event.
@@ -196,7 +196,7 @@ func (c *Chat) cmdStop(h *CommandHandler) (*CommandReply, error) {
 		if err := h.Sub.Events.Pause(event, time.Duration(dur)*time.Minute); err != nil {
 			msg = "You're not subscribed to: " + event
 		}
-		return &CommandReply{Reply: msg}, nil
+		return &Reply{Reply: msg}, nil
 	}
 
 	// Pause Everything.
@@ -207,5 +207,5 @@ func (c *Chat) cmdStop(h *CommandHandler) (*CommandReply, error) {
 	if dur == 0 {
 		msg = "Notifications are no longer paused."
 	}
-	return &CommandReply{Reply: msg}, nil
+	return &Reply{Reply: msg}, nil
 }
