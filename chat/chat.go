@@ -27,11 +27,11 @@ var ErrorBadUsage = fmt.Errorf("invalid command usage")
 
 // Command is the configuration for a chat command handler.
 type Command struct {
-	Aliases     []string
-	Description string
-	Usage       string
-	Run         func(handle *CommandHandler) (reply *CommandReply, err error)
-	Save        bool
+	AKA  []string
+	Desc string
+	Use  string
+	Run  func(handle *CommandHandler) (reply *CommandReply, err error)
+	Save bool
 }
 
 // CommandMap contains a list of related or grouped commands.
@@ -142,8 +142,8 @@ func (c *CommandMap) run(h *CommandHandler) (*CommandReply, bool) {
 	}
 	reply.Found = true
 	if err != nil {
-		reply.Reply = fmt.Sprintf("ERROR: %v\n%s Usage: %s %s\n%s\nDescription: %s\n",
-			err, c.Title, name, cmd.Usage, reply.Reply, cmd.Description)
+		usage, _ := c.help(name)
+		reply.Reply = fmt.Sprintf("ERROR: %v\n%s\n%s\n", err, reply.Reply, usage)
 	}
 	return reply, cmd.Save && err == nil
 }
@@ -154,12 +154,12 @@ func (c *CommandMap) help(cmdName string) (string, bool) {
 		if cmd == nil {
 			return "", false
 		}
-		return fmt.Sprintf("* %s Usage: %s %s\nDescription: %s\nAliases: %s\n",
-			c.Title, cmdName, cmd.Usage, cmd.Description, strings.Join(cmd.Aliases, ", ")), true
+		return fmt.Sprintf("* %s Usage: %s %s\nDetail: %s\nAlias: %s\n",
+			c.Title, cmd.AKA[0], cmd.Use, cmd.Desc, strings.Join(cmd.AKA, ", ")), true
 	}
 	msg := "\n* " + c.Title + " Commands *\n"
 	for _, cmd := range c.List {
-		msg += cmd.Aliases[0] + " " + cmd.Usage + "\n"
+		msg += cmd.AKA[0] + " " + cmd.Use + "\n"
 	}
 	msg += "- More Info: help <cmd>\n"
 	return msg, true
@@ -178,7 +178,7 @@ func (c *CommandMap) GetCommand(command string) *Command {
 // HasCmdAlias returns true if a command matches a specific alias.
 // Use this to determine if a command should be run based in input text.
 func (c *Command) HasCmdAlias(alias string) bool {
-	for _, a := range c.Aliases {
+	for _, a := range c.AKA {
 		if strings.EqualFold(a, alias) {
 			return true
 		}

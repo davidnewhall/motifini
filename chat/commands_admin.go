@@ -12,51 +12,48 @@ func (c *Chat) AdminCommands() *CommandMap {
 		Level: 10,
 		List: []*Command{
 			{
-				Aliases:     []string{"subs", "subscribers"},
-				Usage:       "[subscriber]",
-				Description: "Displays all subscribers.",
-				Run:         c.cmdAdminSubs,
-				Save:        false,
+				Run:  c.cmdAdminSubs,
+				AKA:  []string{"subs", "subscribers"},
+				Use:  "[subscriber]",
+				Desc: "Displays all subscribers.",
 			},
 			{
-				Aliases:     []string{"ignores"},
-				Description: "Displays all ignored subscribers.",
-				Run:         c.cmdAdminIgnores,
-				Save:        false,
+				Run:  c.cmdAdminIgnores,
+				AKA:  []string{"ignores"},
+				Desc: "Displays all ignored subscribers.",
 			},
 			{
-				Aliases:     []string{"ignore"},
-				Usage:       "<subscriber>",
-				Description: "Ignores a subscriber.",
-				Run:         c.cmdAdminIgnore,
-				Save:        true,
+				Run:  c.cmdAdminIgnore,
+				AKA:  []string{"ignore"},
+				Use:  "<subscriber>",
+				Desc: "Ignores a subscriber.",
+				Save: true,
 			},
 			{
-				Aliases:     []string{"unignore"},
-				Usage:       "<subscriber>",
-				Description: "Removes a subscriber's ignore.",
-				Run:         c.cmdAdminUnignore,
-				Save:        true,
+				Run:  c.cmdAdminUnignore,
+				AKA:  []string{"unignore"},
+				Use:  "<subscriber>",
+				Desc: "Removes a subscriber's ignore.",
+				Save: true,
 			},
 			{
-				Aliases:     []string{"admins"},
-				Description: "Displays all administrative subscribers.",
-				Run:         c.cmdAdminAdmins,
-				Save:        false,
+				Run:  c.cmdAdminAdmins,
+				AKA:  []string{"admins"},
+				Desc: "Displays all administrative subscribers.",
 			},
 			{
-				Aliases:     []string{"admin"},
-				Usage:       "<subscriber>",
-				Description: "Gives a subscriber administrative access.",
-				Run:         c.cmdAdminAdmin,
-				Save:        true,
+				Run:  c.cmdAdminAdmin,
+				AKA:  []string{"admin"},
+				Use:  "<subscriber>",
+				Desc: "Gives a subscriber administrative access.",
+				Save: true,
 			},
 			{
-				Aliases:     []string{"unadmin", "unmasking", "inadmissible", "unassuming"},
-				Usage:       "<subscriber>",
-				Description: "Removes a subscriber's administrative access.",
-				Run:         c.cmdAdminUnadmin,
-				Save:        true,
+				Run:  c.cmdAdminUnadmin,
+				AKA:  []string{"unadmin", "unmasking", "inadmissible", "unassuming"},
+				Use:  "<subscriber>",
+				Desc: "Removes a subscriber's administrative access.",
+				Save: true,
 			},
 		},
 	}
@@ -74,18 +71,18 @@ func (c *Chat) cmdAdminAdmins(h *CommandHandler) (*CommandReply, error) {
 
 func (c *Chat) cmdAdminIgnores(h *CommandHandler) (*CommandReply, error) {
 	ignores := c.Subs.GetIgnored()
-	msg := "There are " + strconv.Itoa(len(ignores)) + " ignored subscribers:"
+	r := &CommandReply{Reply: fmt.Sprintf("There are %d ignored subscribers:", len(ignores))}
 	for i, ignore := range ignores {
-		msg += fmt.Sprintf("\n%v: (%v) %v (%v subscriptions)",
+		r.Reply += fmt.Sprintf("\n%v: (%v) %v (%v subscriptions)",
 			strconv.Itoa(i+1), ignore.API, ignore.Contact, ignore.Events.Len())
 	}
-	return &CommandReply{Reply: msg}, nil
+	return r, nil
 }
 
 func (c *Chat) cmdAdminSubs(h *CommandHandler) (*CommandReply, error) {
 	if len(h.Text) == 1 {
 		subs := c.Subs.Subscribers
-		msg := "There are " + strconv.Itoa(len(subs)) + " total subscribers:"
+		r := &CommandReply{Reply: fmt.Sprintf("There are %d total subscribers:", len(subs))}
 		for i, target := range subs {
 			var x string
 			if target.Ignored {
@@ -93,10 +90,10 @@ func (c *Chat) cmdAdminSubs(h *CommandHandler) (*CommandReply, error) {
 			} else if target.Admin {
 				x = ", admin"
 			}
-			msg += fmt.Sprintf("\n%v: (%v) %v%v (%v subscriptions)",
+			r.Reply += fmt.Sprintf("\n%v: (%v) %v%v (%v subscriptions)",
 				strconv.Itoa(i+1), target.API, target.Contact, x, target.Events.Len())
 		}
-		return &CommandReply{Reply: msg}, nil
+		return r, nil
 	}
 	s, err := c.Subs.GetSubscriber(h.Text[1], h.API)
 	if err != nil {
@@ -109,20 +106,20 @@ func (c *Chat) cmdAdminSubs(h *CommandHandler) (*CommandReply, error) {
 	}
 	var x string
 	if s.Ignored {
-		x = " (ignored)"
+		x = ", ignored"
 	} else if s.Admin {
-		x = " (admin)"
+		x = ", admin"
 	}
-	msg := s.Contact + x + " has " + strconv.Itoa(len(subs)) + " subscriptions:"
+	r := &CommandReply{Reply: fmt.Sprintf("%s%s has %d subscriptions:", s.Contact, x, len(subs))}
 	i := 0
 	for _, event := range subs {
 		i++
-		msg += "\n" + strconv.Itoa(i) + ": " + event
+		r.Reply += fmt.Sprintf("\n%d: %s", i, event)
 		if s.Events.IsPaused(event) {
-			msg += " (paused)"
+			r.Reply += " (paused)"
 		}
 	}
-	return &CommandReply{Reply: msg}, nil
+	return r, nil
 }
 
 func (c *Chat) cmdAdminUnadmin(h *CommandHandler) (*CommandReply, error) {
