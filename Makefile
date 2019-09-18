@@ -63,11 +63,11 @@ README.html: md2roff
 # Binaries
 
 build: $(BINARY)
-$(BINARY): *.go */*.go
+$(BINARY): *.go */*/*.go
 	go build -o $(BINARY) -ldflags "-w -s -X $(VERSION_PATH)=$(VERSION)-$(ITERATION)"
 
 macos: $(BINARY).amd64.macos
-$(BINARY).amd64.macos: *.go */*.go
+$(BINARY).amd64.macos: *.go */*/*.go
 	# Building darwin 64-bit x86 binary.
 	GOOS=darwin GOARCH=amd64 go build -o $@ -ldflags "-w -s -X $(VERSION_PATH)=$(VERSION)-$(ITERATION)"
 
