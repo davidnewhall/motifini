@@ -6,11 +6,9 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
-	"os"
-	"time"
+	"math/rand"
 
 	"github.com/davidnewhall/motifini/pkg/chat"
-	"github.com/davidnewhall/motifini/pkg/export"
 	"golift.io/imessage"
 	"golift.io/securityspy"
 	"golift.io/subscribe"
@@ -60,6 +58,7 @@ func New(m *Messenger) error {
 	return m.startiMessage()
 }
 
+// SendFileOrMsg will send a notification to any subscriber provided using any supported messenger.
 func (m *Messenger) SendFileOrMsg(id, msg, path string, subs []*subscribe.Subscriber) {
 	for _, sub := range subs {
 		switch sub.API {
@@ -76,32 +75,12 @@ func (m *Messenger) SendFileOrMsg(id, msg, path string, subs []*subscribe.Subscr
 	}
 }
 
-func (m *Messenger) SendiMessage(msg imessage.Outgoing) {
-	if msg.File {
-		export.Map.Files.Add(1)
-	} else {
-		export.Map.Sent.Add(1)
+// ReqID makes a random string to identify requests in the logs.
+func ReqID(n int) string {
+	l := []rune("abcdefghjkmnopqrstuvwxyzABCDEFGHJKMNPQRTUVWXYZ23456789")
+	b := make([]rune, n)
+	for i := range b {
+		b[i] = l[rand.Intn(len(l))]
 	}
-	m.imsg.Send(msg)
-}
-
-// FileCallback runs in a go routine after a video or picture iMessage is processed.
-func (m *Messenger) FileCallback(msg *imessage.Response) {
-	var size int64
-	if fi, err := os.Stat(msg.Text); err == nil {
-		size = fi.Size()
-	}
-	if msg.Errs != nil {
-		export.Map.Errors.Add(1)
-		m.Error.Printf("[%v] m.Msgs.Send '%v': %v", msg.ID, msg.To, msg.Errs)
-	} else {
-		m.Info.Printf("[%v] iMessage File '%v' (%.2fMb) sent to: %v", msg.ID, msg.Text, float32(size)/1024/1024, msg.To)
-	}
-	// Might take a while to upload.
-	time.Sleep(20 * time.Second)
-	if err := os.Remove(msg.Text); err != nil && !os.IsNotExist(err) {
-		m.Error.Printf("[%v] Remove(path): %v", msg.ID, err)
-		return
-	}
-	m.Debug.Printf("[%v] Deleted: %v", msg.ID, msg.Text)
+	return string(b)
 }

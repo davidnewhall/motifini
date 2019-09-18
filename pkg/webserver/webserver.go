@@ -123,3 +123,13 @@ func (c *Config) handleAll(w http.ResponseWriter, r *http.Request) {
 	id, code, reply := messenger.ReqID(4), 405, "FAIL\n"
 	c.finishReq(w, r, id, code, reply, "-")
 }
+
+// check for a thing in a thing.
+func contains(s []string, e string) bool {
+	for _, a := range s {
+		if a == e {
+			return true
+		}
+	}
+	return false
+}

@@ -4,11 +4,11 @@ import (
 	"log"
 	"net/http"
 
-	"github.com/davidnewhall/motifini/pkg/cli"
+	"github.com/davidnewhall/motifini/pkg/motifini"
 )
 
 func main() {
-	if err := cli.Start(); err != nil && err != http.ErrServerClosed {
+	if err := motifini.Start(); err != nil && err != http.ErrServerClosed {
 		log.Fatalln("[ERROR]", err)
 	}
 }
