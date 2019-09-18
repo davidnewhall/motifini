@@ -4,7 +4,7 @@ import (
 	"log"
 	"net/http"
 
-	"github.com/davidnewhall/motifini/cli"
+	"github.com/davidnewhall/motifini/pkg/cli"
 )
 
 func main() {

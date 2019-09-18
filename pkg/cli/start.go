@@ -7,7 +7,6 @@ import (
 	"io/ioutil"
 	"log"
 	"math/rand"
-	"net/http"
 	"os"
 	"os/signal"
 	"strings"
@@ -15,7 +14,9 @@ import (
 	"time"
 
 	"github.com/BurntSushi/toml"
-	"github.com/davidnewhall/motifini/chat"
+	"github.com/davidnewhall/motifini/pkg/export"
+	"github.com/davidnewhall/motifini/pkg/messenger"
+	"github.com/davidnewhall/motifini/pkg/webserver"
 	"github.com/pkg/errors"
 	"github.com/spf13/pflag"
 	"golift.io/imessage"
@@ -24,33 +25,25 @@ import (
 )
 
 var (
+	// DefaultRepeatDelay is the default delay for subscriber's event notifications.
+	DefaultRepeatDelay = time.Minute
 	// Version of the application. Injected at build time.
 	Version = "development"
 	// Binary is the app name.
 	Binary = "motifini"
 )
 
-const (
-	// APIiMessage is just an identifier for an imessage contact type.
-	APIiMessage = "imessage"
-)
-
 // Motifini is the main application struct.
 type Motifini struct {
-	Flag    *Flags
-	Conf    *Config
-	HTTP    *http.Server
-	SSpy    *securityspy.Server
-	Subs    *subscribe.Subscribe
-	Imsg    *imessage.Messages
-	Chat    *chat.Chat
-	WReq    *log.Logger // web request
-	MReq    *log.Logger // msg request
-	Info    *log.Logger
-	Warn    *log.Logger
-	Error   *log.Logger
-	Debug   *log.Logger
-	exports exportData
+	Flag  *Flags
+	Conf  *Config
+	HTTP  *webserver.Config
+	SSpy  *securityspy.Server
+	Subs  *subscribe.Subscribe
+	Msgs  *messenger.Messenger
+	Info  *log.Logger
+	Error *log.Logger
+	Debug *log.Logger
 }
 
 // Flags defines our application's CLI arguments.
@@ -64,17 +57,12 @@ type Flags struct {
 // Config struct
 type Config struct {
 	Global struct {
-		Port      int    `toml:"port"`
-		TempDir   string `toml:"temp_dir"`
-		StateFile string `toml:"state_file"`
+		Port      uint     `toml:"port"`
+		TempDir   string   `toml:"temp_dir"`
+		StateFile string   `toml:"state_file"`
+		AllowedTo []string `toml:"allowed_to"`
 	} `toml:"motifini"`
-	Imessage struct {
-		AllowedTo     []string `toml:"allowed_to"`
-		DBPath        string   `toml:"db_path"`
-		QueueSize     int      `toml:"queue_size"`
-		Retries       int      `toml:"retries"`
-		ClearMessages bool     `toml:"clear_messages"`
-	} `toml:"imessage"`
+	Imessage    *imessage.Config    `toml:"imessage"`
 	SecuritySpy *securityspy.Config `toml:"security_spy"`
 }
 
@@ -101,13 +89,18 @@ func Start() error {
 	}
 
 	m.setLogging()
+	export.Init(Binary) // Initialize the main expvar map.
+	export.Map.Version.Set(Version)
+	export.Map.ConfigFile.Set(m.Flag.ConfigFile)
+	export.Map.ListenPort.Set(int64(m.Conf.Global.Port))
 	if err := m.ParseConfigFile(); err != nil {
 		m.Flag.Usage()
 		return err
 	}
-	m.Conf.Validate()
 	m.Info.Printf("Motifini %v Starting! (PID: %v)", Version, os.Getpid())
-	defer m.Warn.Printf("Exiting!")
+	defer m.Info.Printf("Exiting!")
+
+	m.Conf.Validate()
 	return m.Run()
 }
 
@@ -118,11 +111,7 @@ func (m *Motifini) setLogging() {
 		debugOut = os.Stdout
 		flags = log.LstdFlags | log.Lshortfile
 	}
-	// TODO: figure out a better way to structure these or set them.
 	m.Info = log.New(os.Stdout, "[INFO] ", flags)
-	m.MReq = log.New(os.Stdout, "[MSG] ", flags)
-	m.WReq = log.New(os.Stdout, "[HTTP] ", flags)
-	m.Warn = log.New(os.Stderr, "[WARN] ", flags)
 	m.Error = log.New(os.Stderr, "[ERROR] ", flags)
 	m.Debug = log.New(debugOut, "[DEBUG] ", flags)
 }
@@ -168,28 +157,43 @@ func (c *Config) Validate() {
 // Run starts the app after all configs are collected.
 func (m *Motifini) Run() error {
 	var err error
-	if m.Conf.SecuritySpy.URL != "" {
-		m.Info.Println("Connecting to SecuritySpy:", m.Conf.SecuritySpy.URL)
-		if m.SSpy, err = securityspy.GetServer(m.Conf.SecuritySpy); err != nil {
-			return err
-		}
-		m.processEventStream()
-		defer m.SSpy.Events.Stop(true)
+	m.Info.Println("Connecting to SecuritySpy:", m.Conf.SecuritySpy.URL)
+	if m.SSpy, err = securityspy.GetServer(m.Conf.SecuritySpy); err != nil {
+		return err
 	}
+	m.ProcessEventStream()
+	defer m.SSpy.Events.Stop(true)
 	m.Info.Println("Opening Subscriber Database:", m.Conf.Global.StateFile)
 	if m.Subs, err = subscribe.GetDB(m.Conf.Global.StateFile); err != nil {
 		return errors.Wrap(err, "sub state")
 	}
-	// Configure chat library.
-	m.Chat = chat.New(&chat.Chat{TempDir: m.Conf.Global.TempDir, Subs: m.Subs, SSpy: m.SSpy})
-	m.Info.Println("Watching iMessage Database:", m.Conf.Imessage.DBPath)
-	if err := m.startiMessage(); err != nil {
+
+	m.Msgs = &messenger.Messenger{
+		SSpy:    m.SSpy,
+		Subs:    m.Subs,
+		Conf:    m.Conf.Imessage,
+		TempDir: m.Conf.Global.TempDir,
+		Info:    log.New(os.Stdout, "[MSGS] ", m.Info.Flags()),
+		Debug:   m.Debug,
+		Error:   m.Error,
+	}
+	if err := messenger.New(m.Msgs); err != nil {
 		return err
 	}
 
-	m.exportData()
+	m.HTTP = &webserver.Config{
+		SSpy:      m.SSpy,
+		Subs:      m.Subs,
+		Msgs:      m.Msgs,
+		Info:      log.New(os.Stdout, "[HTTP] ", m.Info.Flags()),
+		Debug:     m.Debug,
+		Error:     m.Error,
+		TempDir:   m.Conf.Global.TempDir,
+		AllowedTo: m.Conf.Global.AllowedTo,
+		Port:      m.Conf.Global.Port,
+	}
 	go m.waitForSignal()
-	return m.StartWebServer()
+	return webserver.Start(m.HTTP)
 }
 
 // waitForSignal runs things at an interval and looks for an exit signal
@@ -199,7 +203,7 @@ func (m *Motifini) waitForSignal() {
 	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM, syscall.SIGQUIT)
 	m.Info.Printf("Shutting down! Caught Signal: %v", <-sigChan)
 	m.saveSubDB()
-	m.StopWebServer()
+	m.HTTP.Stop()
 }
 
 // saveSubDB just saves the state file/db and logs any error.

@@ -6,23 +6,22 @@ import (
 	"strings"
 	"time"
 
+	"github.com/davidnewhall/motifini/pkg/messenger"
 	"golift.io/securityspy"
 )
 
-var DefaultRepeatDelay = time.Minute
-
-// processEventStream processes the securityspy event stream.
-func (m *Motifini) processEventStream() {
-	c := make(chan securityspy.Event, m.Conf.Imessage.QueueSize)
-	m.SSpy.Events.BindChan(securityspy.EventAllEvents, c)
+// ProcessEventStream processes the securityspy event stream.
+func (m *Motifini) ProcessEventStream() {
+	e := make(chan securityspy.Event, 100)
+	m.SSpy.Events.BindChan(securityspy.EventAllEvents, e)
 	m.SSpy.Events.Watch(5*time.Second, true)
-	go m.handleEvents(c)
+	go m.handleEvents(e)
 }
 
-func (m *Motifini) handleEvents(c chan securityspy.Event) {
+func (m *Motifini) handleEvents(e chan securityspy.Event) {
 	m.Info.Println("Event Stream Watcher Started")
-	defer m.Warn.Println("Event Stream Watcher Closed")
-	for event := range c {
+	defer m.Error.Println("Event Stream Watcher Closed")
+	for event := range e {
 		switch event.Type {
 		case securityspy.EventKeepAlive:
 			// ignore.
@@ -41,8 +40,8 @@ func (m *Motifini) handleEvents(c chan securityspy.Event) {
 		case securityspy.EventStreamDisconnect:
 			m.Error.Println("SecuritySpy Event Stream Disconnected")
 		case securityspy.EventConfigChange:
-			m.saveSubDB()
-			fallthrough
+			m.saveSubDB() // just because.
+			m.Info.Println("SecuritySpy Configuration Changed!")
 		default:
 			camName := ""
 			if event.Camera != nil {
@@ -62,12 +61,12 @@ func (m *Motifini) handleCameraMotion(e securityspy.Event) {
 	if subCount < 1 {
 		return // no one to notify of this camera's motion
 	}
-	id := ReqID(3)
+	id := messenger.ReqID(3)
 	path := filepath.Join(m.Conf.Global.TempDir, fmt.Sprintf("motifini_camera_motion_%s_%s.jpg", id, e.Camera.Name))
 	if err := e.Camera.SaveJPEG(&securityspy.VidOps{}, path); err != nil {
 		m.Error.Printf("[%v] event.Camera.SaveJPEG: %v", id, err)
 	}
-	m.sendFileOrMsg(id, "", path, subs)
+	m.Msgs.SendFileOrMsg(id, "", path, subs)
 	for _, sub := range subs {
 		delay, ok := sub.Events.RuleGetD(e.Camera.Name, "delay")
 		if !ok {

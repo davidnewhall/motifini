@@ -1,4 +1,4 @@
-package cli
+package export
 
 import (
 	"expvar"
@@ -8,7 +8,6 @@ import (
 )
 
 func TestGetMap(t *testing.T) {
-	t.Parallel()
 	var d expvar.String
 	a := assert.New(t)
 	testMap := GetMap("MyShinyMap")
@@ -21,7 +20,6 @@ func TestGetMap(t *testing.T) {
 }
 
 func TestGetPublishedMap(t *testing.T) {
-	t.Parallel()
 	var d expvar.String
 	a := assert.New(t)
 	testMap := GetPublishedMap("MyOtherShinyMap")
@@ -31,4 +29,12 @@ func TestGetPublishedMap(t *testing.T) {
 	// make sure we get the same map back.
 	testMap = GetPublishedMap("MyOtherShinyMap")
 	a.EqualValues(`"MyLastShinyMap"`, testMap.Get("AnotherShinyMap").String())
+}
+
+func TestInit(t *testing.T) {
+	a := assert.New(t)
+	a.Nil(Map, "the map must begin nil")
+	Init("myCoolMapName")
+	a.NotNil(Map, "the map var must not be nil after initialization")
+	a.NotNil(Map.Map, "the map's var map struct must not be nil after initialization")
 }
