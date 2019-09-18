@@ -92,11 +92,11 @@ func Start() error {
 	export.Init(Binary) // Initialize the main expvar map.
 	export.Map.Version.Set(Version)
 	export.Map.ConfigFile.Set(m.Flag.ConfigFile)
-	export.Map.ListenPort.Set(int64(m.Conf.Global.Port))
 	if err := m.ParseConfigFile(); err != nil {
 		m.Flag.Usage()
 		return err
 	}
+	export.Map.ListenPort.Set(int64(m.Conf.Global.Port))
 	m.Info.Printf("Motifini %v Starting! (PID: %v)", Version, os.Getpid())
 	defer m.Info.Printf("Exiting!")
 
