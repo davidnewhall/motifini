@@ -136,9 +136,6 @@ func (m *Motifini) ParseConfigFile() error {
 
 // Validate makes sure the data in the config file is valid.
 func (c *Config) Validate() {
-	if c.Global.Port == 0 {
-		c.Global.Port = 8765
-	}
 	if c.Global.TempDir == "" {
 		c.Global.TempDir = "/tmp/"
 	} else if !strings.HasSuffix(c.Global.TempDir, "/") {
@@ -146,11 +143,6 @@ func (c *Config) Validate() {
 	}
 	if c.Imessage.QueueSize < 20 {
 		c.Imessage.QueueSize = 20
-	} else if c.Imessage.QueueSize > 500 {
-		c.Imessage.QueueSize = 500
-	}
-	if c.SecuritySpy.URL != "" && !strings.HasSuffix(c.SecuritySpy.URL, "/") {
-		c.SecuritySpy.URL += "/"
 	}
 }
 
@@ -163,6 +155,7 @@ func (m *Motifini) Run() error {
 	}
 	m.ProcessEventStream()
 	defer m.SSpy.Events.Stop(true)
+
 	m.Info.Println("Opening Subscriber Database:", m.Conf.Global.StateFile)
 	if m.Subs, err = subscribe.GetDB(m.Conf.Global.StateFile); err != nil {
 		return errors.Wrap(err, "sub state")

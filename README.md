@@ -81,8 +81,6 @@ much besides provide a URL. You can then subscribe to any camera.
 # TODO
 
 -   Better Usage/Install Documentation
--   Hard define between cameras or securityspy.
-    -   tie in securityspy eventstream.
 -   Some reasonable way to add and control events, and how they fire.
     -   For instance if you want a motion detector to fire a camera, or two, or a text message, how do you define and action that?
     -   Or any combination of "event -> take some cool action (ie. send a specific type of notification)"
