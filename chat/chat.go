@@ -62,14 +62,15 @@ func New(c *Chat) *Chat {
 	if c.TempDir == "" {
 		c.TempDir = "/tmp"
 	}
-	defaults := []*Commands{c.NonAdminCommands(), c.AdminCommands()}
+	defaults := []*Commands{c.nonAdminCommands(), c.adminCommands()}
 	c.Cmds = append(defaults, c.Cmds...)
 	return c
 }
 
 // HandleCommand builds responses and runs actions from incoming chat commands.
 func (c *Chat) HandleCommand(h *Handler) *Reply {
-	if c.Subs == nil || c.SSpy == nil || c.TempDir == "" || h.Sub.Ignored {
+	if c.Subs == nil || c.SSpy == nil || c.TempDir == "" ||
+		h == nil || h.Sub == nil || h.Sub.Ignored || h.Text == nil {
 		return &Reply{}
 	}
 

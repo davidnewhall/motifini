@@ -11,8 +11,8 @@ import (
 	"golift.io/securityspy"
 )
 
-// NonAdminCommands contains all the built-in non-admin commands.
-func (c *Chat) NonAdminCommands() *Commands {
+// nonAdminCommands contains all the built-in non-admin commands.
+func (c *Chat) nonAdminCommands() *Commands {
 	return &Commands{
 		Title: "User",
 		Level: 1,
@@ -61,6 +61,14 @@ func (c *Chat) NonAdminCommands() *Commands {
 				AKA:  []string{"pics", "pictures"},
 				Use:  "[camera]",
 				Desc: "Sends pictures from all cameras, or from [camera].",
+				Save: false,
+			},
+			{
+				Run: c.cmdDelay,
+				AKA: []string{"delay"},
+				Use: "<seconds> <event>",
+				Desc: "The default delay between notifications from an event is 60 seconds. " +
+					"You can adjust that per event using this command.",
 				Save: false,
 			},
 		},
@@ -148,7 +156,12 @@ func (c *Chat) cmdSubs(h *Handler) (*Reply, error) {
 	for i, event := range h.Sub.Events.Names() {
 		msg += "\n" + strconv.Itoa(i) + ": " + event
 		if h.Sub.Events.IsPaused(event) {
-			msg += " (paused)"
+			until := time.Until(h.Sub.Events.PauseTime(event)).Round(time.Second)
+			msg += fmt.Sprintf(", paused %v", until)
+		}
+		delay, ok := h.Sub.Events.RuleGetD(event, "delay")
+		if ok {
+			msg += fmt.Sprintf(", delay: %v", delay)
 		}
 	}
 	if msg += "\n"; h.Sub.Events.Len() == 0 {
@@ -208,4 +221,20 @@ func (c *Chat) cmdStop(h *Handler) (*Reply, error) {
 		msg = "Notifications are no longer paused."
 	}
 	return &Reply{Reply: msg}, nil
+}
+
+func (c *Chat) cmdDelay(h *Handler) (*Reply, error) {
+	if len(h.Text) < 3 {
+		return &Reply{Reply: "must provide <seconds> as a number and the event or camera name"}, ErrorBadUsage
+	}
+	dur, err := strconv.Atoi(h.Text[1])
+	if err != nil {
+		return &Reply{Reply: "Unable to parse into a number: " + h.Text[1]}, ErrorBadUsage
+	}
+	event := strings.Join(h.Text[2:], " ")
+	if !h.Sub.Events.Exists(event) {
+		return &Reply{Reply: "You are not subscribed to: " + event}, nil
+	}
+	h.Sub.Events.RuleSetD(event, "delay", time.Duration(dur)*time.Second)
+	return &Reply{Reply: fmt.Sprintf("Set repeat delay for '%s' to %ds", event, dur)}, nil
 }

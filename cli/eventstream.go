@@ -9,6 +9,8 @@ import (
 	"golift.io/securityspy"
 )
 
+var DefaultRepeatDelay = time.Minute
+
 // processEventStream processes the securityspy event stream.
 func (m *Motifini) processEventStream() {
 	c := make(chan securityspy.Event, m.Conf.Imessage.QueueSize)
@@ -61,17 +63,17 @@ func (m *Motifini) handleCameraMotion(e securityspy.Event) {
 		return // no one to notify of this camera's motion
 	}
 	id := ReqID(3)
-	path := filepath.Join(m.Conf.Global.TempDir, fmt.Sprintf("camera_motion_%s_%s.jpg", id, e.Camera.Name))
+	path := filepath.Join(m.Conf.Global.TempDir, fmt.Sprintf("motifini_camera_motion_%s_%s.jpg", id, e.Camera.Name))
 	if err := e.Camera.SaveJPEG(&securityspy.VidOps{}, path); err != nil {
 		m.Error.Printf("[%v] event.Camera.SaveJPEG: %v", id, err)
 	}
 	m.sendFileOrMsg(id, "", path, subs)
 	for _, sub := range subs {
 		delay, ok := sub.Events.RuleGetD(e.Camera.Name, "delay")
-		if ok {
-			_ = sub.Events.Pause(e.Camera.Name, delay)
+		if !ok {
+			delay = DefaultRepeatDelay
 		}
-		_ = sub.Events.Pause(e.Camera.Name, time.Minute)
+		_ = sub.Events.Pause(e.Camera.Name, delay)
 	}
 	m.Info.Printf("[%v] Event '%v' triggered subscription messages. Subscribers: %v", id, e.Camera.Name, subCount)
 }

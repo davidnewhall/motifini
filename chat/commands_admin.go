@@ -3,10 +3,11 @@ package chat
 import (
 	"fmt"
 	"strconv"
+	"time"
 )
 
-// AdminCommands contains all the built-in admin commands like 'ignore'
-func (c *Chat) AdminCommands() *Commands {
+// adminCommands contains all the built-in admin commands like 'ignore'
+func (c *Chat) adminCommands() *Commands {
 	return &Commands{
 		Title: "Admin",
 		Level: 10,
@@ -116,7 +117,12 @@ func (c *Chat) cmdAdminSubs(h *Handler) (*Reply, error) {
 		i++
 		r.Reply += fmt.Sprintf("\n%d: %s", i, event)
 		if s.Events.IsPaused(event) {
-			r.Reply += " (paused)"
+			until := time.Until(s.Events.PauseTime(event)).Round(time.Second)
+			r.Reply += fmt.Sprintf(", paused %v", until)
+		}
+		delay, ok := h.Sub.Events.RuleGetD(event, "delay")
+		if ok {
+			r.Reply += fmt.Sprintf(", delay: %v", delay)
 		}
 	}
 	return r, nil
