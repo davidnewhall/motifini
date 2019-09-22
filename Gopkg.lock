@@ -58,12 +58,12 @@
   version = "v1.0.0"
 
 [[projects]]
-  digest = "1:c1b1102241e7f645bc8e0c22ae352e8f0dc6484b6cb4d132fa9f24174e0119e2"
+  digest = "1:524b71991fc7d9246cc7dc2d9e0886ccb97648091c63e30eef619e6862c955dd"
   name = "github.com/spf13/pflag"
   packages = ["."]
   pruneopts = "UT"
-  revision = "298182f68c66c05229eb03ac171abe6e309ee79a"
-  version = "v1.0.3"
+  revision = "2e9d26c8c37aae03e3f9d4e90b7116f5accb7cab"
+  version = "v1.0.5"
 
 [[projects]]
   digest = "1:8548c309c65a85933a625be5e7d52b6ac927ca30c56869fae58123b8a77a75e1"
@@ -75,11 +75,11 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:ec9d9815894f067c7878330735b9e4dfa6dc61234d2ba136b60a1436d6b5ea94"
+  digest = "1:efaeaf7e03393d54963ece1e4c1866915d712a07adf4be8ea8105a67e3418e8f"
   name = "golang.org/x/sys"
   packages = ["unix"]
   pruneopts = "UT"
-  revision = "b4ddaad3f8a36719f2b8bc6486c14cc468ca2bb5"
+  revision = "2dccfee4fd3e23e10ba17b9d696cf2388c28764b"
 
 [[projects]]
   digest = "1:b936b904b1cfa23889f61635efcbc2ef3ea600c864378db0b164c29ff1cd762b"
@@ -90,12 +90,12 @@
   version = "v1.0.0"
 
 [[projects]]
-  digest = "1:c2041567c24370ac5f71649669ba91302bd743eded6fba4434e5db5d2d403804"
+  digest = "1:297dfdb7d49ca40566ac97b239cf051754634c2e63128e54fe78a4389feca57f"
   name = "golift.io/imessage"
   packages = ["."]
   pruneopts = "UT"
-  revision = "eb396ef47ee5403608fdf99db2383fb1327936b5"
-  version = "v2.0.2"
+  revision = "13afcd71ddafba9373f4ee3f7fcc874fc0a47cd4"
+  version = "v2.1.0"
 
 [[projects]]
   digest = "1:7b9840c515b8fcfe4db49ffdebfa49944fa2b248b6a32497f53e55e6fd4bf0a2"

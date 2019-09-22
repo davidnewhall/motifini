@@ -45,34 +45,60 @@ func (m *Messenger) recviMessageHandler(msg imessage.Incoming) {
 	resp := m.chat.HandleCommand(h)
 	// Send the reply as files and/or text.
 	if resp.Reply != "" {
-		m.Info.Printf("[%s] iMessage Reply to %s, size: %d", h.ID, msg.From, len(resp.Reply))
 		m.SendiMessage(imessage.Outgoing{To: msg.From, ID: h.ID, Text: resp.Reply})
 	}
 	for _, path := range resp.Files {
-		m.SendiMessage(imessage.Outgoing{To: msg.From, ID: h.ID, Text: path, File: true, Call: m.FileCallback})
+		m.SendiMessage(imessage.Outgoing{To: msg.From, ID: h.ID, Text: path, File: true})
 	}
 }
 
+// SendiMessage is how we send out a message or file via iMessage.
+// Use this wrapper so the internal counters are updated, and callbacks used.
 func (m *Messenger) SendiMessage(msg imessage.Outgoing) {
 	if msg.File {
+		m.Info.Printf("[%s] iMessage sending file to %s, file: %s", msg.ID, msg.To, msg.Text)
 		export.Map.Files.Add(1)
+		if msg.Call == nil {
+			msg.Call = m.fileCallback
+		}
 	} else {
+		m.Info.Printf("[%s] iMessage sending to %s, size: %d", msg.ID, msg.To, len(msg.Text))
 		export.Map.Sent.Add(1)
+		if msg.Call == nil {
+			msg.Call = m.msgCallback
+		}
 	}
 	m.imsg.Send(msg)
 }
 
-// FileCallback runs in a go routine after a video or picture iMessage is processed.
-func (m *Messenger) FileCallback(msg *imessage.Response) {
-	var size int64
-	if fi, err := os.Stat(msg.Text); err == nil {
-		size = fi.Size()
-	}
+// msgCallback is used as a generic callback function for messages. It just writes logs.
+func (m *Messenger) msgCallback(msg *imessage.Response) {
 	if msg.Errs != nil {
 		export.Map.Errors.Add(1)
-		m.Error.Printf("[%v] m.Msgs.Send '%v': %v", msg.ID, msg.To, msg.Errs)
-	} else {
-		m.Info.Printf("[%v] iMessage File '%v' (%.2fMb) sent to: %v", msg.ID, msg.Text, float32(size)/1024/1024, msg.To)
+		m.Error.Printf("[%v] m.Msgs.Send '%v': sent: %v, %d errs: %v", msg.ID, msg.To, msg.Sent, len(msg.Errs), msg.Errs)
+	}
+	if !msg.Sent {
+		return
+	}
+	m.Info.Printf("[%v] iMessage Reply SENT to %s, size: %d", msg.ID, msg.To, len(msg.Text))
+}
+
+// fileCallback runs in a go routine after a video or picture iMessage is processed.
+func (m *Messenger) fileCallback(msg *imessage.Response) {
+	if msg.Errs != nil {
+		export.Map.Errors.Add(1)
+		m.Error.Printf("[%v] m.Msgs.Send '%v': sent: %v, %d errs: %v", msg.ID, msg.To, msg.Sent, len(msg.Errs), msg.Errs)
+	}
+	if msg.Sent {
+		var size int64
+		if fi, err := os.Stat(msg.Text); err == nil {
+			size = fi.Size()
+		}
+		m.Info.Printf("[%v] iMessage File '%v' (%.2fMb) SENT to: %v", msg.ID, msg.Text, float32(size)/1024/1024, msg.To)
+	}
+	if !strings.HasPrefix(msg.Text, m.TempDir) {
+		// Only delete files in tempdir.
+		return
 	}
 	// Might take a while to upload.
 	time.Sleep(20 * time.Second)
@@ -80,5 +106,5 @@ func (m *Messenger) FileCallback(msg *imessage.Response) {
 		m.Error.Printf("[%v] Remove(path): %v", msg.ID, err)
 		return
 	}
-	m.Debug.Printf("[%v] Deleted: %v", msg.ID, msg.Text)
+	m.Info.Printf("[%v] Deleted: %v", msg.ID, msg.Text)
 }

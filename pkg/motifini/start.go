@@ -48,7 +48,6 @@ type Motifini struct {
 
 // Flags defines our application's CLI arguments.
 type Flags struct {
-	Debug      bool
 	VersionReq bool
 	ConfigFile string
 	*pflag.FlagSet
@@ -61,6 +60,7 @@ type Config struct {
 		TempDir   string   `toml:"temp_dir"`
 		StateFile string   `toml:"state_file"`
 		AllowedTo []string `toml:"allowed_to"`
+		Debug     bool
 	} `toml:"motifini"`
 	Imessage    *imessage.Config    `toml:"imessage"`
 	SecuritySpy *securityspy.Config `toml:"security_spy"`
@@ -74,7 +74,6 @@ func (flag *Flags) ParseArgs(args []string) {
 		flag.PrintDefaults()
 	}
 	flag.StringVarP(&flag.ConfigFile, "config", "c", "/usr/local/etc/"+Binary+".conf", "Config File")
-	flag.BoolVarP(&flag.Debug, "debug", "D", false, "Turn on the Spam.")
 	flag.BoolVarP(&flag.VersionReq, "version", "v", false, "Print the version and exit")
 	_ = flag.Parse(args) // flag.ExitOnError means this will never return != nil
 }
@@ -82,13 +81,12 @@ func (flag *Flags) ParseArgs(args []string) {
 // Start the daemon.
 func Start() error {
 	rand.Seed(time.Now().UnixNano())
-	m := &Motifini{Flag: &Flags{}}
+	m := &Motifini{Flag: &Flags{}, Info: log.New(os.Stdout, "[INFO] ", log.LstdFlags)}
 	if m.Flag.ParseArgs(os.Args[1:]); m.Flag.VersionReq {
 		fmt.Printf("%s v%s\n", Binary, Version)
 		return nil // don't run anything else w/ version request.
 	}
 
-	m.setLogging()
 	export.Init(Binary) // Initialize the main expvar map.
 	export.Map.Version.Set(Version)
 	export.Map.ConfigFile.Set(m.Flag.ConfigFile)
@@ -96,6 +94,7 @@ func Start() error {
 		m.Flag.Usage()
 		return err
 	}
+	m.setLogging()
 	export.Map.ListenPort.Set(int64(m.Conf.Global.Port))
 	m.Info.Printf("Motifini %v Starting! (PID: %v)", Version, os.Getpid())
 	defer m.Info.Printf("Exiting!")
@@ -107,7 +106,7 @@ func Start() error {
 func (m *Motifini) setLogging() {
 	debugOut := ioutil.Discard
 	flags := log.LstdFlags
-	if m.Flag.Debug {
+	if m.Conf.Global.Debug {
 		debugOut = os.Stdout
 		flags = log.LstdFlags | log.Lshortfile
 	}
@@ -121,7 +120,7 @@ func (m *Motifini) setLogging() {
 func (m *Motifini) ParseConfigFile() error {
 	// Preload our defaults.
 	m.Conf = &Config{}
-	m.Info.Printf("Loading Configuration File: %s", m.Flag.ConfigFile)
+	m.Info.Println("Loading Configuration File:", m.Flag.ConfigFile)
 	switch buf, err := ioutil.ReadFile(m.Flag.ConfigFile); {
 	case err != nil:
 		return err

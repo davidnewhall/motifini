@@ -6,7 +6,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/davidnewhall/motifini/pkg/export"
 	"github.com/davidnewhall/motifini/pkg/messenger"
 	"github.com/gorilla/mux"
 	"golift.io/imessage"
@@ -61,7 +60,7 @@ func (c *Config) processVideoRequest(id string, cam *securityspy.Camera, to stri
 	}
 	// Input data OK, video grabbed, send an attachment to each recipient.
 	for _, t := range strings.Split(to, ",") {
-		c.Msgs.SendiMessage(imessage.Outgoing{ID: id, To: t, Text: path, File: true, Call: c.Msgs.FileCallback})
+		c.Msgs.SendiMessage(imessage.Outgoing{ID: id, To: t, Text: path, File: true})
 	}
 }
 
@@ -94,7 +93,7 @@ func (c *Config) sendPictureHandler(w http.ResponseWriter, r *http.Request) {
 	} else {
 		// Input data OK, send a message to each recipient.
 		for _, t := range to {
-			c.Msgs.SendiMessage(imessage.Outgoing{ID: id, To: t, Text: path, File: true, Call: c.Msgs.FileCallback})
+			c.Msgs.SendiMessage(imessage.Outgoing{ID: id, To: t, Text: path, File: true})
 		}
 		reply = "REQ ID: " + id + ", msg: " + reply + "\n"
 	}
@@ -115,21 +114,13 @@ func (c *Config) sendMessageHandler(w http.ResponseWriter, r *http.Request) {
 			break
 		}
 	}
-	callback := func(msg *imessage.Response) {
-		if msg.Errs != nil {
-			export.Map.Errors.Add(1)
-			c.Error.Printf("[%v] msgs.Msgs.Send '%v': %v", msg.ID, msg.To, msg.Errs)
-			return
-		}
-		c.Info.Printf("[%v] iMessage (%d chars) sent to: %v", msg.ID, len(msg.Text), msg.To)
-	}
 	if code == 500 || msg == "" {
 		c.Debug.Printf("[%v] Invalid 'to' provided or 'msg' empty: %v", id, msg)
 		code, reply = 500, "ERROR: Missing 'to' or 'msg'"
 	} else {
 		// Input data OK, send a message to each recipient.
 		for _, t := range to {
-			c.Msgs.SendiMessage(imessage.Outgoing{ID: id, To: t, Text: msg, File: false, Call: callback})
+			c.Msgs.SendiMessage(imessage.Outgoing{ID: id, To: t, Text: msg, File: false})
 		}
 	}
 	reply = "REQ ID: " + id + ", msg: " + reply + "\n"

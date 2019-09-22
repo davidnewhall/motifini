@@ -19,6 +19,7 @@ const (
 	APIiMessage = "imessage"
 )
 
+// Messenger is all the data needed to initialize this library.
 type Messenger struct {
 	chat    *chat.Chat
 	imsg    *imessage.Messages
@@ -31,6 +32,7 @@ type Messenger struct {
 	TempDir string
 }
 
+// New provides a messenger handler.
 func New(m *Messenger) error {
 	if m.Conf == nil {
 		return fmt.Errorf("imessage config is nil")
@@ -59,12 +61,13 @@ func New(m *Messenger) error {
 }
 
 // SendFileOrMsg will send a notification to any subscriber provided using any supported messenger.
+// This method is used by event handlers to notify subscribers.
 func (m *Messenger) SendFileOrMsg(id, msg, path string, subs []*subscribe.Subscriber) {
 	for _, sub := range subs {
 		switch sub.API {
 		case APIiMessage:
 			if path != "" {
-				m.SendiMessage(imessage.Outgoing{ID: id, To: sub.Contact, Text: path, File: true, Call: m.FileCallback})
+				m.SendiMessage(imessage.Outgoing{ID: id, To: sub.Contact, Text: path, File: true})
 			}
 			if msg != "" {
 				m.SendiMessage(imessage.Outgoing{ID: id, To: sub.Contact, Text: msg})
