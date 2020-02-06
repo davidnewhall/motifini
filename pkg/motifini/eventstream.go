@@ -63,7 +63,7 @@ func (m *Motifini) handleCameraMotion(e securityspy.Event) {
 	}
 	id := messenger.ReqID(3)
 	path := filepath.Join(m.Conf.Global.TempDir, fmt.Sprintf("motifini_camera_motion_%s_%s.jpg", id, e.Camera.Name))
-	if err := e.Camera.SaveJPEG(&securityspy.VidOps{}, path); err != nil {
+	if err := e.Camera.SaveJPEG(&securityspy.VidOps{Quality: 40, Width: 1080}, path); err != nil {
 		m.Error.Printf("[%v] event.Camera.SaveJPEG: %v", id, err)
 	}
 	m.Msgs.SendFileOrMsg(id, "", path, subs)
