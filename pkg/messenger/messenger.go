@@ -37,26 +37,35 @@ func New(m *Messenger) error {
 	if m.Conf == nil {
 		return fmt.Errorf("imessage config is nil")
 	}
+
 	if m.SSpy == nil {
 		return fmt.Errorf("securityspy is nil")
 	}
+
 	if m.Subs == nil {
 		return fmt.Errorf("subscribe is nil")
 	}
+
 	if m.Info == nil {
 		m.Info = log.New(ioutil.Discard, "", 0)
 	}
+
 	if m.Debug == nil {
 		m.Debug = log.New(ioutil.Discard, "", 0)
 	}
+
 	if m.Error == nil {
 		m.Error = log.New(ioutil.Discard, "", 0)
 	}
+
 	if m.TempDir == "" {
 		m.TempDir = "/tmp/"
 	}
+
 	m.chat = chat.New(&chat.Chat{TempDir: m.TempDir, Subs: m.Subs, SSpy: m.SSpy})
+
 	m.Info.Println("Watching iMessage Database:", m.Conf.SQLPath)
+
 	return m.startiMessage()
 }
 
@@ -82,8 +91,10 @@ func (m *Messenger) SendFileOrMsg(id, msg, path string, subs []*subscribe.Subscr
 func ReqID(n int) string {
 	l := []rune("abcdefghjkmnopqrstuvwxyzABCDEFGHJKMNPQRTUVWXYZ23456789")
 	b := make([]rune, n)
+
 	for i := range b {
 		b[i] = l[rand.Intn(len(l))]
 	}
+
 	return string(b)
 }

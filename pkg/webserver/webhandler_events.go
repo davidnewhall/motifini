@@ -29,13 +29,16 @@ func (c *Config) notifyHandler(id string, vars map[string]string, w http.Respons
 	cam := c.SSpy.Cameras.ByName(vars["event"])
 	subs := c.Subs.GetSubscribers(vars["event"])
 	path := ""
+
 	if cam != nil && len(subs) > 0 {
 		path = c.TempDir + "imessage_relay_" + id + "_" + vars["event"] + ".jpg"
+
 		if err := cam.SaveJPEG(&securityspy.VidOps{}, path); err != nil {
 			c.Error.Printf("[%v] cam.SaveJPEG: %v", id, err)
 			code, reply = 500, "ERROR: "+err.Error()
 		}
 	}
+
 	msg := r.FormValue("msg")
 	c.Msgs.SendFileOrMsg(id, msg, path, subs)
 	c.finishReq(w, r, id, code, reply, msg)

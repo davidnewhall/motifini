@@ -44,27 +44,35 @@ func Start(s *Config) error {
 	if s.SSpy == nil {
 		return fmt.Errorf("securityspy is nil")
 	}
+
 	if s.Subs == nil {
 		return fmt.Errorf("subscribe is nil")
 	}
+
 	if s.Msgs == nil {
 		return fmt.Errorf("messenger is nil")
 	}
+
 	if s.Info == nil {
 		s.Info = log.New(ioutil.Discard, "", 0)
 	}
+
 	if s.Debug == nil {
 		s.Debug = log.New(ioutil.Discard, "", 0)
 	}
+
 	if s.Error == nil {
 		s.Error = log.New(ioutil.Discard, "", 0)
 	}
+
 	if s.TempDir == "" {
 		s.TempDir = "/tmp/"
 	}
+
 	if s.Port == 0 {
 		s.Port = DefaultListenPort
 	}
+
 	return s.StartWebServer()
 }
 
@@ -82,6 +90,7 @@ func (c *Config) StartWebServer() error {
 		c.subsHandler).Methods("GET")
 	r.PathPrefix("/").HandlerFunc(c.handleAll)
 	http.Handle("/", r)
+
 	c.http = &http.Server{
 		Addr:         fmt.Sprintf("127.0.0.1:%d", c.Port),
 		WriteTimeout: time.Second * 15,
@@ -90,6 +99,7 @@ func (c *Config) StartWebServer() error {
 		Handler:      r, // *mux.Router
 	}
 	c.Info.Print("Web server listening at http://", c.http.Addr)
+
 	return c.http.ListenAndServe()
 }
 
@@ -99,8 +109,10 @@ func (c *Config) Stop() {
 	if c.http == nil {
 		return
 	}
+
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
+
 	if err := c.http.Shutdown(ctx); err != nil {
 		c.Error.Println("Shutting down web server:", err)
 	}
@@ -111,6 +123,7 @@ func (c *Config) finishReq(w http.ResponseWriter, r *http.Request, id string, co
 	c.Info.Printf(`[%v] %v %v "%v %v" %d %d "%v" "%v"`,
 		id, r.RemoteAddr, r.Host, r.Method, r.URL.String(), code, len(reply), r.UserAgent(), cmd)
 	w.WriteHeader(code)
+
 	if _, err := w.Write([]byte(reply)); err != nil {
 		c.Error.Printf("[%v] Error Sending Reply: %v", id, err)
 	}
@@ -120,6 +133,7 @@ func (c *Config) finishReq(w http.ResponseWriter, r *http.Request, id string, co
 func (c *Config) handleAll(w http.ResponseWriter, r *http.Request) {
 	export.Map.HTTPVisits.Add(1)
 	export.Map.DefaultURL.Add(1)
+
 	id, code, reply := messenger.ReqID(4), 405, "FAIL\n"
 	c.finishReq(w, r, id, code, reply, "-")
 }
@@ -131,5 +145,6 @@ func contains(s []string, e string) bool {
 			return true
 		}
 	}
+
 	return false
 }

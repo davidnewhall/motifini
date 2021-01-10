@@ -69,10 +69,12 @@ type Config struct {
 // ParseArgs runs the parser for CLI arguments.
 func (flag *Flags) ParseArgs(args []string) {
 	*flag = Flags{FlagSet: pflag.NewFlagSet(Binary, pflag.ExitOnError)}
+
 	flag.Usage = func() {
 		fmt.Printf("Usage: %s [--config=filepath] [--version] [--debug]", Binary)
 		flag.PrintDefaults()
 	}
+
 	flag.StringVarP(&flag.ConfigFile, "config", "c", "/usr/local/etc/"+Binary+".conf", "Config File")
 	flag.BoolVarP(&flag.VersionReq, "version", "v", false, "Print the version and exit")
 	_ = flag.Parse(args) // flag.ExitOnError means this will never return != nil
@@ -81,7 +83,9 @@ func (flag *Flags) ParseArgs(args []string) {
 // Start the daemon.
 func Start() error {
 	rand.Seed(time.Now().UnixNano())
+
 	m := &Motifini{Flag: &Flags{}, Info: log.New(os.Stdout, "[INFO] ", log.LstdFlags)}
+
 	if m.Flag.ParseArgs(os.Args[1:]); m.Flag.VersionReq {
 		fmt.Printf("%s v%s\n", Binary, Version)
 		return nil // don't run anything else w/ version request.
@@ -90,26 +94,31 @@ func Start() error {
 	export.Init(Binary) // Initialize the main expvar map.
 	export.Map.Version.Set(Version)
 	export.Map.ConfigFile.Set(m.Flag.ConfigFile)
+
 	if err := m.ParseConfigFile(); err != nil {
 		m.Flag.Usage()
 		return err
 	}
+
 	m.setLogging()
 	export.Map.ListenPort.Set(int64(m.Conf.Global.Port))
 	m.Info.Printf("Motifini %v Starting! (PID: %v)", Version, os.Getpid())
+	m.Conf.Validate()
+
 	defer m.Info.Printf("Exiting!")
 
-	m.Conf.Validate()
 	return m.Run()
 }
 
 func (m *Motifini) setLogging() {
 	debugOut := ioutil.Discard
 	flags := log.LstdFlags
+
 	if m.Conf.Global.Debug {
 		debugOut = os.Stdout
 		flags = log.LstdFlags | log.Lshortfile
 	}
+
 	m.Info = log.New(os.Stdout, "[INFO] ", flags)
 	m.Error = log.New(os.Stderr, "[ERROR] ", flags)
 	m.Debug = log.New(debugOut, "[DEBUG] ", flags)
@@ -121,6 +130,7 @@ func (m *Motifini) ParseConfigFile() error {
 	// Preload our defaults.
 	m.Conf = &Config{}
 	m.Info.Println("Loading Configuration File:", m.Flag.ConfigFile)
+
 	switch buf, err := ioutil.ReadFile(m.Flag.ConfigFile); {
 	case err != nil:
 		return err
@@ -140,6 +150,7 @@ func (c *Config) Validate() {
 	} else if !strings.HasSuffix(c.Global.TempDir, "/") {
 		c.Global.TempDir += "/"
 	}
+
 	if c.Imessage.QueueSize < 20 {
 		c.Imessage.QueueSize = 20
 	}
@@ -148,14 +159,18 @@ func (c *Config) Validate() {
 // Run starts the app after all configs are collected.
 func (m *Motifini) Run() error {
 	var err error
+
 	m.Info.Println("Connecting to SecuritySpy:", m.Conf.SecuritySpy.URL)
+
 	if m.SSpy, err = securityspy.GetServer(m.Conf.SecuritySpy); err != nil {
 		return err
 	}
+
 	m.ProcessEventStream()
 	defer m.SSpy.Events.Stop(true)
 
 	m.Info.Println("Opening Subscriber Database:", m.Conf.Global.StateFile)
+
 	if m.Subs, err = subscribe.GetDB(m.Conf.Global.StateFile); err != nil {
 		return errors.Wrap(err, "sub state")
 	}
@@ -184,7 +199,9 @@ func (m *Motifini) Run() error {
 		AllowedTo: m.Conf.Global.AllowedTo,
 		Port:      m.Conf.Global.Port,
 	}
+
 	go m.waitForSignal()
+
 	return webserver.Start(m.HTTP)
 }
 
@@ -192,6 +209,7 @@ func (m *Motifini) Run() error {
 // then shuts down the http server and event stream watcher.
 func (m *Motifini) waitForSignal() {
 	sigChan := make(chan os.Signal, 1)
+
 	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM, syscall.SIGQUIT)
 	m.Info.Printf("Shutting down! Caught Signal: %v", <-sigChan)
 	m.saveSubDB()
@@ -205,5 +223,6 @@ func (m *Motifini) saveSubDB() {
 		m.Error.Printf("saving subscribers state file: %v", err)
 		return
 	}
+
 	m.Debug.Print("Saved state DB file")
 }

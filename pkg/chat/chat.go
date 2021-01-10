@@ -83,6 +83,7 @@ func (c *Chat) HandleCommand(h *Handler) *Reply {
 	if save {
 		_ = c.Subs.StateFileSave()
 	}
+
 	return resp
 }
 
@@ -91,57 +92,75 @@ func (c *Chat) doHelp(h *Handler) *Reply {
 		// Request general help.
 		h.Text = append(h.Text, "")
 	}
+
 	// Request help for specific command.
-	resp := &Reply{}
-	var cmdFound bool
+	var (
+		resp     = &Reply{}
+		cmdFound bool
+	)
+
 	for i := range c.Cmds {
 		if !h.Sub.Admin && c.Cmds[i].Level > 2 {
 			continue
 		}
+
 		reply, ok := c.Cmds[i].help(h.Text[1])
 		cmdFound = ok || cmdFound
 		resp.Reply += reply
 	}
+
 	if !cmdFound {
 		resp.Reply += "Command not found: " + h.Text[1]
 	}
+
 	return resp
 }
 
 func (c *Chat) doCmd(h *Handler) (*Reply, bool) {
-	resp := &Reply{}
-	var save, found bool
+	var (
+		resp        = &Reply{}
+		save, found bool
+	)
+
 	for i := range c.Cmds {
 		if !h.Sub.Admin && c.Cmds[i].Level > 2 {
 			continue
 		}
+
 		r, s := c.Cmds[i].run(h)
 		resp.Reply += r.Reply
 		resp.Files = append(resp.Files, r.Files...)
 		found = r.Found || found
 		save = save || s
 	}
+
 	if !found && h.Sub.Admin {
 		resp.Reply = "Command not found: " + h.Text[0]
 	}
+
 	return resp, save
 }
 
 func (c *Commands) run(h *Handler) (*Reply, bool) {
 	cmdName := strings.ToLower(h.Text[0])
 	cmd := c.GetCommand(cmdName)
+
 	if cmd == nil || cmd.Run == nil {
 		return &Reply{Found: false}, false
 	}
+
 	reply, err := cmd.Run(h)
 	if reply == nil {
 		reply = &Reply{Found: true}
 	}
+
 	reply.Found = true
+
 	if err != nil {
 		usage, _ := c.help(cmdName)
 		reply.Reply = fmt.Sprintf("ERROR: %v\n%s\n%s\n", err, reply.Reply, usage)
 	}
+
 	return reply, cmd.Save && err == nil
 }
 
@@ -151,14 +170,19 @@ func (c *Commands) help(cmdName string) (string, bool) {
 		if cmd == nil {
 			return "", false
 		}
+
 		return fmt.Sprintf("* %s Usage: %s %s\nDetail: %s\nAlias: %s\n",
 			c.Title, cmd.AKA[0], cmd.Use, cmd.Desc, strings.Join(cmd.AKA, ", ")), true
 	}
+
 	msg := "\n* " + c.Title + " Commands *\n"
+
 	for _, cmd := range c.List {
 		msg += cmd.AKA[0] + " " + cmd.Use + "\n"
 	}
+
 	msg += "- More Info: help <cmd>\n"
+
 	return msg, true
 }
 
@@ -169,6 +193,7 @@ func (c *Commands) GetCommand(command string) *Command {
 			return c.List[i]
 		}
 	}
+
 	return nil
 }
 
@@ -180,5 +205,6 @@ func (c *Command) HasCmdAlias(alias string) bool {
 			return true
 		}
 	}
+
 	return false
 }

@@ -56,13 +56,17 @@ func Init(name string) {
 func GetMap(name string) *expvar.Map {
 	maps.Lock()
 	defer maps.Unlock()
+
 	if maps.list == nil {
 		maps.list = make(map[string]*expvar.Map)
 	}
+
 	if m, mapExists := maps.list[name]; mapExists {
 		return m
 	}
+
 	maps.list[name] = new(expvar.Map).Init()
+
 	return maps.list[name]
 }
 
@@ -71,7 +75,9 @@ func GetPublishedMap(name string) *expvar.Map {
 	if p := expvar.Get(name); p != nil {
 		return p.(*expvar.Map)
 	}
+
 	p := GetMap(name)
 	expvar.Publish(name, p)
+
 	return p
 }
