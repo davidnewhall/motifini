@@ -32,18 +32,20 @@ type Messenger struct {
 	TempDir string
 }
 
+var ErrNillConfigItem = fmt.Errorf("a required configuration item was not provided")
+
 // New provides a messenger handler.
 func New(m *Messenger) error {
 	if m.Conf == nil {
-		return fmt.Errorf("imessage config is nil")
+		return fmt.Errorf("%w: imessage is nil", ErrNillConfigItem)
 	}
 
 	if m.SSpy == nil {
-		return fmt.Errorf("securityspy is nil")
+		return fmt.Errorf("%w: securityspy is nil", ErrNillConfigItem)
 	}
 
 	if m.Subs == nil {
-		return fmt.Errorf("subscribe is nil")
+		return fmt.Errorf("%w: subscribe is nil", ErrNillConfigItem)
 	}
 
 	if m.Info == nil {
@@ -78,6 +80,7 @@ func (m *Messenger) SendFileOrMsg(id, msg, path string, subs []*subscribe.Subscr
 			if path != "" {
 				m.SendiMessage(imessage.Outgoing{ID: id, To: sub.Contact, Text: path, File: true})
 			}
+
 			if msg != "" {
 				m.SendiMessage(imessage.Outgoing{ID: id, To: sub.Contact, Text: msg})
 			}
@@ -93,7 +96,7 @@ func ReqID(n int) string {
 	b := make([]rune, n)
 
 	for i := range b {
-		b[i] = l[rand.Intn(len(l))]
+		b[i] = l[rand.Intn(len(l))] // nolint:gosec
 	}
 
 	return string(b)

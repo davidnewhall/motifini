@@ -1,6 +1,7 @@
 package messenger
 
 import (
+	"fmt"
 	"os"
 	"strings"
 	"time"
@@ -8,6 +9,12 @@ import (
 	"github.com/davidnewhall/motifini/pkg/chat"
 	"github.com/davidnewhall/motifini/pkg/export"
 	"golift.io/imessage"
+)
+
+const (
+	IDLength   = 4
+	mebibyte   = 1024 * 1024
+	uploadWait = 20 * time.Second
 )
 
 func (m *Messenger) startiMessage() error {
@@ -19,7 +26,7 @@ func (m *Messenger) startiMessage() error {
 
 	m.imsg, err = imessage.Init(m.Conf)
 	if err != nil {
-		return err
+		return fmt.Errorf("initializing imessage pkg: %w", err)
 	}
 
 	// Listen to all incoming imessages, pass them to our handler.
@@ -41,7 +48,7 @@ func (m *Messenger) recviMessageHandler(msg imessage.Incoming) {
 	// Pass the message off to the chat command handler routines.
 	h := &chat.Handler{
 		API:  APIiMessage,
-		ID:   ReqID(4),
+		ID:   ReqID(IDLength),
 		Sub:  sub,
 		Text: strings.Fields(msg.Text),
 		From: msg.From,
@@ -111,7 +118,7 @@ func (m *Messenger) fileCallback(msg *imessage.Response) {
 			size = fi.Size()
 		}
 
-		m.Info.Printf("[%v] iMessage File '%v' (%.2fMb) SENT to: %v", msg.ID, msg.Text, float32(size)/1024/1024, msg.To)
+		m.Info.Printf("[%v] iMessage File '%v' (%.2fMb) SENT to: %v", msg.ID, msg.Text, float32(size)/mebibyte, msg.To)
 	}
 
 	if !strings.HasPrefix(msg.Text, m.TempDir) {
@@ -120,7 +127,7 @@ func (m *Messenger) fileCallback(msg *imessage.Response) {
 	}
 
 	// Might take a while to upload.
-	time.Sleep(20 * time.Second)
+	time.Sleep(uploadWait)
 
 	if err := os.Remove(msg.Text); err != nil && !os.IsNotExist(err) {
 		m.Error.Printf("[%v] Remove(path): %v", msg.ID, err)

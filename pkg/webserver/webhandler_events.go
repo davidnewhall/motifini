@@ -9,9 +9,10 @@ import (
 	"golift.io/securityspy"
 )
 
-// /api/v1.0/event/{cmd:remove|update|add|notify}/{event}
+// /api/v1.0/event/{cmd:remove|update|add|notify}/{event} handler.
 func (c *Config) eventsHandler(w http.ResponseWriter, r *http.Request) {
-	id, vars := messenger.ReqID(4), mux.Vars(r)
+	id, vars := messenger.ReqID(messenger.IDLength), mux.Vars(r)
+
 	switch cmd := strings.ToLower(vars["cmd"]); cmd {
 	case "remove":
 		//
@@ -25,7 +26,7 @@ func (c *Config) eventsHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (c *Config) notifyHandler(id string, vars map[string]string, w http.ResponseWriter, r *http.Request) {
-	code, reply := 200, "REQ ID: "+id+", msg: got notify\n"
+	code, reply := http.StatusOK, "REQ ID: "+id+", msg: got notify\n"
 	cam := c.SSpy.Cameras.ByName(vars["event"])
 	subs := c.Subs.GetSubscribers(vars["event"])
 	path := ""
@@ -35,7 +36,7 @@ func (c *Config) notifyHandler(id string, vars map[string]string, w http.Respons
 
 		if err := cam.SaveJPEG(&securityspy.VidOps{}, path); err != nil {
 			c.Error.Printf("[%v] cam.SaveJPEG: %v", id, err)
-			code, reply = 500, "ERROR: "+err.Error()
+			code, reply = http.StatusInternalServerError, "ERROR: "+err.Error()
 		}
 	}
 

@@ -12,7 +12,7 @@ import (
 	"golift.io/securityspy"
 )
 
-///api/v1.0/send/imessage/video/{to}/{camera}"
+// /api/v1.0/send/imessage/video/{to}/{camera}" handler.
 func (c *Config) sendVideoHandler(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	to, name := vars["to"], vars["camera"]
@@ -24,22 +24,24 @@ func (c *Config) sendVideoHandler(w http.ResponseWriter, r *http.Request) {
 		"rate":    r.FormValue("rate"),
 		"size":    r.FormValue("size"),
 	}
-	id, code, reply := messenger.ReqID(4), 200, "OK"
+	id, code, reply := messenger.ReqID(messenger.IDLength), http.StatusOK, "OK"
 
 	cam := c.SSpy.Cameras.ByName(name)
 	if cam == nil {
 		c.Debug.Printf("[%v] Invalid 'cam' provided: %v", id, name)
-		code, reply = 500, "ERROR: Camera not found in configuration!"
+
+		code, reply = http.StatusInternalServerError, "ERROR: Camera not found in configuration!"
 	}
 
 	for _, t := range strings.Split(to, ",") {
 		if t == "" || !contains(c.AllowedTo, t) {
 			c.Debug.Printf("[%v] Invalid 'to' provided: %v", id, t)
-			code, reply = 500, "ERROR: Missing 'to' or 'cam'"
+
+			code, reply = http.StatusInternalServerError, "ERROR: Missing 'to' or 'cam'"
 		}
 	}
 
-	if code == 200 {
+	if code == http.StatusOK {
 		go c.processVideoRequest(id, cam, to, vals)
 	}
 
@@ -48,10 +50,14 @@ func (c *Config) sendVideoHandler(w http.ResponseWriter, r *http.Request) {
 	c.finishReq(w, r, id, code, reply, "-")
 }
 
+func toInt(s string) int {
+	i, _ := strconv.Atoi(s)
+	return i
+}
+
 // Since this runs in a go routine it sort of defeats the purpose of the queue. sorta?
 func (c *Config) processVideoRequest(id string, cam *securityspy.Camera, to string, v map[string]string) {
 	path := c.TempDir + "imessage_relay_" + id + "_" + cam.Name + ".mov"
-	toInt := func(s string) (i int) { i, _ = strconv.Atoi(s); return }
 	ops := &securityspy.VidOps{
 		Height:  toInt(v["height"]),
 		Width:   toInt(v["width"]),
@@ -71,32 +77,36 @@ func (c *Config) processVideoRequest(id string, cam *securityspy.Camera, to stri
 	}
 }
 
-// /api/v1.0/send/imessage/picture/{to}/{camera}
+// /api/v1.0/send/imessage/picture/{to}/{camera} handler.
 func (c *Config) sendPictureHandler(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	to, name := strings.Split(vars["to"], ","), vars["camera"]
-	id, code, reply := messenger.ReqID(4), 200, "OK"
+	id, code, reply := messenger.ReqID(messenger.IDLength), http.StatusOK, "OK"
 	path := c.TempDir + "imessage_relay_" + id + "_" + name + ".jpg"
 
 	// Check input data.
 	for _, t := range to {
 		if t == "" || !contains(c.AllowedTo, t) {
 			c.Debug.Printf("[%v] Invalid 'to' provided: %v", id, t)
-			code = 500
+
+			code = http.StatusInternalServerError
 
 			break
 		}
 	}
 
-	if name == "" || code == 500 {
-		code, reply = 500, "ERROR: Missing 'to' or 'cam'"
+	if name == "" || code == http.StatusInternalServerError {
+		code, reply = http.StatusInternalServerError, "ERROR: Missing 'to' or 'cam'"
+
 		c.Debug.Printf("[%v] Invalid 'to' provided or 'cam' empty: %v", id, name)
 	} else if cam := c.SSpy.Cameras.ByName(name); cam == nil {
-		code, reply = 500, "ERROR: Camera not found: "+name
+		code, reply = http.StatusInternalServerError, "ERROR: Camera not found: "+name
+
 		c.Debug.Printf("[%v] Camera not found: %v", id, name)
 	} else if err := cam.SaveJPEG(&securityspy.VidOps{}, path); err != nil {
 		c.Error.Printf("[%v] cam.SaveJPEG: %v", id, err)
-		code, reply = 500, "ERROR: "+err.Error()
+
+		code, reply = http.StatusInternalServerError, "ERROR: "+err.Error()
 	} else {
 		// Input data OK, send a message to each recipient.
 		for _, t := range to {
@@ -110,25 +120,27 @@ func (c *Config) sendPictureHandler(w http.ResponseWriter, r *http.Request) {
 	c.finishReq(w, r, id, code, reply, "-")
 }
 
-// /api/v1.0/send/imessage/msg
+// /api/v1.0/send/imessage/msg handler.
 func (c *Config) sendMessageHandler(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	to, msg := strings.Split(vars["to"], ","), vars["msg"]
-	id, code, reply := messenger.ReqID(4), 200, "OK"
+	id, code, reply := messenger.ReqID(messenger.IDLength), http.StatusOK, "OK"
 
 	// Check input data.
 	for _, t := range to {
 		if t == "" || !contains(c.AllowedTo, t) {
 			c.Debug.Printf("[%v] Invalid 'to' provided: %v", id, t)
-			code = 500
+
+			code = http.StatusInternalServerError
 
 			break
 		}
 	}
 
-	if code == 500 || msg == "" {
+	if code == http.StatusInternalServerError || msg == "" {
 		c.Debug.Printf("[%v] Invalid 'to' provided or 'msg' empty: %v", id, msg)
-		code, reply = 500, "ERROR: Missing 'to' or 'msg'"
+
+		code, reply = http.StatusInternalServerError, "ERROR: Missing 'to' or 'msg'"
 	} else {
 		// Input data OK, send a message to each recipient.
 		for _, t := range to {

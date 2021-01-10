@@ -14,7 +14,7 @@ import (
 
 // Chat is the input data to initialize the library.
 // If any of these are blank, the library doesn't work.
-// Set all these variables before calling HandleCommand
+// Set all these variables before calling HandleCommand().
 type Chat struct {
 	Subs    *subscribe.Subscribe
 	SSpy    *securityspy.Server
@@ -22,7 +22,7 @@ type Chat struct {
 	Cmds    []*Commands
 }
 
-// ErrorBadUsage is a standard error
+// ErrorBadUsage is a standard error.
 var ErrorBadUsage = fmt.Errorf("invalid command usage")
 
 // Command is the configuration for a chat command handler.
@@ -34,12 +34,22 @@ type Command struct {
 	Save bool
 }
 
+type CmdLevel int
+
 // Commands contains a list of related or grouped commands.
 type Commands struct {
 	Title string
-	Level int // not really used yet
+	Level CmdLevel // not really used yet
 	List  []*Command
 }
+
+const (
+	LevelNone CmdLevel = iota
+	LevelUser
+	LevelMod
+	LevelAdmin
+	LevelOwner
+)
 
 // Handler contains the data to handle a command. ie. an incoming message.
 type Handler struct {
@@ -62,8 +72,10 @@ func New(c *Chat) *Chat {
 	if c.TempDir == "" {
 		c.TempDir = "/tmp"
 	}
+
 	defaults := []*Commands{c.nonAdminCommands(), c.adminCommands()}
 	c.Cmds = append(defaults, c.Cmds...)
+
 	return c
 }
 
@@ -88,7 +100,7 @@ func (c *Chat) HandleCommand(h *Handler) *Reply {
 }
 
 func (c *Chat) doHelp(h *Handler) *Reply {
-	if len(h.Text) < 2 {
+	if len(h.Text) < twoItems {
 		// Request general help.
 		h.Text = append(h.Text, "")
 	}
@@ -100,7 +112,7 @@ func (c *Chat) doHelp(h *Handler) *Reply {
 	)
 
 	for i := range c.Cmds {
-		if !h.Sub.Admin && c.Cmds[i].Level > 2 {
+		if !h.Sub.Admin && c.Cmds[i].Level > LevelUser {
 			continue
 		}
 
@@ -123,7 +135,7 @@ func (c *Chat) doCmd(h *Handler) (*Reply, bool) {
 	)
 
 	for i := range c.Cmds {
-		if !h.Sub.Admin && c.Cmds[i].Level > 2 {
+		if !h.Sub.Admin && c.Cmds[i].Level > LevelUser {
 			continue
 		}
 

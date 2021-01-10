@@ -8,6 +8,8 @@ import (
 )
 
 func TestGetMap(t *testing.T) {
+	t.Parallel()
+
 	var d expvar.String
 
 	a := assert.New(t)
@@ -23,6 +25,8 @@ func TestGetMap(t *testing.T) {
 }
 
 func TestGetPublishedMap(t *testing.T) {
+	t.Parallel()
+
 	var d expvar.String
 
 	a := assert.New(t)
@@ -38,6 +42,8 @@ func TestGetPublishedMap(t *testing.T) {
 }
 
 func TestInit(t *testing.T) {
+	t.Parallel()
+
 	a := assert.New(t)
 
 	a.Nil(Map, "the map must begin nil")

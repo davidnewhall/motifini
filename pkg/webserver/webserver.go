@@ -23,7 +23,10 @@ import (
 	"golift.io/subscribe"
 )
 
-const DefaultListenPort = 8765
+const (
+	DefaultListenPort = 8765
+	Timeout           = 30 * time.Second
+)
 
 type Config struct {
 	http      *http.Server
@@ -42,15 +45,15 @@ type Config struct {
 // If all goes well, this will not return until the server shuts down.
 func Start(s *Config) error {
 	if s.SSpy == nil {
-		return fmt.Errorf("securityspy is nil")
+		return fmt.Errorf("%w: securityspy is nil", messenger.ErrNillConfigItem)
 	}
 
 	if s.Subs == nil {
-		return fmt.Errorf("subscribe is nil")
+		return fmt.Errorf("%w: subscribe is nil", messenger.ErrNillConfigItem)
 	}
 
 	if s.Msgs == nil {
-		return fmt.Errorf("messenger is nil")
+		return fmt.Errorf("%w: messenger is nil", messenger.ErrNillConfigItem)
 	}
 
 	if s.Info == nil {
@@ -93,9 +96,9 @@ func (c *Config) StartWebServer() error {
 
 	c.http = &http.Server{
 		Addr:         fmt.Sprintf("127.0.0.1:%d", c.Port),
-		WriteTimeout: time.Second * 15,
-		ReadTimeout:  time.Second * 15,
-		IdleTimeout:  time.Second * 60,
+		WriteTimeout: Timeout,
+		ReadTimeout:  Timeout,
+		IdleTimeout:  time.Minute,
 		Handler:      r, // *mux.Router
 	}
 	c.Info.Print("Web server listening at http://", c.http.Addr)
@@ -110,7 +113,7 @@ func (c *Config) Stop() {
 		return
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), Timeout)
 	defer cancel()
 
 	if err := c.http.Shutdown(ctx); err != nil {
@@ -134,7 +137,7 @@ func (c *Config) handleAll(w http.ResponseWriter, r *http.Request) {
 	export.Map.HTTPVisits.Add(1)
 	export.Map.DefaultURL.Add(1)
 
-	id, code, reply := messenger.ReqID(4), 405, "FAIL\n"
+	id, code, reply := messenger.ReqID(messenger.IDLength), http.StatusMethodNotAllowed, "FAIL\n"
 	c.finishReq(w, r, id, code, reply, "-")
 }
 

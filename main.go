@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"log"
 	"net/http"
 
@@ -8,7 +9,8 @@ import (
 )
 
 func main() {
-	if err := motifini.Start(); err != nil && err != http.ErrServerClosed {
+	if err := motifini.Start(); err != nil &&
+		!errors.Is(err, http.ErrServerClosed) {
 		log.Fatalln("[ERROR]", err)
 	}
 }

@@ -11,11 +11,17 @@ import (
 	"golift.io/securityspy"
 )
 
+// Command args are parsed out by their count, so make it a constant.
+const (
+	twoItems = iota + 2
+	threeItems
+)
+
 // nonAdminCommands contains all the built-in non-admin commands.
 func (c *Chat) nonAdminCommands() *Commands {
 	return &Commands{
 		Title: "User",
-		Level: 1,
+		Level: LevelUser,
 		List: []*Command{
 			{
 				Run:  c.cmdCams,
@@ -148,7 +154,7 @@ func (c *Chat) cmdPics(h *Handler) (*Reply, error) {
 func (c *Chat) cmdSub(h *Handler) (*Reply, error) {
 	kind := "event"
 
-	if len(h.Text) < 2 {
+	if len(h.Text) < twoItems {
 		return &Reply{Reply: "must provide an event or camera name to subscribe"}, ErrorBadUsage
 	}
 
@@ -156,6 +162,7 @@ func (c *Chat) cmdSub(h *Handler) (*Reply, error) {
 
 	if !c.Subs.Events.Exists(event) {
 		kind = "camera"
+
 		if cam := c.SSpy.Cameras.ByName(event); cam == nil {
 			return &Reply{Reply: "Event or Camera not found: " + event}, ErrorBadUsage
 		}
@@ -202,7 +209,7 @@ func (c *Chat) cmdSubs(h *Handler) (*Reply, error) {
 }
 
 func (c *Chat) cmdUnsub(h *Handler) (*Reply, error) {
-	if len(h.Text) < 2 {
+	if len(h.Text) < twoItems {
 		return &Reply{Reply: "must provide an event or camera name to unsubscribe"}, ErrorBadUsage
 	}
 
@@ -238,8 +245,8 @@ func (c *Chat) cmdStop(h *Handler) (*Reply, error) {
 	}
 
 	// Pause a single event.
-	if len(h.Text) > 2 {
-		event := strings.Join(h.Text[2:], " ")
+	if len(h.Text) > twoItems {
+		event := strings.Join(h.Text[twoItems:], " ")
 		msg := "Notifications from '" + event + "' paused for at least " + h.Text[1] + " minutes."
 
 		if dur == 0 {
@@ -268,17 +275,16 @@ func (c *Chat) cmdStop(h *Handler) (*Reply, error) {
 }
 
 func (c *Chat) cmdDelay(h *Handler) (*Reply, error) {
-	if len(h.Text) < 3 {
+	if len(h.Text) < threeItems {
 		return &Reply{Reply: "must provide <seconds> as a number and the event or camera name"}, ErrorBadUsage
 	}
 
 	dur, err := strconv.Atoi(h.Text[1])
-
 	if err != nil {
 		return &Reply{Reply: "Unable to parse into a number: " + h.Text[1]}, ErrorBadUsage
 	}
 
-	event := strings.Join(h.Text[2:], " ")
+	event := strings.Join(h.Text[twoItems:], " ")
 	if !h.Sub.Events.Exists(event) {
 		return &Reply{Reply: "You are not subscribed to: " + event}, nil
 	}

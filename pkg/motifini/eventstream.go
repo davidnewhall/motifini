@@ -10,12 +10,17 @@ import (
 	"golift.io/securityspy"
 )
 
+const (
+	eventStreamBuf = 1000
+	eventRetry     = 5 * time.Second
+)
+
 // ProcessEventStream processes the securityspy event stream.
 func (m *Motifini) ProcessEventStream() {
-	e := make(chan securityspy.Event, 100)
+	e := make(chan securityspy.Event, eventStreamBuf)
 
 	m.SSpy.Events.BindChan(securityspy.EventAllEvents, e)
-	m.SSpy.Events.Watch(5*time.Second, true)
+	m.SSpy.Events.Watch(eventRetry, true)
 
 	go m.handleEvents(e)
 }
@@ -25,7 +30,7 @@ func (m *Motifini) handleEvents(e chan securityspy.Event) {
 	defer m.Error.Println("Event Stream Watcher Closed")
 
 	for event := range e {
-		switch event.Type {
+		switch event.Type { // nolint:exhaustive // use default wisely
 		case securityspy.EventKeepAlive:
 			// ignore.
 		case securityspy.EventMotionDetected:
@@ -62,7 +67,7 @@ func (m *Motifini) handleCameraMotion(e securityspy.Event) {
 	}
 
 	subs := m.Subs.GetSubscribers(e.Camera.Name)
-	id := messenger.ReqID(3)
+	id := messenger.ReqID(messenger.IDLength)
 	path := filepath.Join(m.Conf.Global.TempDir, fmt.Sprintf("motifini_camera_motion_%s_%s.jpg", id, e.Camera.Name))
 
 	subCount := len(subs)
@@ -70,7 +75,8 @@ func (m *Motifini) handleCameraMotion(e securityspy.Event) {
 		return // no one to notify of this camera's motion
 	}
 
-	if err := e.Camera.SaveJPEG(&securityspy.VidOps{Quality: 40, Width: 1080}, path); err != nil {
+	err := e.Camera.SaveJPEG(&securityspy.VidOps{Quality: 40, Width: 1080}, path) // nolint:gomnd
+	if err != nil {
 		m.Error.Printf("[%v] event.Camera.SaveJPEG: %v", id, err)
 	}
 

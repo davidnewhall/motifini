@@ -17,7 +17,6 @@ import (
 	"github.com/davidnewhall/motifini/pkg/export"
 	"github.com/davidnewhall/motifini/pkg/messenger"
 	"github.com/davidnewhall/motifini/pkg/webserver"
-	"github.com/pkg/errors"
 	"github.com/spf13/pflag"
 	"golift.io/imessage"
 	"golift.io/securityspy"
@@ -32,6 +31,8 @@ var (
 	// Binary is the app name.
 	Binary = "motifini"
 )
+
+const minQueueSize = 20
 
 // Motifini is the main application struct.
 type Motifini struct {
@@ -53,7 +54,7 @@ type Flags struct {
 	*pflag.FlagSet
 }
 
-// Config struct
+// Configuration for Motifini.
 type Config struct {
 	Global struct {
 		Port      uint     `toml:"port"`
@@ -125,7 +126,7 @@ func (m *Motifini) setLogging() {
 }
 
 // ParseConfigFile parses and returns our configuration data.
-// Supports a few formats for config file: xml, json, toml
+// Supports a few formats for config file: xml, json, toml.
 func (m *Motifini) ParseConfigFile() error {
 	// Preload our defaults.
 	m.Conf = &Config{}
@@ -133,7 +134,7 @@ func (m *Motifini) ParseConfigFile() error {
 
 	switch buf, err := ioutil.ReadFile(m.Flag.ConfigFile); {
 	case err != nil:
-		return err
+		return fmt.Errorf("reading config file: %w", err)
 	case strings.Contains(m.Flag.ConfigFile, ".json"):
 		return json.Unmarshal(buf, &m.Conf)
 	case strings.Contains(m.Flag.ConfigFile, ".xml"):
@@ -151,8 +152,8 @@ func (c *Config) Validate() {
 		c.Global.TempDir += "/"
 	}
 
-	if c.Imessage.QueueSize < 20 {
-		c.Imessage.QueueSize = 20
+	if c.Imessage.QueueSize < minQueueSize {
+		c.Imessage.QueueSize = minQueueSize
 	}
 }
 
@@ -163,7 +164,7 @@ func (m *Motifini) Run() error {
 	m.Info.Println("Connecting to SecuritySpy:", m.Conf.SecuritySpy.URL)
 
 	if m.SSpy, err = securityspy.GetServer(m.Conf.SecuritySpy); err != nil {
-		return err
+		return fmt.Errorf("connecting to securityspy: %w", err)
 	}
 
 	m.ProcessEventStream()
@@ -172,7 +173,7 @@ func (m *Motifini) Run() error {
 	m.Info.Println("Opening Subscriber Database:", m.Conf.Global.StateFile)
 
 	if m.Subs, err = subscribe.GetDB(m.Conf.Global.StateFile); err != nil {
-		return errors.Wrap(err, "sub state")
+		return fmt.Errorf("sub state: %w", err)
 	}
 
 	m.Msgs = &messenger.Messenger{
@@ -185,7 +186,7 @@ func (m *Motifini) Run() error {
 		Error:   m.Error,
 	}
 	if err := messenger.New(m.Msgs); err != nil {
-		return err
+		return fmt.Errorf("connecting to messenger: %w", err)
 	}
 
 	m.HTTP = &webserver.Config{

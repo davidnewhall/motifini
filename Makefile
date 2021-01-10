@@ -102,15 +102,6 @@ lint:
 	# Checking lint.
 	golangci-lint run $(GOLANGCI_LINT_ARGS)
 
-# This is safe; recommended even.
-dep: vendor
-vendor: Gopkg.*
-	dep ensure --vendor-only
-
-# Don't run this unless you're ready to debug untested vendored dependencies.
-deps:
-	dep ensure --update
-
 # Homebrew stuff. macOS only.
 
 # Used for Homebrew only. Other distros can create packages.

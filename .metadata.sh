@@ -11,7 +11,7 @@ HBREPO="golift/homebrew-mugs"
 MAINT="David Newhall II <david at sleepers dot pro>"
 VENDOR="Go Lift"
 DESC="SecuritySpy-iMessage Integrator and Messages.app API"
-GOLANGCI_LINT_ARGS="--enable-all -D gochecknoglobals"
+GOLANGCI_LINT_ARGS="--enable-all -D gochecknoglobals,exhaustivestruct,forbidigo,nlreturn"
 # Example must exist at examples/$CONFIG_FILE.example
 CONFIG_FILE="motifini.conf"
 LICENSE="MIT"

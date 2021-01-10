@@ -6,11 +6,11 @@ import (
 	"time"
 )
 
-// adminCommands contains all the built-in admin commands like 'ignore'
+// adminCommands contains all the built-in admin commands like 'ignore'.
 func (c *Chat) adminCommands() *Commands {
 	return &Commands{
 		Title: "Admin",
-		Level: 10,
+		Level: LevelAdmin,
 		List: []*Command{
 			{
 				Run:  c.cmdAdminSubs,
@@ -145,7 +145,7 @@ func (c *Chat) cmdAdminSubs(h *Handler) (*Reply, error) {
 }
 
 func (c *Chat) cmdAdminUnadmin(h *Handler) (*Reply, error) {
-	if len(h.Text) != 2 {
+	if len(h.Text) != twoItems {
 		return &Reply{}, ErrorBadUsage
 	}
 
@@ -160,7 +160,7 @@ func (c *Chat) cmdAdminUnadmin(h *Handler) (*Reply, error) {
 }
 
 func (c *Chat) cmdAdminAdmin(h *Handler) (*Reply, error) {
-	if len(h.Text) != 2 {
+	if len(h.Text) != twoItems {
 		return &Reply{}, ErrorBadUsage
 	}
 
@@ -175,7 +175,7 @@ func (c *Chat) cmdAdminAdmin(h *Handler) (*Reply, error) {
 }
 
 func (c *Chat) cmdAdminUnignore(h *Handler) (*Reply, error) {
-	if len(h.Text) != 2 {
+	if len(h.Text) != twoItems {
 		return &Reply{}, ErrorBadUsage
 	}
 
@@ -190,7 +190,7 @@ func (c *Chat) cmdAdminUnignore(h *Handler) (*Reply, error) {
 }
 
 func (c *Chat) cmdAdminIgnore(h *Handler) (*Reply, error) {
-	if len(h.Text) != 2 {
+	if len(h.Text) != twoItems {
 		return &Reply{}, ErrorBadUsage
 	}
 
