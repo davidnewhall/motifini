@@ -20,7 +20,7 @@ func (m *Motifini) ProcessEventStream() {
 	e := make(chan securityspy.Event, eventStreamBuf)
 
 	m.SSpy.Events.BindChan(securityspy.EventAllEvents, e)
-	m.SSpy.Events.Watch(eventRetry, true)
+	m.SSpy.Events.Watch(eventRetry, false)
 
 	go m.handleEvents(e)
 }
@@ -48,8 +48,7 @@ func (m *Motifini) handleEvents(e chan securityspy.Event) {
 		case securityspy.EventStreamDisconnect:
 			m.Error.Println("SecuritySpy Event Stream Disconnected")
 		case securityspy.EventConfigChange:
-			m.saveSubDB() // just because.
-			m.Info.Println("SecuritySpy Configuration Changed!")
+			m.handleConfigChange()
 		default:
 			camName := ""
 			if event.Camera != nil {
@@ -59,6 +58,27 @@ func (m *Motifini) handleEvents(e chan securityspy.Event) {
 			m.Debug.Println("Event:", event.String(), camName, event.Msg)
 		}
 	}
+}
+
+func (m *Motifini) handleConfigChange() {
+	m.saveSubDB() // just because.
+	m.Info.Println("SecuritySpy Configuration Changed! Stopping Webserver and iMessage to refresh SecuritySpy data.")
+	m.Msgs.Stop()
+
+	if err := m.HTTP.Stop(); err != nil {
+		m.Error.Println("Stopping Webserver:", err)
+	}
+
+	if err := m.SSpy.Refresh(); err != nil {
+		m.Error.Println("Refreshing SecuritySpy Configuration:", err)
+	}
+
+	if err := m.Msgs.Start(); err != nil {
+		m.Error.Println("Starting Message Watcher Routines:", err)
+	}
+
+	time.Sleep(time.Second)
+	m.HTTP.Start()
 }
 
 func (m *Motifini) handleCameraMotion(e securityspy.Event) {

@@ -66,9 +66,7 @@ func New(m *Messenger) error {
 
 	m.chat = chat.New(&chat.Chat{TempDir: m.TempDir, Subs: m.Subs, SSpy: m.SSpy})
 
-	m.Info.Println("Watching iMessage Database:", m.Conf.SQLPath)
-
-	return m.startiMessage()
+	return m.Start()
 }
 
 // SendFileOrMsg will send a notification to any subscriber provided using any supported messenger.

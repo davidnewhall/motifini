@@ -17,9 +17,11 @@ const (
 	uploadWait = 20 * time.Second
 )
 
-func (m *Messenger) startiMessage() error {
+// Start Inits and Starts the iMessage routines.
+func (m *Messenger) Start() error {
 	var err error
 
+	m.Info.Println("Watching iMessage Database:", m.Conf.SQLPath)
 	m.Conf.SQLPath = strings.Replace(m.Conf.SQLPath, "~", os.Getenv("HOME"), 1)
 	m.Conf.ErrorLog = m.Error
 	m.Conf.DebugLog = m.Debug
@@ -33,6 +35,11 @@ func (m *Messenger) startiMessage() error {
 	m.imsg.IncomingCall(".*", m.recviMessageHandler)
 
 	return m.imsg.Start()
+}
+
+// Stop closes the iMessage routines.
+func (m *Messenger) Stop() {
+	m.imsg.Stop()
 }
 
 // recviMessageHandler is a callback binding from the imessage library.

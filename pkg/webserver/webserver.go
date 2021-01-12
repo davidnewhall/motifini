@@ -43,45 +43,47 @@ type Config struct {
 
 // Start validates the config and returns any errors.
 // If all goes well, this will not return until the server shuts down.
-func Start(s *Config) error {
-	if s.SSpy == nil {
+func Start(c *Config) error {
+	if c.SSpy == nil {
 		return fmt.Errorf("%w: securityspy is nil", messenger.ErrNillConfigItem)
 	}
 
-	if s.Subs == nil {
+	if c.Subs == nil {
 		return fmt.Errorf("%w: subscribe is nil", messenger.ErrNillConfigItem)
 	}
 
-	if s.Msgs == nil {
+	if c.Msgs == nil {
 		return fmt.Errorf("%w: messenger is nil", messenger.ErrNillConfigItem)
 	}
 
-	if s.Info == nil {
-		s.Info = log.New(ioutil.Discard, "", 0)
+	if c.Info == nil {
+		c.Info = log.New(ioutil.Discard, "", 0)
 	}
 
-	if s.Debug == nil {
-		s.Debug = log.New(ioutil.Discard, "", 0)
+	if c.Debug == nil {
+		c.Debug = log.New(ioutil.Discard, "", 0)
 	}
 
-	if s.Error == nil {
-		s.Error = log.New(ioutil.Discard, "", 0)
+	if c.Error == nil {
+		c.Error = log.New(ioutil.Discard, "", 0)
 	}
 
-	if s.TempDir == "" {
-		s.TempDir = "/tmp/"
+	if c.TempDir == "" {
+		c.TempDir = "/tmp/"
 	}
 
-	if s.Port == 0 {
-		s.Port = DefaultListenPort
+	if c.Port == 0 {
+		c.Port = DefaultListenPort
 	}
 
-	return s.StartWebServer()
+	c.Start()
+
+	return nil
 }
 
 // StartWebServer creates the http routers and starts http server
 // This code block shows all the routes, for now.
-func (c *Config) StartWebServer() error {
+func (c *Config) Start() {
 	r := mux.NewRouter()
 	r.Handle("/debug/vars", http.DefaultServeMux).Methods("GET")
 	r.HandleFunc("/api/v1.0/send/imessage/video/{to}/{camera}", c.sendVideoHandler).Methods("GET")
@@ -92,7 +94,6 @@ func (c *Config) StartWebServer() error {
 	r.HandleFunc("/api/v1.0/sub/{cmd:subscribe|unsubscribe|pause|unpause}/{api}/{contact}/{event}",
 		c.subsHandler).Methods("GET")
 	r.PathPrefix("/").HandlerFunc(c.handleAll)
-	http.Handle("/", r)
 
 	c.http = &http.Server{
 		Addr:         fmt.Sprintf("127.0.0.1:%d", c.Port),
@@ -101,24 +102,31 @@ func (c *Config) StartWebServer() error {
 		IdleTimeout:  time.Minute,
 		Handler:      r, // *mux.Router
 	}
+
 	c.Info.Print("Web server listening at http://", c.http.Addr)
 
-	return c.http.ListenAndServe()
+	go func() {
+		if err := c.http.ListenAndServe(); err != nil {
+			c.Error.Println("Web Server Stopped:", err)
+		}
+	}()
 }
 
 // Stop shuts down the HTTP listener.
-func (c *Config) Stop() {
+func (c *Config) Stop() error {
 	// Give the http server up to 3 seconds to finish any open requests.
 	if c.http == nil {
-		return
+		return nil
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), Timeout)
 	defer cancel()
 
 	if err := c.http.Shutdown(ctx); err != nil {
-		c.Error.Println("Shutting down web server:", err)
+		return fmt.Errorf("shutting down web server: %w", err)
 	}
+
+	return nil
 }
 
 func (c *Config) finishReq(w http.ResponseWriter, r *http.Request, id string, code int, reply string, cmd string) {

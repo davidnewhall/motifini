@@ -1,8 +1,6 @@
 package motifini
 
 import (
-	"encoding/json"
-	"encoding/xml"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -13,23 +11,23 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/BurntSushi/toml"
 	"github.com/davidnewhall/motifini/pkg/export"
 	"github.com/davidnewhall/motifini/pkg/messenger"
 	"github.com/davidnewhall/motifini/pkg/webserver"
 	"github.com/spf13/pflag"
+	"golift.io/cnfg"
+	"golift.io/cnfg/cnfgfile"
 	"golift.io/imessage"
 	"golift.io/securityspy"
+	"golift.io/securityspy/server"
 	"golift.io/subscribe"
+	"golift.io/version"
 )
 
-var (
-	// DefaultRepeatDelay is the default delay for subscriber's event notifications.
+const (
+	Binary             = "motifini"
 	DefaultRepeatDelay = time.Minute
-	// Version of the application. Injected at build time.
-	Version = "development"
-	// Binary is the app name.
-	Binary = "motifini"
+	DefaultEnvPrefix   = "MO"
 )
 
 const minQueueSize = 20
@@ -49,8 +47,9 @@ type Motifini struct {
 
 // Flags defines our application's CLI arguments.
 type Flags struct {
-	VersionReq bool
+	EnvPrefix  string
 	ConfigFile string
+	VersionReq bool
 	*pflag.FlagSet
 }
 
@@ -63,8 +62,8 @@ type Config struct {
 		AllowedTo []string `toml:"allowed_to"`
 		Debug     bool
 	} `toml:"motifini"`
-	Imessage    *imessage.Config    `toml:"imessage"`
-	SecuritySpy *securityspy.Config `toml:"security_spy"`
+	Imessage    *imessage.Config `toml:"imessage"`
+	SecuritySpy *server.Config   `toml:"security_spy"`
 }
 
 // ParseArgs runs the parser for CLI arguments.
@@ -72,10 +71,11 @@ func (flag *Flags) ParseArgs(args []string) {
 	*flag = Flags{FlagSet: pflag.NewFlagSet(Binary, pflag.ExitOnError)}
 
 	flag.Usage = func() {
-		fmt.Printf("Usage: %s [--config=filepath] [--version] [--debug]", Binary)
+		fmt.Printf("Usage: %s [--config=filepath] [--version] [--debug]", Binary) //nolint:forbidigo
 		flag.PrintDefaults()
 	}
 
+	flag.StringVarP(&flag.EnvPrefix, "prefix", "p", DefaultEnvPrefix, "Environment Variable Configuration Prefix")
 	flag.StringVarP(&flag.ConfigFile, "config", "c", "/usr/local/etc/"+Binary+".conf", "Config File")
 	flag.BoolVarP(&flag.VersionReq, "version", "v", false, "Print the version and exit")
 	_ = flag.Parse(args) // flag.ExitOnError means this will never return != nil
@@ -86,15 +86,12 @@ func Start() error {
 	rand.Seed(time.Now().UnixNano())
 
 	m := &Motifini{Flag: &Flags{}, Info: log.New(os.Stdout, "[INFO] ", log.LstdFlags)}
+	m.Flag.ParseArgs(os.Args[1:])
 
-	if m.Flag.ParseArgs(os.Args[1:]); m.Flag.VersionReq {
-		fmt.Printf("%s v%s\n", Binary, Version)
-		return nil // don't run anything else w/ version request.
+	if m.Flag.VersionReq {
+		fmt.Println(version.Print(Binary)) //nolint:forbidigo
+		return nil                         // don't run anything else w/ version request.
 	}
-
-	export.Init(Binary) // Initialize the main expvar map.
-	export.Map.Version.Set(Version)
-	export.Map.ConfigFile.Set(m.Flag.ConfigFile)
 
 	if err := m.ParseConfigFile(); err != nil {
 		m.Flag.Usage()
@@ -102,8 +99,11 @@ func Start() error {
 	}
 
 	m.setLogging()
+	export.Init(Binary) // Initialize the main expvar map.
 	export.Map.ListenPort.Set(int64(m.Conf.Global.Port))
-	m.Info.Printf("Motifini %v Starting! (PID: %v)", Version, os.Getpid())
+	export.Map.Version.Set(version.Version + "-" + version.Revision)
+	export.Map.ConfigFile.Set(m.Flag.ConfigFile)
+	m.Info.Printf("Motifini %v-%v Starting! (PID: %v)", version.Version, version.Revision, os.Getpid())
 	m.Conf.Validate()
 
 	defer m.Info.Printf("Exiting!")
@@ -132,16 +132,17 @@ func (m *Motifini) ParseConfigFile() error {
 	m.Conf = &Config{}
 	m.Info.Println("Loading Configuration File:", m.Flag.ConfigFile)
 
-	switch buf, err := ioutil.ReadFile(m.Flag.ConfigFile); {
-	case err != nil:
-		return fmt.Errorf("reading config file: %w", err)
-	case strings.Contains(m.Flag.ConfigFile, ".json"):
-		return json.Unmarshal(buf, &m.Conf)
-	case strings.Contains(m.Flag.ConfigFile, ".xml"):
-		return xml.Unmarshal(buf, &m.Conf)
-	default:
-		return toml.Unmarshal(buf, &m.Conf)
+	err := cnfgfile.Unmarshal(m.Conf, m.Flag.ConfigFile)
+	if err != nil {
+		return fmt.Errorf("config file: %w", err)
 	}
+
+	_, err = cnfg.UnmarshalENV(m.Conf, m.Flag.EnvPrefix)
+	if err != nil {
+		return fmt.Errorf("env vars: %w", err)
+	}
+
+	return nil
 }
 
 // Validate makes sure the data in the config file is valid.
@@ -158,23 +159,21 @@ func (c *Config) Validate() {
 }
 
 // Run starts the app after all configs are collected.
-func (m *Motifini) Run() error {
-	var err error
-
-	m.Info.Println("Connecting to SecuritySpy:", m.Conf.SecuritySpy.URL)
-
-	if m.SSpy, err = securityspy.GetServer(m.Conf.SecuritySpy); err != nil {
-		return fmt.Errorf("connecting to securityspy: %w", err)
-	}
-
-	m.ProcessEventStream()
-	defer m.SSpy.Events.Stop(true)
-
+func (m *Motifini) Run() (err error) {
 	m.Info.Println("Opening Subscriber Database:", m.Conf.Global.StateFile)
 
 	if m.Subs, err = subscribe.GetDB(m.Conf.Global.StateFile); err != nil {
 		return fmt.Errorf("sub state: %w", err)
 	}
+
+	m.Info.Println("Connecting to SecuritySpy:", m.Conf.SecuritySpy.URL)
+
+	if m.SSpy, err = securityspy.New(m.Conf.SecuritySpy); err != nil {
+		return fmt.Errorf("connecting to securityspy: %w", err)
+	}
+
+	m.ProcessEventStream()
+	defer m.SSpy.Events.Stop(true)
 
 	m.Msgs = &messenger.Messenger{
 		SSpy:    m.SSpy,
@@ -185,7 +184,7 @@ func (m *Motifini) Run() error {
 		Debug:   m.Debug,
 		Error:   m.Error,
 	}
-	if err := messenger.New(m.Msgs); err != nil {
+	if err = messenger.New(m.Msgs); err != nil {
 		return fmt.Errorf("connecting to messenger: %w", err)
 	}
 
@@ -201,20 +200,23 @@ func (m *Motifini) Run() error {
 		Port:      m.Conf.Global.Port,
 	}
 
-	go m.waitForSignal()
+	if err = webserver.Start(m.HTTP); err != nil {
+		return fmt.Errorf("webserver problem: %w", err)
+	}
 
-	return webserver.Start(m.HTTP)
+	return m.waitForSignal()
 }
 
 // waitForSignal runs things at an interval and looks for an exit signal
 // then shuts down the http server and event stream watcher.
-func (m *Motifini) waitForSignal() {
+func (m *Motifini) waitForSignal() error {
 	sigChan := make(chan os.Signal, 1)
 
 	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM, syscall.SIGQUIT)
 	m.Info.Printf("Shutting down! Caught Signal: %v", <-sigChan)
 	m.saveSubDB()
-	m.HTTP.Stop()
+
+	return m.HTTP.Stop()
 }
 
 // saveSubDB just saves the state file/db and logs any error.
@@ -225,5 +227,5 @@ func (m *Motifini) saveSubDB() {
 		return
 	}
 
-	m.Debug.Print("Saved state DB file")
+	m.Debug.Print("Saved state DB file: " + m.Conf.Global.StateFile)
 }
