@@ -5,11 +5,12 @@ jobs:
     osx_image: xcode12
     language: go
     go: 1.16.x
-  - os: linux
-    dist: bionic
-    services: docker
-    language: go
-    go: 1.16.x
+# This app currently only works on macOS. :(
+#  - os: linux
+#    dist: bionic
+#    services: docker
+#    language: go
+#    go: 1.16.x
 git:
   depth: false
 addons:
