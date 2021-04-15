@@ -216,7 +216,11 @@ func (m *Motifini) waitForSignal() error {
 	m.Info.Printf("Shutting down! Caught Signal: %v", <-sigChan)
 	m.saveSubDB()
 
-	return m.HTTP.Stop()
+	if err := m.HTTP.Stop(); err != nil {
+		return fmt.Errorf("stopping web server: %w", err)
+	}
+
+	return nil
 }
 
 // saveSubDB just saves the state file/db and logs any error.

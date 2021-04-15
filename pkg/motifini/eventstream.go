@@ -25,7 +25,7 @@ func (m *Motifini) ProcessEventStream() {
 	go m.handleEvents(e)
 }
 
-func (m *Motifini) handleEvents(e chan securityspy.Event) {
+func (m *Motifini) handleEvents(e chan securityspy.Event) { //nolint:cyclop
 	m.Info.Println("Event Stream Watcher Started")
 	defer m.Error.Println("Event Stream Watcher Closed")
 

@@ -1,36 +1,40 @@
-# In case you copy a config in locally.
-/motifini.conf
-
-# These are all built by the Makefile.
-# Binaries, Packages, Formula, Manual
+# Change this line.
 /motifini
-/motifini*.gz
-/motifini*.zip
-/motifini*.1
-/motifini*.deb
-/motifini*.rpm
-/motifini.*.arm
-/motifini.exe
-/motifini.*.macos
-/motifini.*.linux
-/motifini.rb
-
-# Random things the Makefile creates.
+/init/macos/*.app/Contents/MacOS/*
+# The rest is probably fine.
+/rsrc*.syso
+/*.log
+/*.conf
+/*.gz
+/*.zip
+/*.upx
+/*.1
+/*.deb
+/*.rpm
+/*.txz
+/*.*.arm
+/*.*.exe
+/*.*.macos
+/*.*.linux
+/*.*.freebsd
+/*.rb
+/*.upx
+/*.app
 *.sha256
 /vendor
+.DS_Store
+*~
 /package_build_*
 /release
 MANUAL
 MANUAL.html
 README
 README.html
-/motifini_manual.html
-/homebrew_release_repo
-/.metadata.make
-/.secret-files.tar
-/bitly_token
-/github_deploy_key
-
-# extra junk
-.DS_Store
-*~
+/*_manual.html
+/homebrew-mugs
+.secret*files.tar
+github_deploy_key*
+.metadata.make
+/after-install-rendered.sh
+/before-remove-rendered.sh
+/gpg.signing.key

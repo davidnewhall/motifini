@@ -34,7 +34,11 @@ func (m *Messenger) Start() error {
 	// Listen to all incoming imessages, pass them to our handler.
 	m.imsg.IncomingCall(".*", m.recviMessageHandler)
 
-	return m.imsg.Start()
+	if err = m.imsg.Start(); err != nil {
+		return fmt.Errorf("imsg.Start(): %w", err)
+	}
+
+	return nil
 }
 
 // Stop closes the iMessage routines.

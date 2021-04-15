@@ -84,7 +84,7 @@ func (c *Chat) cmdAdminIgnores(h *Handler) (*Reply, error) {
 	return r, nil
 }
 
-func (c *Chat) cmdAdminSubs(h *Handler) (*Reply, error) {
+func (c *Chat) cmdAdminSubs(h *Handler) (*Reply, error) { //nolint:cyclop
 	if len(h.Text) == 1 {
 		subs := c.Subs.Subscribers
 		r := &Reply{Reply: fmt.Sprintf("There are %d total subscribers:", len(subs))}
@@ -107,7 +107,7 @@ func (c *Chat) cmdAdminSubs(h *Handler) (*Reply, error) {
 
 	s, err := c.Subs.GetSubscriber(h.Text[1], h.API)
 	if err != nil {
-		return &Reply{Reply: "Subscriber does not exist: " + h.Text[1]}, nil
+		return &Reply{Reply: "Subscriber does not exist: " + h.Text[1]}, nil // nolint:nilerr
 	}
 
 	subs := s.Events.Names()
