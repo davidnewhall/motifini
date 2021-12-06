@@ -52,29 +52,26 @@ func (m *Messenger) startTelegram() {
 func (m *Messenger) recvTelegramHandler(update tgbotapi.Update) {
 	m.Debug.Printf("Telegram [%d,%s] %s", update.Message.Chat.ID, update.Message.From.UserName, update.Message.Text)
 
-	// The subscribe library allows storing data as an map[string]interface{}.
-	// Since it gets encoded to/from JSON it must be a map[string]interface{}.
-	meta := map[string]interface{}{"user": update.Message.From, "hasAuth": false}
-
 	sub, err := m.Subs.GetSubscriberByID(update.Message.Chat.ID, APITelegram)
 	if err != nil {
 		// Every account we receive a message from gets logged as a subscriber with no subscriptions.
 		sub = m.Subs.CreateSubWithID(update.Message.Chat.ID, update.Message.From.UserName,
 			APITelegram, len(m.Subs.GetAdmins()) == 0, false)
-		sub.Meta = meta
+		sub.Meta = map[string]interface{}{"hasAuth": false}
 	}
 
-	meta = sub.Meta // copy this back.
+	sub.Meta["user"] = update.Message.From
 
 	//nolint:wsl
 	if strings.TrimPrefix(update.Message.Text, "/") == "id "+m.Telegram.Pass {
-		meta["hasAuth"] = true
-		sub.Meta = meta
+		sub.Meta["hasAuth"] = true
+		sub = m.Subs.CreateSubWithID(update.Message.Chat.ID, update.Message.From.UserName,
+			APITelegram, sub.Admin, false)
 		m.SendTelegram("none", "You are now authenticated.", "", update.Message.Chat.ID)
 		m.Info.Printf("Telegram Received from %d:%s (admin:%v, ignored:%v), 'id' command, authenticated.",
 			update.Message.Chat.ID, update.Message.From.UserName, sub.Admin, sub.Ignored)
 		return
-	} else if a, _ := meta["hasAuth"].(bool); !a {
+	} else if a, _ := sub.Meta["hasAuth"].(bool); !a {
 		m.Info.Printf("Telegram Received from %d:%s (admin:%v, ignored:%v), NOT authenticated (ignored), rcvd: %s",
 			update.Message.Chat.ID, update.Message.From.UserName, sub.Admin, sub.Ignored, update.Message.Text)
 		return
