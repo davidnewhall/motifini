@@ -42,7 +42,8 @@ func (c *Config) sendVideoHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if code == http.StatusOK {
-		go c.processVideoRequest(id, cam, to, vals)
+		// TODO: make a channel with a queue for these.
+		c.processVideoRequest(id, cam, to, vals, vars)
 	}
 
 	reply = "REQ ID: " + id + ", msg: " + reply + "\n"
@@ -56,7 +57,7 @@ func toInt(s string) int {
 }
 
 // Since this runs in a go routine it sort of defeats the purpose of the queue. sorta?
-func (c *Config) processVideoRequest(id string, cam *securityspy.Camera, to string, v map[string]string) {
+func (c *Config) processVideoRequest(id string, cam *securityspy.Camera, to string, v, vars map[string]string) {
 	path := c.TempDir + "imessage_relay_" + id + "_" + cam.Name + ".mov"
 	ops := &securityspy.VidOps{
 		Height:  toInt(v["height"]),
@@ -73,7 +74,13 @@ func (c *Config) processVideoRequest(id string, cam *securityspy.Camera, to stri
 
 	// Input data OK, video grabbed, send an attachment to each recipient.
 	for _, t := range strings.Split(to, ",") {
-		c.Msgs.SendiMessage(imessage.Outgoing{ID: id, To: t, Text: path, File: true})
+		switch vars["app"] {
+		case messenger.APIiMessage:
+			c.Msgs.SendiMessage(imessage.Outgoing{ID: id, To: t, Text: path, File: true})
+		case messenger.APITelegram:
+			to, _ := strconv.ParseInt(t, 10, 64) //nolint:gomnd
+			c.Msgs.SendTelegram(id, "", path, to)
+		}
 	}
 }
 
@@ -110,7 +117,13 @@ func (c *Config) sendPictureHandler(w http.ResponseWriter, r *http.Request) {
 	} else {
 		// Input data OK, send a message to each recipient.
 		for _, t := range to {
-			c.Msgs.SendiMessage(imessage.Outgoing{ID: id, To: t, Text: path, File: true})
+			switch vars["app"] {
+			case messenger.APIiMessage:
+				c.Msgs.SendiMessage(imessage.Outgoing{ID: id, To: t, Text: path, File: true})
+			case messenger.APITelegram:
+				to, _ := strconv.ParseInt(t, 10, 64) //nolint:gomnd
+				c.Msgs.SendTelegram(id, "", path, to)
+			}
 		}
 
 		reply = "REQ ID: " + id + ", msg: " + reply + "\n"
@@ -144,7 +157,13 @@ func (c *Config) sendMessageHandler(w http.ResponseWriter, r *http.Request) {
 	} else {
 		// Input data OK, send a message to each recipient.
 		for _, t := range to {
-			c.Msgs.SendiMessage(imessage.Outgoing{ID: id, To: t, Text: msg, File: false})
+			switch vars["app"] {
+			case messenger.APIiMessage:
+				c.Msgs.SendiMessage(imessage.Outgoing{ID: id, To: t, Text: msg, File: false})
+			case messenger.APITelegram:
+				to, _ := strconv.ParseInt(t, 10, 64) //nolint:gomnd
+				c.Msgs.SendTelegram(id, msg, "", to)
+			}
 		}
 	}
 

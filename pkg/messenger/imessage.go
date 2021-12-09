@@ -17,8 +17,8 @@ const (
 	uploadWait = 20 * time.Second
 )
 
-// Start Inits and Starts the iMessage routines.
-func (m *Messenger) Start() error {
+// StartiMessage Inits and Starts the iMessage routines.
+func (m *Messenger) startiMessage() error {
 	var err error
 
 	m.Info.Println("Watching iMessage Database:", m.Conf.SQLPath)
@@ -39,11 +39,6 @@ func (m *Messenger) Start() error {
 	}
 
 	return nil
-}
-
-// Stop closes the iMessage routines.
-func (m *Messenger) Stop() {
-	m.imsg.Stop()
 }
 
 // recviMessageHandler is a callback binding from the imessage library.
@@ -68,7 +63,7 @@ func (m *Messenger) recviMessageHandler(msg imessage.Incoming) {
 	m.Info.Printf("[%s] iMessage Received from %s (admin:%v, ignored:%v), size: %d, cmd: %s",
 		h.ID, msg.From, sub.Admin, sub.Ignored, len(msg.Text), h.Text[0])
 
-	resp := m.chat.HandleCommand(h)
+	resp := m.Chat.HandleCommand(h)
 	// Send the reply as files and/or text.
 	if resp.Reply != "" {
 		m.SendiMessage(imessage.Outgoing{To: msg.From, ID: h.ID, Text: resp.Reply})
@@ -82,6 +77,10 @@ func (m *Messenger) recviMessageHandler(msg imessage.Incoming) {
 // SendiMessage is how we send out a message or file via iMessage.
 // Use this wrapper so the internal counters are updated, and callbacks used.
 func (m *Messenger) SendiMessage(msg imessage.Outgoing) {
+	if m.imsg == nil {
+		return
+	}
+
 	if msg.File {
 		m.Info.Printf("[%s] iMessage sending file to %s, file: %s", msg.ID, msg.To, msg.Text)
 		export.Map.Files.Add(1)
