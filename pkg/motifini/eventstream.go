@@ -62,23 +62,28 @@ func (m *Motifini) handleEvents(e chan securityspy.Event) { //nolint:cyclop
 
 func (m *Motifini) handleConfigChange() {
 	m.saveSubDB() // just because.
-	m.Info.Println("SecuritySpy Configuration Changed! Stopping Webserver and iMessage to refresh SecuritySpy data.")
-	m.Msgs.Stop()
+	m.Info.Println("SecuritySpy Configuration Changed! Stopping Webserver and Messages to refresh SecuritySpy data.")
 
 	if err := m.HTTP.Stop(); err != nil {
 		m.Error.Println("Stopping Webserver:", err)
+	}
+	defer m.HTTP.Start()
+
+	if m.Msgs != nil {
+		m.Msgs.Stop()
+
+		defer func() {
+			if err := m.Msgs.Start(); err != nil {
+				m.Error.Println("Starting Message Watcher Routines:", err)
+			}
+		}()
 	}
 
 	if err := m.SSpy.Refresh(); err != nil {
 		m.Error.Println("Refreshing SecuritySpy Configuration:", err)
 	}
 
-	if err := m.Msgs.Start(); err != nil {
-		m.Error.Println("Starting Message Watcher Routines:", err)
-	}
-
 	time.Sleep(time.Second)
-	m.HTTP.Start()
 }
 
 func (m *Motifini) handleCameraMotion(e securityspy.Event) {
@@ -88,16 +93,17 @@ func (m *Motifini) handleCameraMotion(e securityspy.Event) {
 
 	subs := m.Subs.GetSubscribers(e.Camera.Name)
 	id := messenger.ReqID(messenger.IDLength)
-	path := filepath.Join(m.Conf.Global.TempDir, fmt.Sprintf("motifini_camera_motion_%s_%s.jpg", id, e.Camera.Name))
+	path := filepath.Join(m.Conf.Global.TempDir, fmt.Sprintf("motifini_camera_motion_%s_%s.mp4", id, e.Camera.Name))
 
 	subCount := len(subs)
 	if subCount < 1 {
 		return // no one to notify of this camera's motion
 	}
 
-	err := e.Camera.SaveJPEG(&securityspy.VidOps{Quality: 40, Width: 1080}, path) // nolint:gomnd
+	err := e.Camera.SaveVideo(
+		&securityspy.VidOps{Quality: 20, Height: 800, FPS: 5}, 5*time.Second, 999*999, path) // nolint:gomnd
 	if err != nil {
-		m.Error.Printf("[%v] event.Camera.SaveJPEG: %v", id, err)
+		m.Error.Printf("[%v] event.Camera.SaveVideo: %v", id, err)
 	}
 
 	m.Msgs.SendFileOrMsg(id, "", path, subs)

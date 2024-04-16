@@ -86,9 +86,10 @@ func Start(c *Config) error {
 func (c *Config) Start() {
 	r := mux.NewRouter()
 	r.Handle("/debug/vars", http.DefaultServeMux).Methods("GET")
-	r.HandleFunc("/api/v1.0/send/imessage/video/{to}/{camera}", c.sendVideoHandler).Methods("GET")
-	r.HandleFunc("/api/v1.0/send/imessage/picture/{to}/{camera}", c.sendPictureHandler).Methods("GET")
-	r.HandleFunc("/api/v1.0/send/imessage/msg/{to}", c.sendMessageHandler).Methods("GET").Queries("msg", "{msg}")
+	r.HandleFunc("/api/v1.0/send/{app:imessage|telegram}/video/{to}/{camera}", c.sendVideoHandler).Methods("GET")
+	r.HandleFunc("/api/v1.0/send/{app:imessage|telegram}/picture/{to}/{camera}", c.sendPictureHandler).Methods("GET")
+	r.HandleFunc("/api/v1.0/send/{app:imessage|telegram}/msg/{to}", c.sendMessageHandler).
+		Methods("GET").Queries("msg", "{msg}")
 	r.HandleFunc("/api/v1.0/event/{cmd:remove|update|add|notify}/{event}", c.eventsHandler).Methods("POST")
 	// need to figure out what user interface will use these methods.
 	r.HandleFunc("/api/v1.0/sub/{cmd:subscribe|unsubscribe|pause|unpause}/{api}/{contact}/{event}",

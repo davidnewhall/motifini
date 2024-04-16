@@ -1,18 +1,39 @@
 [motifini]
-state_file         = "/usr/local/var/lib/motifini-subscribers.json"
-port               = 8765
-temp_dir           = "/private/tmp/"
-debug              = false
-allowed_to         = [
-  "user1@service.com",
-  "user2@email.com",
-  "+19259114969"
-]
+  state_file = "/usr/local/var/lib/motifini-subscribers.json"
+  temp_dir   = "/private/tmp/"
+  debug      = false
 
+# Webserver allows sending imessage and/or telegrams via API.
+# It contains securityspy integrations, so you can send a single api call
+# to trigger a video or picture from securityspy to a recipient.
+[webserver]
+  enable  = false
+  port    = 8765 # you make pick a port, but it only listens on 127.0.0.1.
+  # list of contacts that messages can be sent to via web api.
+  # email or phone numbers for imessage and chat ID (wrapped in quotes) for telegram.
+  allowed_to = [
+    "user1@service.com",
+    "user2@email.com",
+    "+19259114969"
+  ]
+
+# Remove or comment this section to disable imessage integrations.
 [imessage]
-sql_path           = "~/Library/Messages/chat.db"
-clear_messages     = false
-queue_size         = 20
+  sql_path       = "~/Library/Messages/chat.db"
+  clear_messages = false
+  queue_size     = 20
+  interval       = "1s"
+  retries        = 3
 
+# Remove or comment this section to disable telegram integrations.
+# Set a password to deny access to unknown users.
+[telegram]
+  token = "bot-token-here"
+  debug = false
+  password = "wobble"
+
+# Security Spy is required for motifini to be useful.
 [security_spy]
-url = "http://user:pass@127.0.0.1:8000/"
+  url = "https://192.168.3.69:8001/"
+  username = "motifini"
+  password = "somepassword"

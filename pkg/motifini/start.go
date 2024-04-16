@@ -6,11 +6,13 @@ import (
 	"log"
 	"math/rand"
 	"os"
+	"os/exec"
 	"os/signal"
 	"strings"
 	"syscall"
 	"time"
 
+	"github.com/davidnewhall/motifini/pkg/chat"
 	"github.com/davidnewhall/motifini/pkg/export"
 	"github.com/davidnewhall/motifini/pkg/messenger"
 	"github.com/davidnewhall/motifini/pkg/webserver"
@@ -56,14 +58,18 @@ type Flags struct {
 // Configuration for Motifini.
 type Config struct {
 	Global struct {
-		Port      uint     `toml:"port"`
-		TempDir   string   `toml:"temp_dir"`
-		StateFile string   `toml:"state_file"`
-		AllowedTo []string `toml:"allowed_to"`
-		Debug     bool
+		TempDir   string `toml:"temp_dir"`
+		StateFile string `toml:"state_file"`
+		Debug     bool   `toml:"debug"`
 	} `toml:"motifini"`
-	Imessage    *imessage.Config `toml:"imessage"`
-	SecuritySpy *server.Config   `toml:"security_spy"`
+	Webserver struct {
+		Port      uint     `toml:"port"`
+		AllowedTo []string `toml:"allowed_to"`
+		Enable    bool     `toml:"enable"`
+	} `toml:"webserver"`
+	Imessage    *imessage.Config          `toml:"imessage"`
+	Telegram    *messenger.TelegramConfig `toml:"telegram"`
+	SecuritySpy *server.Config            `toml:"security_spy"`
 }
 
 // ParseArgs runs the parser for CLI arguments.
@@ -100,7 +106,7 @@ func Start() error {
 
 	m.setLogging()
 	export.Init(Binary) // Initialize the main expvar map.
-	export.Map.ListenPort.Set(int64(m.Conf.Global.Port))
+	export.Map.ListenPort.Set(int64(m.Conf.Webserver.Port))
 	export.Map.Version.Set(version.Version + "-" + version.Revision)
 	export.Map.ConfigFile.Set(m.Flag.ConfigFile)
 	m.Info.Printf("Motifini %v-%v Starting! (PID: %v)", version.Version, version.Revision, os.Getpid())
@@ -153,6 +159,10 @@ func (c *Config) Validate() {
 		c.Global.TempDir += "/"
 	}
 
+	if c.Imessage == nil {
+		return
+	}
+
 	if c.Imessage.QueueSize < minQueueSize {
 		c.Imessage.QueueSize = minQueueSize
 	}
@@ -172,36 +182,45 @@ func (m *Motifini) Run() (err error) {
 		return fmt.Errorf("connecting to securityspy: %w", err)
 	}
 
+	m.SSpy.Encoder = "/opt/homebrew/bin/ffmpeg"
+
+	if p, err := exec.LookPath("ffmpeg"); err == nil {
+		m.SSpy.Encoder = p
+	}
+
 	m.ProcessEventStream()
 	defer m.SSpy.Events.Stop(true)
 
 	m.Msgs = &messenger.Messenger{
-		SSpy:    m.SSpy,
-		Subs:    m.Subs,
-		Conf:    m.Conf.Imessage,
-		TempDir: m.Conf.Global.TempDir,
-		Info:    log.New(os.Stdout, "[MSGS] ", m.Info.Flags()),
-		Debug:   m.Debug,
-		Error:   m.Error,
+		Chat:     chat.New(&chat.Chat{TempDir: m.Conf.Global.TempDir, Subs: m.Subs, SSpy: m.SSpy}),
+		Subs:     m.Subs,
+		Conf:     m.Conf.Imessage,
+		Telegram: m.Conf.Telegram,
+		TempDir:  m.Conf.Global.TempDir,
+		Info:     log.New(os.Stdout, "[MSGS] ", m.Info.Flags()),
+		Debug:    m.Debug,
+		Error:    m.Error,
 	}
-	if err = messenger.New(m.Msgs); err != nil {
+	if err := messenger.New(m.Msgs); err != nil {
 		return fmt.Errorf("connecting to messenger: %w", err)
 	}
 
-	m.HTTP = &webserver.Config{
-		SSpy:      m.SSpy,
-		Subs:      m.Subs,
-		Msgs:      m.Msgs,
-		Info:      log.New(os.Stdout, "[HTTP] ", m.Info.Flags()),
-		Debug:     m.Debug,
-		Error:     m.Error,
-		TempDir:   m.Conf.Global.TempDir,
-		AllowedTo: m.Conf.Global.AllowedTo,
-		Port:      m.Conf.Global.Port,
-	}
+	if m.Conf.Webserver.Enable {
+		m.HTTP = &webserver.Config{
+			SSpy:      m.SSpy,
+			Subs:      m.Subs,
+			Msgs:      m.Msgs,
+			Info:      log.New(os.Stdout, "[HTTP] ", m.Info.Flags()),
+			Debug:     m.Debug,
+			Error:     m.Error,
+			TempDir:   m.Conf.Global.TempDir,
+			AllowedTo: m.Conf.Webserver.AllowedTo,
+			Port:      m.Conf.Webserver.Port,
+		}
 
-	if err = webserver.Start(m.HTTP); err != nil {
-		return fmt.Errorf("webserver problem: %w", err)
+		if err := webserver.Start(m.HTTP); err != nil {
+			return fmt.Errorf("webserver problem: %w", err)
+		}
 	}
 
 	return m.waitForSignal()
@@ -216,8 +235,10 @@ func (m *Motifini) waitForSignal() error {
 	m.Info.Printf("Shutting down! Caught Signal: %v", <-sigChan)
 	m.saveSubDB()
 
-	if err := m.HTTP.Stop(); err != nil {
-		return fmt.Errorf("stopping web server: %w", err)
+	if m.HTTP != nil {
+		if err := m.HTTP.Stop(); err != nil {
+			return fmt.Errorf("stopping web server: %w", err)
+		}
 	}
 
 	return nil

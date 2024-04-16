@@ -4,6 +4,7 @@ package chat
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 
 	"golift.io/securityspy"
@@ -22,8 +23,8 @@ type Chat struct {
 	Cmds    []*Commands
 }
 
-// ErrorBadUsage is a standard error.
-var ErrorBadUsage = fmt.Errorf("invalid command usage")
+// ErrBadUsage is a standard error.
+var ErrBadUsage = fmt.Errorf("invalid command usage")
 
 // Command is the configuration for a chat command handler.
 type Command struct {
@@ -86,7 +87,7 @@ func (c *Chat) HandleCommand(h *Handler) *Reply {
 		return &Reply{}
 	}
 
-	if strings.EqualFold("help", h.Text[0]) {
+	if strings.EqualFold("help", strings.TrimPrefix(h.Text[0], "/")) {
 		return c.doHelp(h)
 	}
 
@@ -153,8 +154,24 @@ func (c *Chat) doCmd(h *Handler) (*Reply, bool) {
 	return resp, save
 }
 
+func (c *Chat) getSubscriber(contactID, api string) (*subscribe.Subscriber, error) {
+	s, err := c.Subs.GetSubscriber(contactID, api)
+	if err == nil {
+		return s, nil
+	}
+
+	id, _ := strconv.ParseInt(contactID, 10, 64) //nolint:gomnd
+
+	s, err = c.Subs.GetSubscriberByID(id, api)
+	if err != nil {
+		return s, fmt.Errorf("missing subscriber: %w", err)
+	}
+
+	return s, nil
+}
+
 func (c *Commands) run(h *Handler) (*Reply, bool) {
-	cmdName := strings.ToLower(h.Text[0])
+	cmdName := strings.ToLower(strings.TrimPrefix(h.Text[0], "/"))
 	cmd := c.GetCommand(cmdName)
 
 	if cmd == nil || cmd.Run == nil {
@@ -184,16 +201,16 @@ func (c *Commands) help(cmdName string) (string, bool) {
 		}
 
 		return fmt.Sprintf("* %s Usage: %s %s\nDetail: %s\nAlias: %s\n",
-			c.Title, cmd.AKA[0], cmd.Use, cmd.Desc, strings.Join(cmd.AKA, ", ")), true
+			c.Title, "/"+cmd.AKA[0], cmd.Use, cmd.Desc, strings.Join(cmd.AKA, ", ")), true
 	}
 
 	msg := "\n* " + c.Title + " Commands *\n"
 
 	for _, cmd := range c.List {
-		msg += cmd.AKA[0] + " " + cmd.Use + "\n"
+		msg += "/" + cmd.AKA[0] + " " + cmd.Use + "\n"
 	}
 
-	msg += "- More Info: help <cmd>\n"
+	msg += "- More Info: /help <cmd>\n"
 
 	return msg, true
 }

@@ -9,39 +9,46 @@ import (
 	"math/rand"
 
 	"github.com/davidnewhall/motifini/pkg/chat"
+	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"golift.io/imessage"
-	"golift.io/securityspy"
 	"golift.io/subscribe"
 )
 
 const (
 	// APIiMessage is just an identifier for an imessage contact type.
 	APIiMessage = "imessage"
+	APITelegram = "telegram"
 )
 
 // Messenger is all the data needed to initialize this library.
 type Messenger struct {
-	chat    *chat.Chat
-	imsg    *imessage.Messages
-	Conf    *imessage.Config
-	Subs    *subscribe.Subscribe
-	SSpy    *securityspy.Server
-	Info    *log.Logger
-	Debug   *log.Logger
-	Error   *log.Logger
-	TempDir string
+	Chat     *chat.Chat
+	imsg     *imessage.Messages
+	telebot  *tgbotapi.BotAPI
+	Telegram *TelegramConfig
+	Conf     *imessage.Config
+	Subs     *subscribe.Subscribe
+	Info     *log.Logger
+	Debug    *log.Logger
+	Error    *log.Logger
+	TempDir  string
+	stopall  chan struct{}
 }
 
 var ErrNillConfigItem = fmt.Errorf("a required configuration item was not provided")
 
 // New provides a messenger handler.
 func New(m *Messenger) error {
-	if m.Conf == nil {
-		return fmt.Errorf("%w: imessage is nil", ErrNillConfigItem)
+	if m.stopall != nil {
+		return fmt.Errorf("%w: already running", ErrNillConfigItem)
 	}
 
-	if m.SSpy == nil {
-		return fmt.Errorf("%w: securityspy is nil", ErrNillConfigItem)
+	if m.Conf == nil && m.Telegram == nil {
+		return fmt.Errorf("%w: imessage and telegram are nil, need at least one", ErrNillConfigItem)
+	}
+
+	if m.Chat == nil {
+		return fmt.Errorf("%w: chat is nil", ErrNillConfigItem)
 	}
 
 	if m.Subs == nil {
@@ -64,9 +71,34 @@ func New(m *Messenger) error {
 		m.TempDir = "/tmp/"
 	}
 
-	m.chat = chat.New(&chat.Chat{TempDir: m.TempDir, Subs: m.Subs, SSpy: m.SSpy})
-
 	return m.Start()
+}
+
+func (m *Messenger) Start() error {
+	m.stopall = make(chan struct{})
+
+	if m.Telegram != nil {
+		if err := m.connectTelegram(); err != nil {
+			return err
+		}
+
+		go m.startTelegram()
+	}
+
+	if m.imsg != nil {
+		return m.startiMessage()
+	}
+
+	return nil
+}
+
+// Stop closes the iMessage and telegram routines.
+func (m *Messenger) Stop() {
+	defer close(m.stopall)
+
+	if m.imsg != nil {
+		m.imsg.Stop()
+	}
 }
 
 // SendFileOrMsg will send a notification to any subscriber provided using any supported messenger.
@@ -82,6 +114,8 @@ func (m *Messenger) SendFileOrMsg(id, msg, path string, subs []*subscribe.Subscr
 			if msg != "" {
 				m.SendiMessage(imessage.Outgoing{ID: id, To: sub.Contact, Text: msg})
 			}
+		case APITelegram:
+			m.SendTelegram(id, msg, path, sub.ID)
 		default:
 			m.Error.Printf("[%v] Unknown Notification API '%v' for contact: %v", id, sub.API, sub.Contact)
 		}
