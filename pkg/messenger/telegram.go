@@ -11,6 +11,12 @@ import (
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
 
+const (
+	IDLength   = 4
+	mebibyte   = 1024 * 1024
+	uploadWait = 20 * time.Second
+)
+
 type TelegramConfig struct {
 	Token string `toml:"token"`
 	Debug bool   `toml:"debug"`

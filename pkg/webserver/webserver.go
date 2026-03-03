@@ -11,7 +11,7 @@ package webserver
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"log"
 	"net/http"
 	"time"
@@ -57,15 +57,15 @@ func Start(c *Config) error {
 	}
 
 	if c.Info == nil {
-		c.Info = log.New(ioutil.Discard, "", 0)
+		c.Info = log.New(io.Discard, "", 0)
 	}
 
 	if c.Debug == nil {
-		c.Debug = log.New(ioutil.Discard, "", 0)
+		c.Debug = log.New(io.Discard, "", 0)
 	}
 
 	if c.Error == nil {
-		c.Error = log.New(ioutil.Discard, "", 0)
+		c.Error = log.New(io.Discard, "", 0)
 	}
 
 	if c.TempDir == "" {

@@ -3,7 +3,7 @@ package chat
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"strconv"
 	"time"
@@ -234,7 +234,7 @@ func getIP(*Handler) (*Reply, error) {
 	}
 	defer rep.Body.Close()
 
-	body, err := ioutil.ReadAll(rep.Body)
+	body, err := io.ReadAll(rep.Body)
 	if err != nil {
 		return nil, fmt.Errorf("reading http response: %w", err)
 	}
