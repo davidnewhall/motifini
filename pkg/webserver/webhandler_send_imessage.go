@@ -11,7 +11,7 @@ import (
 	"golift.io/securityspy"
 )
 
-// /api/v1.0/send/imessage/video/{to}/{camera}" handler.
+// /api/v1.0/send/telegram/video/{to}/{camera}" handler.
 func (c *Config) sendVideoHandler(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	to, name := vars["to"], vars["camera"]
@@ -57,7 +57,7 @@ func toInt(s string) int {
 
 // Since this runs in a go routine it sort of defeats the purpose of the queue. sorta?
 func (c *Config) processVideoRequest(id string, cam *securityspy.Camera, to string, v, vars map[string]string) {
-	path := c.TempDir + "imessage_relay_" + id + "_" + cam.Name + ".mov"
+	path := c.TempDir + "motifini_relay_" + id + "_" + cam.Name + ".mov"
 	ops := &securityspy.VidOps{
 		Height:  toInt(v["height"]),
 		Width:   toInt(v["width"]),
@@ -81,12 +81,12 @@ func (c *Config) processVideoRequest(id string, cam *securityspy.Camera, to stri
 	}
 }
 
-// /api/v1.0/send/imessage/picture/{to}/{camera} handler.
+// /api/v1.0/send/telegram/picture/{to}/{camera} handler.
 func (c *Config) sendPictureHandler(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	to, name := strings.Split(vars["to"], ","), vars["camera"]
 	id, code, reply := messenger.ReqID(messenger.IDLength), http.StatusOK, "OK"
-	path := c.TempDir + "imessage_relay_" + id + "_" + name + ".jpg"
+	path := c.TempDir + "motifini_relay_" + id + "_" + name + ".jpg"
 
 	// Check input data.
 	for _, t := range to {
@@ -128,7 +128,7 @@ func (c *Config) sendPictureHandler(w http.ResponseWriter, r *http.Request) {
 	c.finishReq(w, r, id, code, reply, "-")
 }
 
-// /api/v1.0/send/imessage/msg handler.
+// /api/v1.0/send/telegram/msg handler.
 func (c *Config) sendMessageHandler(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	to, msg := strings.Split(vars["to"], ","), vars["msg"]

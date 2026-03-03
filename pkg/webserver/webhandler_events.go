@@ -32,7 +32,7 @@ func (c *Config) notifyHandler(id string, vars map[string]string, w http.Respons
 	path := ""
 
 	if cam != nil && len(subs) > 0 {
-		path = c.TempDir + "imessage_relay_" + id + "_" + vars["event"] + ".jpg"
+		path = c.TempDir + "motifini_relay_" + id + "_" + vars["event"] + ".jpg"
 
 		if err := cam.SaveJPEG(&securityspy.VidOps{}, path); err != nil {
 			c.Error.Printf("[%v] cam.SaveJPEG: %v", id, err)
