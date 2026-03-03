@@ -2,9 +2,8 @@ package motifini
 
 import (
 	"fmt"
-	"io/ioutil"
+	"io"
 	"log"
-	"math/rand"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -18,8 +17,7 @@ import (
 	"github.com/davidnewhall/motifini/pkg/webserver"
 	"github.com/spf13/pflag"
 	"golift.io/cnfg"
-	"golift.io/cnfg/cnfgfile"
-	"golift.io/imessage"
+	"golift.io/cnfgfile"
 	"golift.io/securityspy"
 	"golift.io/securityspy/server"
 	"golift.io/subscribe"
@@ -31,8 +29,6 @@ const (
 	DefaultRepeatDelay = time.Minute
 	DefaultEnvPrefix   = "MO"
 )
-
-const minQueueSize = 20
 
 // Motifini is the main application struct.
 type Motifini struct {
@@ -67,7 +63,6 @@ type Config struct {
 		AllowedTo []string `toml:"allowed_to"`
 		Enable    bool     `toml:"enable"`
 	} `toml:"webserver"`
-	Imessage    *imessage.Config          `toml:"imessage"`
 	Telegram    *messenger.TelegramConfig `toml:"telegram"`
 	SecuritySpy *server.Config            `toml:"security_spy"`
 }
@@ -89,8 +84,6 @@ func (flag *Flags) ParseArgs(args []string) {
 
 // Start the daemon.
 func Start() error {
-	rand.Seed(time.Now().UnixNano())
-
 	m := &Motifini{Flag: &Flags{}, Info: log.New(os.Stdout, "[INFO] ", log.LstdFlags)}
 	m.Flag.ParseArgs(os.Args[1:])
 
@@ -118,7 +111,7 @@ func Start() error {
 }
 
 func (m *Motifini) setLogging() {
-	debugOut := ioutil.Discard
+	debugOut := io.Discard
 	flags := log.LstdFlags
 
 	if m.Conf.Global.Debug {
@@ -158,14 +151,6 @@ func (c *Config) Validate() {
 	} else if !strings.HasSuffix(c.Global.TempDir, "/") {
 		c.Global.TempDir += "/"
 	}
-
-	if c.Imessage == nil {
-		return
-	}
-
-	if c.Imessage.QueueSize < minQueueSize {
-		c.Imessage.QueueSize = minQueueSize
-	}
 }
 
 // Run starts the app after all configs are collected.
@@ -194,7 +179,6 @@ func (m *Motifini) Run() (err error) {
 	m.Msgs = &messenger.Messenger{
 		Chat:     chat.New(&chat.Chat{TempDir: m.Conf.Global.TempDir, Subs: m.Subs, SSpy: m.SSpy}),
 		Subs:     m.Subs,
-		Conf:     m.Conf.Imessage,
 		Telegram: m.Conf.Telegram,
 		TempDir:  m.Conf.Global.TempDir,
 		Info:     log.New(os.Stdout, "[MSGS] ", m.Info.Flags()),

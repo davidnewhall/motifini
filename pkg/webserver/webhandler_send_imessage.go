@@ -8,7 +8,6 @@ import (
 
 	"github.com/davidnewhall/motifini/pkg/messenger"
 	"github.com/gorilla/mux"
-	"golift.io/imessage"
 	"golift.io/securityspy"
 )
 
@@ -75,8 +74,6 @@ func (c *Config) processVideoRequest(id string, cam *securityspy.Camera, to stri
 	// Input data OK, video grabbed, send an attachment to each recipient.
 	for _, t := range strings.Split(to, ",") {
 		switch vars["app"] {
-		case messenger.APIiMessage:
-			c.Msgs.SendiMessage(imessage.Outgoing{ID: id, To: t, Text: path, File: true})
 		case messenger.APITelegram:
 			to, _ := strconv.ParseInt(t, 10, 64) //nolint:gomnd
 			c.Msgs.SendTelegram(id, "", path, to)
@@ -118,8 +115,6 @@ func (c *Config) sendPictureHandler(w http.ResponseWriter, r *http.Request) {
 		// Input data OK, send a message to each recipient.
 		for _, t := range to {
 			switch vars["app"] {
-			case messenger.APIiMessage:
-				c.Msgs.SendiMessage(imessage.Outgoing{ID: id, To: t, Text: path, File: true})
 			case messenger.APITelegram:
 				to, _ := strconv.ParseInt(t, 10, 64) //nolint:gomnd
 				c.Msgs.SendTelegram(id, "", path, to)
@@ -158,8 +153,6 @@ func (c *Config) sendMessageHandler(w http.ResponseWriter, r *http.Request) {
 		// Input data OK, send a message to each recipient.
 		for _, t := range to {
 			switch vars["app"] {
-			case messenger.APIiMessage:
-				c.Msgs.SendiMessage(imessage.Outgoing{ID: id, To: t, Text: msg, File: false})
 			case messenger.APITelegram:
 				to, _ := strconv.ParseInt(t, 10, 64) //nolint:gomnd
 				c.Msgs.SendTelegram(id, msg, "", to)

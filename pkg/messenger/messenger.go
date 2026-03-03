@@ -4,29 +4,24 @@ package messenger
 
 import (
 	"fmt"
-	"io/ioutil"
+	"io"
 	"log"
 	"math/rand"
 
 	"github.com/davidnewhall/motifini/pkg/chat"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
-	"golift.io/imessage"
 	"golift.io/subscribe"
 )
 
 const (
-	// APIiMessage is just an identifier for an imessage contact type.
-	APIiMessage = "imessage"
 	APITelegram = "telegram"
 )
 
 // Messenger is all the data needed to initialize this library.
 type Messenger struct {
 	Chat     *chat.Chat
-	imsg     *imessage.Messages
 	telebot  *tgbotapi.BotAPI
 	Telegram *TelegramConfig
-	Conf     *imessage.Config
 	Subs     *subscribe.Subscribe
 	Info     *log.Logger
 	Debug    *log.Logger
@@ -43,8 +38,8 @@ func New(m *Messenger) error {
 		return fmt.Errorf("%w: already running", ErrNillConfigItem)
 	}
 
-	if m.Conf == nil && m.Telegram == nil {
-		return fmt.Errorf("%w: imessage and telegram are nil, need at least one", ErrNillConfigItem)
+	if m.Telegram == nil {
+		return fmt.Errorf("%w: telegram is nil, need at least one", ErrNillConfigItem)
 	}
 
 	if m.Chat == nil {
@@ -56,15 +51,15 @@ func New(m *Messenger) error {
 	}
 
 	if m.Info == nil {
-		m.Info = log.New(ioutil.Discard, "", 0)
+		m.Info = log.New(io.Discard, "", 0)
 	}
 
 	if m.Debug == nil {
-		m.Debug = log.New(ioutil.Discard, "", 0)
+		m.Debug = log.New(io.Discard, "", 0)
 	}
 
 	if m.Error == nil {
-		m.Error = log.New(ioutil.Discard, "", 0)
+		m.Error = log.New(io.Discard, "", 0)
 	}
 
 	if m.TempDir == "" {
@@ -85,20 +80,12 @@ func (m *Messenger) Start() error {
 		go m.startTelegram()
 	}
 
-	if m.imsg != nil {
-		return m.startiMessage()
-	}
-
 	return nil
 }
 
 // Stop closes the iMessage and telegram routines.
 func (m *Messenger) Stop() {
 	defer close(m.stopall)
-
-	if m.imsg != nil {
-		m.imsg.Stop()
-	}
 }
 
 // SendFileOrMsg will send a notification to any subscriber provided using any supported messenger.
@@ -106,14 +93,6 @@ func (m *Messenger) Stop() {
 func (m *Messenger) SendFileOrMsg(id, msg, path string, subs []*subscribe.Subscriber) {
 	for _, sub := range subs {
 		switch sub.API {
-		case APIiMessage:
-			if path != "" {
-				m.SendiMessage(imessage.Outgoing{ID: id, To: sub.Contact, Text: path, File: true})
-			}
-
-			if msg != "" {
-				m.SendiMessage(imessage.Outgoing{ID: id, To: sub.Contact, Text: msg})
-			}
 		case APITelegram:
 			m.SendTelegram(id, msg, path, sub.ID)
 		default:
