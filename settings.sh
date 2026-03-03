@@ -13,7 +13,7 @@ REPO="davidnewhall/motifini"
 # Github repo containing homebrew formula repo.
 HBREPO="golift/homebrew-mugs"
 MAINT="David Newhall II <david at sleepers dot pro>"
-DESC="SecuritySpy-iMessage Integrator and Messages.app API"
+DESC="SecuritySpy-Telegram Integrator and API"
 GOLANGCI_LINT_ARGS="--timeout 120s --enable-all -D gochecknoglobals,exhaustivestruct,forbidigo,nlreturn,maligned,interfacer"
 # Example must exist at examples/$CONFIG_FILE.example
 CONFIG_FILE="motifini.conf"
