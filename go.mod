@@ -11,7 +11,7 @@ require (
 	github.com/stretchr/testify v1.11.1
 	golift.io/cnfg v0.2.5
 	golift.io/cnfgfile v0.0.0-20240713024420-a5436d84eb48
-	golift.io/securityspy v0.1.0
+	golift.io/securityspy v0.1.1
 	golift.io/subscribe v0.0.0-20260303021808-295369d7455a
 	golift.io/version v0.0.2
 )
@@ -20,6 +20,6 @@ require (
 	github.com/BurntSushi/toml v1.4.0 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
-	golift.io/ffmpeg v1.1.2-0.20260303053331-25bfe8e1ce5f // indirect
+	golift.io/ffmpeg v1.1.2 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

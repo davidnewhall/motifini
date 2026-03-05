@@ -42,7 +42,10 @@ func (c *Config) sendVideoHandler(w http.ResponseWriter, r *http.Request) {
 
 	if code == http.StatusOK {
 		// TODO: make a channel with a queue for these.
-		c.processVideoRequest(id, cam, to, vals, vars)
+		if err := c.processVideoRequest(id, cam, to, vals, vars); err != nil {
+			code = http.StatusInternalServerError
+			reply = "ERROR: " + err.Error()
+		}
 	}
 
 	reply = "REQ ID: " + id + ", msg: " + reply + "\n"
@@ -56,19 +59,20 @@ func toInt(s string) int {
 }
 
 // Since this runs in a go routine it sort of defeats the purpose of the queue. sorta?
-func (c *Config) processVideoRequest(id string, cam *securityspy.Camera, to string, v, vars map[string]string) {
+func (c *Config) processVideoRequest(id string, cam *securityspy.Camera, to string, v, vars map[string]string) error {
 	path := c.TempDir + "motifini_relay_" + id + "_" + cam.Name + ".mov"
 	ops := &securityspy.VidOps{
 		Height:  toInt(v["height"]),
 		Width:   toInt(v["width"]),
-		Quality: toInt(v["crf"]),
+		Quality: toInt(v["quality"]),
 		FPS:     toInt(v["rate"]),
 	}
-	time, _ := time.ParseDuration(v["time"])
+	time := parseVideoLength(v["time"])
 	size, _ := strconv.ParseInt(v["size"], 10, 64)
 
 	if err := cam.SaveVideo(ops, time, size, path); err != nil {
 		c.Error.Printf("[%v] SaveVideo: %v", id, err)
+		return err
 	}
 
 	// Input data OK, video grabbed, send an attachment to each recipient.
@@ -79,6 +83,27 @@ func (c *Config) processVideoRequest(id string, cam *securityspy.Camera, to stri
 			c.Msgs.SendTelegram(id, "", path, to)
 		}
 	}
+
+	return nil
+}
+
+func parseVideoLength(input string) time.Duration {
+	if input == "" {
+		return 0
+	}
+
+	dur, err := time.ParseDuration(input)
+	if err == nil {
+		return dur
+	}
+
+	// Accept plain seconds like "5" in addition to Go duration strings like "5s".
+	seconds, err := strconv.Atoi(input)
+	if err != nil {
+		return 0
+	}
+
+	return time.Duration(seconds) * time.Second
 }
 
 // /api/v1.0/send/telegram/picture/{to}/{camera} handler.
@@ -101,15 +126,12 @@ func (c *Config) sendPictureHandler(w http.ResponseWriter, r *http.Request) {
 
 	if name == "" || code == http.StatusInternalServerError {
 		code, reply = http.StatusInternalServerError, "ERROR: Missing 'to' or 'cam'"
-
 		c.Debug.Printf("[%v] Invalid 'to' provided or 'cam' empty: %v", id, name)
 	} else if cam := c.SSpy.Cameras.ByName(name); cam == nil {
 		code, reply = http.StatusInternalServerError, "ERROR: Camera not found: "+name
-
 		c.Debug.Printf("[%v] Camera not found: %v", id, name)
 	} else if err := cam.SaveJPEG(&securityspy.VidOps{}, path); err != nil {
 		c.Error.Printf("[%v] cam.SaveJPEG: %v", id, err)
-
 		code, reply = http.StatusInternalServerError, "ERROR: "+err.Error()
 	} else {
 		// Input data OK, send a message to each recipient.
