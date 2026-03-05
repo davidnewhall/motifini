@@ -12,9 +12,10 @@ import (
 )
 
 const (
-	IDLength   = 4
-	mebibyte   = 1024 * 1024
-	uploadWait = 20 * time.Second
+	IDLength              = 4
+	mebibyte              = 1024 * 1024
+	uploadWait            = 20 * time.Second
+	telegramCaptionMaxLen = 1024
 )
 
 type TelegramConfig struct {
@@ -153,6 +154,7 @@ func (m *Messenger) SendTelegramFile(reqID, path, caption string, id int64) (err
 
 	// TODO: this can't stay here in case other things need the file.
 	defer os.Remove(path)
+	caption = trimTelegramCaption(caption)
 
 	switch x := filepath.Ext(path); x {
 	case ".gif", ".jpg", ".jpeg", ".png":
@@ -185,4 +187,13 @@ func (m *Messenger) SendTelegramFile(reqID, path, caption string, id int64) (err
 	}
 
 	return nil
+}
+
+func trimTelegramCaption(caption string) string {
+	runes := []rune(caption)
+	if len(runes) <= telegramCaptionMaxLen {
+		return caption
+	}
+
+	return string(runes[:telegramCaptionMaxLen])
 }

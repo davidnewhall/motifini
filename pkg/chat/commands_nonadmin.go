@@ -20,8 +20,7 @@ const (
 const (
 	maxsize = 1024 * 1024 // 1mb
 	length  = 5 * time.Second
-	height  = 600
-	fps     = 5
+	height  = 800
 	quality = 20
 )
 
@@ -168,7 +167,7 @@ func (c *Chat) cmdPics(h *Handler) (*Reply, error) {
 
 func (c *Chat) cmdVids(h *Handler) (*Reply, error) {
 	msg := ""
-	ops := &securityspy.VidOps{Height: height, FPS: fps, Quality: quality}
+	ops := &securityspy.VidOps{Height: height, Quality: quality, ACodec: "ulaw"}
 
 	if len(h.Text) > 1 {
 		name := strings.Join(h.Text[1:], " ")

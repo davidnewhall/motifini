@@ -22,6 +22,7 @@ func (c *Config) sendVideoHandler(w http.ResponseWriter, r *http.Request) {
 		"time":    r.FormValue("time"),
 		"rate":    r.FormValue("rate"),
 		"size":    r.FormValue("size"),
+		"acodec":  r.FormValue("acodec"),
 	}
 	id, code, reply := messenger.ReqID(messenger.IDLength), http.StatusOK, "OK"
 
@@ -61,11 +62,17 @@ func toInt(s string) int {
 // Since this runs in a go routine it sort of defeats the purpose of the queue. sorta?
 func (c *Config) processVideoRequest(id string, cam *securityspy.Camera, to string, v, vars map[string]string) error {
 	path := c.TempDir + "motifini_relay_" + id + "_" + cam.Name + ".mov"
+	audioCodec := strings.TrimSpace(v["acodec"])
+	if audioCodec == "" {
+		audioCodec = "ulaw"
+	}
+
 	ops := &securityspy.VidOps{
 		Height:  toInt(v["height"]),
 		Width:   toInt(v["width"]),
 		Quality: toInt(v["quality"]),
 		FPS:     toInt(v["rate"]),
+		ACodec:  audioCodec,
 	}
 	time := parseVideoLength(v["time"])
 	size, _ := strconv.ParseInt(v["size"], 10, 64)
