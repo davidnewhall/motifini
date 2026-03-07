@@ -101,7 +101,7 @@ func (m *Motifini) handleCameraMotion(e securityspy.Event) {
 	}
 
 	err := e.Camera.SaveVideo(
-		&securityspy.VidOps{ACodec: "ulaw"}, 5*time.Second, 999*999, path) // nolint:gomnd
+		&securityspy.VidOps{ACodec: "ulaw", Height: 600}, 5*time.Second, 1*1024*1024, path) // nolint:gomnd
 	if err != nil {
 		m.Error.Printf("[%v] event.Camera.SaveVideo: %v", id, err)
 		return
