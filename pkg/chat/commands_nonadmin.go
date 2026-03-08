@@ -8,7 +8,7 @@ import (
 	"sync"
 	"time"
 
-	"golift.io/securityspy"
+	"golift.io/securityspy/v2"
 )
 
 // Command args are parsed out by their count, so make it a constant.

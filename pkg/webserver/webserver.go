@@ -19,7 +19,7 @@ import (
 	"github.com/davidnewhall/motifini/pkg/export"
 	"github.com/davidnewhall/motifini/pkg/messenger"
 	"github.com/gorilla/mux"
-	"golift.io/securityspy"
+	"golift.io/securityspy/v2"
 	"golift.io/subscribe"
 )
 

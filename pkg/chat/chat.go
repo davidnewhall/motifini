@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"strings"
 
-	"golift.io/securityspy"
+	"golift.io/securityspy/v2"
 	"golift.io/subscribe"
 )
 

@@ -6,7 +6,7 @@ import (
 
 	"github.com/davidnewhall/motifini/pkg/messenger"
 	"github.com/gorilla/mux"
-	"golift.io/securityspy"
+	"golift.io/securityspy/v2"
 )
 
 // /api/v1.0/event/{cmd:remove|update|add|notify}/{event} handler.

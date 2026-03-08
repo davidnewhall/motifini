@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/davidnewhall/motifini/pkg/messenger"
-	"golift.io/securityspy"
+	"golift.io/securityspy/v2"
 )
 
 const (
