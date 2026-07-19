@@ -2,10 +2,10 @@
 // very many things going on here yet, and it will likely get split into more
 // packages as it gets built out. Right now, it basically has an event handler
 // that allows external home automation tools to trigger event notifications.
-// It also provides a nice API to send iMessages. You can use this to program in
-// your home automation apps to "curl" an interface to send a msg to an iPhone, etc.
+// It also provides a nice API to send Telegram messages. You can use this to program in
+// your home automation apps to "curl" an interface to send a msg to a Telegram user.
 // We also have hooks for SecuritySpy, to capture and send videos or pictures to
-// messenger users. This code needs a re-think now that we have an event stream.
+// Telegram users. This code needs a re-think now that we have an event stream.
 package webserver
 
 import (
@@ -19,7 +19,7 @@ import (
 	"github.com/davidnewhall/motifini/pkg/export"
 	"github.com/davidnewhall/motifini/pkg/messenger"
 	"github.com/gorilla/mux"
-	"golift.io/securityspy"
+	"golift.io/securityspy/v2"
 	"golift.io/subscribe"
 )
 
@@ -86,9 +86,9 @@ func Start(c *Config) error {
 func (c *Config) Start() {
 	r := mux.NewRouter()
 	r.Handle("/debug/vars", http.DefaultServeMux).Methods("GET")
-	r.HandleFunc("/api/v1.0/send/{app:imessage|telegram}/video/{to}/{camera}", c.sendVideoHandler).Methods("GET")
-	r.HandleFunc("/api/v1.0/send/{app:imessage|telegram}/picture/{to}/{camera}", c.sendPictureHandler).Methods("GET")
-	r.HandleFunc("/api/v1.0/send/{app:imessage|telegram}/msg/{to}", c.sendMessageHandler).
+	r.HandleFunc("/api/v1.0/send/{app:telegram}/video/{to}/{camera}", c.sendVideoHandler).Methods("GET")
+	r.HandleFunc("/api/v1.0/send/{app:telegram}/picture/{to}/{camera}", c.sendPictureHandler).Methods("GET")
+	r.HandleFunc("/api/v1.0/send/{app:telegram}/msg/{to}", c.sendMessageHandler).
 		Methods("GET").Queries("msg", "{msg}")
 	r.HandleFunc("/api/v1.0/event/{cmd:remove|update|add|notify}/{event}", c.eventsHandler).Methods("POST")
 	// need to figure out what user interface will use these methods.

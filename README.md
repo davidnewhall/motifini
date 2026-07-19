@@ -2,10 +2,8 @@
 
 This application has a few features.
 
-- Allows you to send messages via `iMessage` using `Messages.app` with
-an HTTP API call.
+- Allows you to send messages via `Telegram` using with an HTTP API call.
 - The webserver is optional.
-- iMessages is optional. Telegram is optional too, but one is required.
 - It also integrates with ffmpeg to capture videos from SecuritySpy.
 - Allows subscribing to motion notifications on SecuritySpy cameras.
 - You can receive a video in Messages.app or Telegram when there is motion.
@@ -50,7 +48,7 @@ Only addresses added to the config can have messages sent to them.
 
 If you enable the webserver, these are (some) of the endpoints.
 
-- /api/v1.0/send/imessage/video/{to}/{camera}
+- /api/v1.0/send/telegram/video/{to}/{camera}
 Uses FFMPEG to capture a video from an IP camera (or other URL).
   - **`to` (csv), list of message recipients**
   - **`cam` (string), camera name**
@@ -61,23 +59,23 @@ Uses FFMPEG to capture a video from an IP camera (or other URL).
   - `rate` (int), output frame rate, default `5`
   - `size` (int), max file size, default: `2500000` (~2.5MB)
 
-- /api/v1.0/send/imessage/picture/{to}/{camera}
+- /api/v1.0/send/telegram/picture/{to}/{camera}
 This method requires SecuritySpy be running.
   - **`to` (csv), list of message recipients**
   - **`cam` (string), camera name**
 
-- /api/v1.0/send/imessage/msg/{to}?msg={msg}
-Just sends a plain-ol' message with iMessage.
+- /api/v1.0/send/telegram/msg/{to}?msg={msg}
+Just sends a plain-ol' message with Telegram.
   - **`to` (csv), list of message recipients**
   - **`msg` (string), text to send**
 
 ## IndigoDomo
 
 This is an example showing how to trigger this app to send a picture or
-message to someone via iMessage from [Indigo](http://indigodomo.com).
+message to someone via Telegram from [Indigo](http://indigodomo.com).
 This works, and also works with Telegram now.
 You can directly trigger "send a picture or video snippet to someone
-via telegram or imessages" by hitting an http endpoint as shown here.
+via telegram" by hitting an http endpoint as shown here.
 
 Create two variables in Indigo.
 Name one variable `Subscribers` and the other `SendMessage`
@@ -94,7 +92,7 @@ socket.setdefaulttimeout(timeout)
 
 subs = urllib.quote(indigo.variables[1891888064].value, "")
 msg = urllib.quote(indigo.variables[1023892794].value, "")
-url = "http://127.0.0.1:8765/api/v1.0/send/imessage/msg/"+subs+"?msg="+msg
+url = "http://127.0.0.1:8765/api/v1.0/send/telegram/msg/"+subs+"?msg="+msg
 
 try:
     urllib2.urlopen(url)

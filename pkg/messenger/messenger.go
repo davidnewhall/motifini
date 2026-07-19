@@ -1,5 +1,4 @@
-// Package messenger disambiguates messenger protocols. Currently only supports
-// imessage but more are coming/possible.
+// Package messenger disambiguates messenger protocols. Currently only supports Telegram.
 package messenger
 
 import (
@@ -83,7 +82,7 @@ func (m *Messenger) Start() error {
 	return nil
 }
 
-// Stop closes the iMessage and telegram routines.
+// Stop closes the telegram routine.
 func (m *Messenger) Stop() {
 	defer close(m.stopall)
 }

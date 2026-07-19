@@ -18,8 +18,8 @@ import (
 	"github.com/spf13/pflag"
 	"golift.io/cnfg"
 	"golift.io/cnfgfile"
-	"golift.io/securityspy"
-	"golift.io/securityspy/server"
+	"golift.io/securityspy/v2"
+	"golift.io/securityspy/v2/server"
 	"golift.io/subscribe"
 	"golift.io/version"
 )
