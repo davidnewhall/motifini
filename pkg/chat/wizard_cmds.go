@@ -547,7 +547,7 @@ func (c *Chat) stopWizardTargets(handler *Handler, minsStr string) *Reply {
 	return &Reply{Reply: action, Edit: true, Keyboard: rows}
 }
 
-func (c *Chat) stopWizardApply(handler *Handler, payload string) (*Reply, bool) {
+func (c *Chat) stopWizardApply(handler *Handler, payload string) (*Reply, bool) { //nolint:funlen // is what it is.
 	minsStr, rest, ok := strings.Cut(payload, ":")
 	if !ok {
 		return &Reply{Reply: "Bad pause pick.", Edit: true, Toast: "Error"}, false
