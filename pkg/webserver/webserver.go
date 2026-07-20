@@ -14,6 +14,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"slices"
 	"time"
 
 	"github.com/davidnewhall/motifini/pkg/export"
@@ -81,7 +82,7 @@ func Start(c *Config) error {
 	return nil
 }
 
-// StartWebServer creates the http routers and starts http server
+// Start creates the http routers and starts http server
 // This code block shows all the routes, for now.
 func (c *Config) Start() {
 	r := mux.NewRouter()
@@ -152,11 +153,5 @@ func (c *Config) handleAll(w http.ResponseWriter, r *http.Request) {
 
 // check for a thing in a thing.
 func contains(s []string, e string) bool {
-	for _, a := range s {
-		if a == e {
-			return true
-		}
-	}
-
-	return false
+	return slices.Contains(s, e)
 }

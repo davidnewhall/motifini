@@ -17,11 +17,11 @@ func TestGetMap(t *testing.T) {
 
 	testMap.Set("AnotherShinyMap", &d)
 	d.Set("FinalShinyMap")
-	a.EqualValues(`"FinalShinyMap"`, testMap.Get("AnotherShinyMap").String())
+	a.Equal(`"FinalShinyMap"`, testMap.Get("AnotherShinyMap").String())
 
 	// make sure we get the same map back.
 	testMap = GetMap("MyShinyMap")
-	a.EqualValues(`"FinalShinyMap"`, testMap.Get("AnotherShinyMap").String())
+	a.Equal(`"FinalShinyMap"`, testMap.Get("AnotherShinyMap").String())
 }
 
 func TestGetPublishedMap(t *testing.T) {
@@ -34,11 +34,11 @@ func TestGetPublishedMap(t *testing.T) {
 
 	testMap.Set("AnotherShinyMap", &d)
 	d.Set("MyLastShinyMap")
-	a.EqualValues(`"MyLastShinyMap"`, testMap.Get("AnotherShinyMap").String())
+	a.Equal(`"MyLastShinyMap"`, testMap.Get("AnotherShinyMap").String())
 
 	// make sure we get the same map back.
 	testMap = GetPublishedMap("MyOtherShinyMap")
-	a.EqualValues(`"MyLastShinyMap"`, testMap.Get("AnotherShinyMap").String())
+	a.Equal(`"MyLastShinyMap"`, testMap.Get("AnotherShinyMap").String())
 }
 
 func TestInit(t *testing.T) {

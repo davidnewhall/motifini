@@ -1,6 +1,7 @@
 package webserver
 
 import (
+	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
@@ -33,7 +34,7 @@ func (c *Config) sendVideoHandler(w http.ResponseWriter, r *http.Request) {
 		code, reply = http.StatusInternalServerError, "ERROR: Camera not found in configuration!"
 	}
 
-	for _, t := range strings.Split(to, ",") {
+	for t := range strings.SplitSeq(to, ",") {
 		if t == "" || !contains(c.AllowedTo, t) {
 			c.Debug.Printf("[%v] Invalid 'to' provided: %v", id, t)
 
@@ -62,6 +63,7 @@ func toInt(s string) int {
 // Since this runs in a go routine it sort of defeats the purpose of the queue. sorta?
 func (c *Config) processVideoRequest(id string, cam *securityspy.Camera, to string, v, vars map[string]string) error {
 	path := c.TempDir + "motifini_relay_" + id + "_" + cam.Name + ".mov"
+
 	audioCodec := strings.TrimSpace(v["acodec"])
 	if audioCodec == "" {
 		audioCodec = "ulaw"
@@ -79,11 +81,11 @@ func (c *Config) processVideoRequest(id string, cam *securityspy.Camera, to stri
 
 	if err := cam.SaveVideo(ops, time, size, path); err != nil {
 		c.Error.Printf("[%v] SaveVideo: %v", id, err)
-		return err
+		return fmt.Errorf("SaveVideo: %w", err)
 	}
 
 	// Input data OK, video grabbed, send an attachment to each recipient.
-	for _, t := range strings.Split(to, ",") {
+	for t := range strings.SplitSeq(to, ",") {
 		switch vars["app"] {
 		case messenger.APITelegram:
 			to, _ := strconv.ParseInt(t, 10, 64) //nolint:gomnd
@@ -132,7 +134,7 @@ func (c *Config) sendPictureHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if name == "" || code == http.StatusInternalServerError {
-		code, reply = http.StatusInternalServerError, "ERROR: Missing 'to' or 'cam'"
+		code, reply = http.StatusInternalServerError, "ERROR: Missing 'to' or 'cam', name: "+name
 		c.Debug.Printf("[%v] Invalid 'to' provided or 'cam' empty: %v", id, name)
 	} else if cam := c.SSpy.Cameras.ByName(name); cam == nil {
 		code, reply = http.StatusInternalServerError, "ERROR: Camera not found: "+name

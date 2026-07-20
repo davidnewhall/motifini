@@ -2,6 +2,7 @@
 package messenger
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -29,7 +30,7 @@ type Messenger struct {
 	stopall  chan struct{}
 }
 
-var ErrNillConfigItem = fmt.Errorf("a required configuration item was not provided")
+var ErrNillConfigItem = errors.New("a required configuration item was not provided")
 
 // New provides a messenger handler.
 func New(m *Messenger) error {
@@ -106,7 +107,7 @@ func ReqID(n int) string {
 	b := make([]rune, n)
 
 	for i := range b {
-		b[i] = l[rand.Intn(len(l))] // nolint:gosec
+		b[i] = l[rand.Intn(len(l))] //nolint:gosec
 	}
 
 	return string(b)

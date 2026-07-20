@@ -21,6 +21,7 @@ type mapsList struct {
 // Data contains our expvar exports.
 type Data struct {
 	*expvar.Map
+
 	StartAt    expvar.String
 	Version    expvar.String
 	ConfigFile expvar.String

@@ -65,11 +65,11 @@ func (m *Messenger) recvTelegramHandler(msg tgbotapi.Message) {
 		// Every account we receive a message from gets logged as a subscriber with no subscriptions.
 		sub = m.Subs.CreateSubWithID(msg.Chat.ID, msg.From.UserName,
 			APITelegram, len(m.Subs.GetAdmins()) == 0, false)
-		sub.Meta = map[string]interface{}{"hasAuth": false}
+		sub.Meta = map[string]any{"hasAuth": false}
 	}
 
 	if sub.Meta == nil {
-		sub.Meta = map[string]interface{}{"hasAuth": false, "user": msg.From}
+		sub.Meta = map[string]any{"hasAuth": false, "user": msg.From}
 	} else {
 		sub.Meta["user"] = msg.From
 	}
@@ -82,10 +82,12 @@ func (m *Messenger) recvTelegramHandler(msg tgbotapi.Message) {
 		m.SendTelegram("none", "You are now authenticated.", "", msg.Chat.ID)
 		m.Info.Printf("Telegram Received from %d:%s (admin:%v, ignored:%v), 'id' command, authenticated.",
 			msg.Chat.ID, msg.From.UserName, sub.Admin, sub.Ignored)
+
 		return
 	} else if a, _ := sub.Meta["hasAuth"].(bool); !a {
 		m.Info.Printf("Telegram Received from %d:%s (admin:%v, ignored:%v), NOT authenticated (ignored), rcvd: %s",
 			msg.Chat.ID, msg.From.UserName, sub.Admin, sub.Ignored, msg.Text)
+
 		return
 	}
 
@@ -154,6 +156,7 @@ func (m *Messenger) SendTelegramFile(reqID, path, caption string, id int64) (err
 
 	// TODO: this can't stay here in case other things need the file.
 	defer os.Remove(path)
+
 	caption = trimTelegramCaption(caption)
 
 	switch x := filepath.Ext(path); x {

@@ -96,25 +96,30 @@ func (c *Chat) nonAdminCommands() *Commands {
 }
 
 func (c *Chat) cmdCams(h *Handler) (*Reply, error) {
-	msg := "There are " + strconv.Itoa(len(c.SSpy.Cameras.All())) + " cameras:\n"
+	cams := c.SSpy.Cameras.All()
 
-	for _, cam := range c.SSpy.Cameras.All() {
-		msg += fmt.Sprintf("%v: %v\n", cam.Number, cam.Name)
+	var msg strings.Builder
+	fmt.Fprintf(&msg, "There are %d cameras:\n", len(cams))
+
+	for _, cam := range cams {
+		fmt.Fprintf(&msg, "%v: %v\n", cam.Number, cam.Name)
 	}
 
-	return &Reply{Reply: msg}, nil
+	return &Reply{Reply: msg.String()}, nil
 }
 
 func (c *Chat) cmdEvents(h *Handler) (*Reply, error) {
 	events := c.Subs.Events.Names()
-	msg := "There are " + strconv.Itoa(len(events)) + " events:\n"
+
+	var msg strings.Builder
+	fmt.Fprintf(&msg, "There are %d events:\n", len(events))
 
 	for i, event := range events {
 		description, _ := c.Subs.Events.RuleGetS(event, "description")
-		msg += strconv.Itoa(i) + ": " + event + " - " + description + "\n"
+		fmt.Fprintf(&msg, "%v: %v - %v\n", i, event, description)
 	}
 
-	return &Reply{Reply: msg}, nil
+	return &Reply{Reply: msg.String()}, nil
 }
 
 func (c *Chat) cmdPics(h *Handler) (*Reply, error) {
@@ -252,27 +257,28 @@ func (c *Chat) cmdSubs(h *Handler) (*Reply, error) {
 		return nil, nil
 	}
 
-	msg := "Your Subscriptions:"
+	var msg strings.Builder
+	msg.WriteString("Your Subscriptions:")
 
 	for i, event := range h.Sub.Events.Names() {
-		msg += "\n" + strconv.Itoa(i) + ": " + event
+		fmt.Fprintf(&msg, "\n%v: %v", i, event)
 
 		if h.Sub.Events.IsPaused(event) {
 			until := time.Until(h.Sub.Events.PauseTime(event)).Round(time.Second)
-			msg += fmt.Sprintf(", paused %v", until)
+			fmt.Fprintf(&msg, ", paused %v", until)
 		}
 
 		delay, ok := h.Sub.Events.RuleGetD(event, "delay")
 		if ok {
-			msg += fmt.Sprintf(", delay: %v", delay)
+			fmt.Fprintf(&msg, ", delay: %v", delay)
 		}
 	}
 
-	if msg += "\n"; h.Sub.Events.Len() == 0 {
-		msg += "(none)\n"
+	if msg.WriteString("\n"); h.Sub.Events.Len() == 0 {
+		msg.WriteString("(none)\n")
 	}
 
-	return &Reply{Reply: msg}, nil
+	return &Reply{Reply: msg.String()}, nil
 }
 
 func (c *Chat) cmdUnsub(h *Handler) (*Reply, error) {
@@ -290,19 +296,19 @@ func (c *Chat) cmdUnsub(h *Handler) (*Reply, error) {
 		return &Reply{Reply: "You've been unsubscribed from all events."}, nil
 	}
 
-	var msg string
+	var msg strings.Builder
 
 	if name := h.Sub.Events.Name(event); name == "" {
-		msg = "You're not subscribed to: " + event
+		fmt.Fprintf(&msg, "You're not subscribed to: %s", event)
 	} else {
 		event = name
-		msg = "You've been unsubscribed from: " + event
+		fmt.Fprintf(&msg, "You've been unsubscribed from: %s", event)
 	}
 
 	h.Sub.Events.Remove(event)
-	msg += "\nYou have " + strconv.Itoa(h.Sub.Events.Len()) + " event subscriptions."
+	fmt.Fprintf(&msg, "\nYou have %d event subscriptions.", h.Sub.Events.Len())
 
-	return &Reply{Reply: msg}, nil
+	return &Reply{Reply: msg.String()}, nil
 }
 
 func (c *Chat) cmdStop(h *Handler) (*Reply, error) {

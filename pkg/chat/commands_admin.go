@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"strconv"
+	"strings"
 	"time"
 )
 
@@ -21,7 +21,7 @@ func (c *Chat) adminCommands() *Commands {
 				Desc: "Returns public IP from ifconfig.me.",
 			},
 			{
-				Run:  func(h *Handler) (*Reply, error) { return &Reply{Reply: "Saved"}, c.Subs.StateFileSave() }, //nolint:wrapcheck
+				Run:  func(h *Handler) (*Reply, error) { return &Reply{Reply: "Saved"}, c.Subs.StateFileSave() },
 				AKA:  []string{"save"},
 				Use:  "",
 				Desc: "Saves subscriber data to a file.",
@@ -76,32 +76,38 @@ func (c *Chat) adminCommands() *Commands {
 
 func (c *Chat) cmdAdminAdmins(h *Handler) (*Reply, error) {
 	admins := c.Subs.GetAdmins()
-	msg := "There are " + strconv.Itoa(len(admins)) + " admins:"
+
+	var msg strings.Builder
+	fmt.Fprintf(&msg, "There are %d admins:", len(admins))
 
 	for i, admin := range admins {
-		msg += fmt.Sprintf("\n%v: (%v) %v (%v) (%v subscriptions)",
-			strconv.Itoa(i+1), admin.API, admin.ID, admin.Contact, admin.Events.Len())
+		fmt.Fprintf(&msg, "\n%d: (%v) %v (%v) (%d subscriptions)",
+			i+1, admin.API, admin.ID, admin.Contact, admin.Events.Len())
 	}
 
-	return &Reply{Reply: msg}, nil
+	return &Reply{Reply: msg.String()}, nil
 }
 
 func (c *Chat) cmdAdminIgnores(h *Handler) (*Reply, error) {
 	ignores := c.Subs.GetIgnored()
-	r := &Reply{Reply: fmt.Sprintf("There are %d ignored subscribers:", len(ignores))}
+
+	var msg strings.Builder
+	fmt.Fprintf(&msg, "There are %d ignored subscribers:", len(ignores))
 
 	for i, ignore := range ignores {
-		r.Reply += fmt.Sprintf("\n%v: (%v) %v (%v) (%v subscriptions)",
-			strconv.Itoa(i+1), ignore.API, ignore.ID, ignore.Contact, ignore.Events.Len())
+		fmt.Fprintf(&msg, "\n%d: (%v) %v (%v) (%d subscriptions)",
+			i+1, ignore.API, ignore.ID, ignore.Contact, ignore.Events.Len())
 	}
 
-	return r, nil
+	return &Reply{Reply: msg.String()}, nil
 }
 
 func (c *Chat) cmdAdminSubs(h *Handler) (*Reply, error) { //nolint:cyclop
 	if len(h.Text) == 1 {
 		subs := c.Subs.Subscribers
-		r := &Reply{Reply: fmt.Sprintf("There are %d total subscribers:", len(subs))}
+
+		var msg strings.Builder
+		fmt.Fprintf(&msg, "There are %d total subscribers:", len(subs))
 
 		for i, target := range subs {
 			var x string
@@ -112,16 +118,16 @@ func (c *Chat) cmdAdminSubs(h *Handler) (*Reply, error) { //nolint:cyclop
 				x = ", admin"
 			}
 
-			r.Reply += fmt.Sprintf("\n%v: (%v) %v (%v)%v (%v subscriptions)",
-				strconv.Itoa(i+1), target.API, target.ID, target.Contact, x, target.Events.Len())
+			fmt.Fprintf(&msg, "\n%d: (%v) %v (%v)%s (%d subscriptions)",
+				i+1, target.API, target.ID, target.Contact, x, target.Events.Len())
 		}
 
-		return r, nil
+		return &Reply{Reply: msg.String()}, nil
 	}
 
 	s, err := c.getSubscriber(h.Text[1], h.API)
 	if err != nil {
-		return &Reply{Reply: "Subscriber does not exist: " + h.Text[1]}, nil // nolint:nilerr
+		return &Reply{Reply: "Subscriber does not exist: " + h.Text[1]}, nil //nolint:nilerr
 	}
 
 	subs := s.Events.Names()
@@ -137,25 +143,24 @@ func (c *Chat) cmdAdminSubs(h *Handler) (*Reply, error) { //nolint:cyclop
 		x = ", admin"
 	}
 
-	r := &Reply{Reply: fmt.Sprintf("%s%s has %d subscriptions:", s.Contact, x, len(subs))}
-	i := 0
+	var msg strings.Builder
+	fmt.Fprintf(&msg, "%s%s has %d subscriptions:", s.Contact, x, len(subs))
 
-	for _, event := range subs {
-		i++
-		r.Reply += fmt.Sprintf("\n%d: %s", i, event)
+	for i, event := range subs {
+		fmt.Fprintf(&msg, "\n%d: %s", i+1, event)
 
 		if s.Events.IsPaused(event) {
 			until := time.Until(s.Events.PauseTime(event)).Round(time.Second)
-			r.Reply += fmt.Sprintf(", paused %v", until)
+			fmt.Fprintf(&msg, ", paused %v", until)
 		}
 
 		delay, ok := h.Sub.Events.RuleGetD(event, "delay")
 		if ok {
-			r.Reply += fmt.Sprintf(", delay: %v", delay)
+			fmt.Fprintf(&msg, ", delay: %v", delay)
 		}
 	}
 
-	return r, nil
+	return &Reply{Reply: msg.String()}, nil
 }
 
 func (c *Chat) cmdAdminUnadmin(h *Handler) (*Reply, error) {
@@ -223,7 +228,7 @@ func getIP(*Handler) (*Reply, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "https://ifconfig.me", nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "https://ifconfig.me", http.NoBody)
 	if err != nil {
 		return nil, fmt.Errorf("creating http request: %w", err)
 	}

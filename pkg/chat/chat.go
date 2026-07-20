@@ -3,6 +3,7 @@
 package chat
 
 import (
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -24,7 +25,7 @@ type Chat struct {
 }
 
 // ErrBadUsage is a standard error.
-var ErrBadUsage = fmt.Errorf("invalid command usage")
+var ErrBadUsage = errors.New("invalid command usage")
 
 // Command is the configuration for a chat command handler.
 type Command struct {
@@ -204,15 +205,16 @@ func (c *Commands) help(cmdName string) (string, bool) {
 			c.Title, "/"+cmd.AKA[0], cmd.Use, cmd.Desc, strings.Join(cmd.AKA, ", ")), true
 	}
 
-	msg := "\n* " + c.Title + " Commands *\n"
+	var msg strings.Builder
+	fmt.Fprintf(&msg, "\n* %s Commands *\n", c.Title)
 
 	for _, cmd := range c.List {
-		msg += "/" + cmd.AKA[0] + " " + cmd.Use + "\n"
+		fmt.Fprintf(&msg, "/%s %s\n", cmd.AKA[0], cmd.Use)
 	}
 
-	msg += "- More Info: /help <cmd>\n"
+	msg.WriteString("- More Info: /help <cmd>\n")
 
-	return msg, true
+	return msg.String(), true
 }
 
 // GetCommand returns a command for an alias. Or nil. Check for nil.
