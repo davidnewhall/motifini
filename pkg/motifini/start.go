@@ -5,7 +5,6 @@ import (
 	"io"
 	"log"
 	"os"
-	"os/exec"
 	"os/signal"
 	"strings"
 	"syscall"
@@ -177,13 +176,6 @@ func (m *Motifini) Run() error {
 	m.SSpy, err = securityspy.New(m.Conf.SecuritySpy)
 	if err != nil {
 		return fmt.Errorf("connecting to securityspy: %w", err)
-	}
-
-	m.SSpy.Encoder = "/opt/homebrew/bin/ffmpeg"
-
-	ffmpegPath, err := exec.LookPath("ffmpeg")
-	if err == nil {
-		m.SSpy.Encoder = ffmpegPath
 	}
 
 	m.ProcessEventStream()

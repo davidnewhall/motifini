@@ -24,6 +24,7 @@ func (c *Config) sendVideoHandler(writer http.ResponseWriter, request *http.Requ
 		"rate":    request.FormValue("rate"),
 		"size":    request.FormValue("size"),
 		"acodec":  request.FormValue("acodec"),
+		"vcodec":  request.FormValue("vcodec"),
 	}
 	reqID, code, reply := messenger.ReqID(messenger.IDLength), http.StatusOK, "OK"
 
@@ -69,7 +70,12 @@ func (c *Config) processVideoRequest(
 
 	audioCodec := strings.TrimSpace(formVals["acodec"])
 	if audioCodec == "" {
-		audioCodec = "ulaw"
+		audioCodec = "aac"
+	}
+
+	videoCodec := strings.TrimSpace(formVals["vcodec"])
+	if videoCodec == "" {
+		videoCodec = cam.PreferredVCodec()
 	}
 
 	ops := &securityspy.VidOps{
@@ -78,6 +84,7 @@ func (c *Config) processVideoRequest(
 		Quality: toInt(formVals["quality"]),
 		FPS:     toInt(formVals["rate"]),
 		ACodec:  audioCodec,
+		VCodec:  videoCodec,
 	}
 	timeLength := parseVideoLength(formVals["time"])
 	size, _ := strconv.ParseInt(formVals["size"], 10, 64)

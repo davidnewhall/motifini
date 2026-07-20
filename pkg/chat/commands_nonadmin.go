@@ -20,8 +20,8 @@ const (
 const (
 	maxsize = 1024 * 1024 // 1mb
 	length  = 5 * time.Second
-	height  = 800
-	quality = 20
+	height  = 720 // SS RTSP resize; 800 often stalls to ~1fps under load
+	quality = 20  // JPEG only; stripped from RTSP by securityspy
 )
 
 // nonAdminCommands contains all the built-in non-admin commands.
@@ -174,9 +174,17 @@ func (c *Chat) cmdPics(handler *Handler) (*Reply, error) {
 	return &Reply{Reply: msg, Files: paths}, nil
 }
 
+func clipVidOps(cam *securityspy.Camera) *securityspy.VidOps {
+	return &securityspy.VidOps{
+		Height:  height,
+		Quality: quality,
+		ACodec:  "aac",
+		VCodec:  cam.PreferredVCodec(),
+	}
+}
+
 func (c *Chat) cmdVids(handler *Handler) (*Reply, error) {
 	msg := ""
-	ops := &securityspy.VidOps{Height: height, Quality: quality, ACodec: "ulaw"}
 
 	if len(handler.Text) > 1 {
 		name := strings.Join(handler.Text[1:], " ")
@@ -188,7 +196,7 @@ func (c *Chat) cmdVids(handler *Handler) (*Reply, error) {
 
 		path := fmt.Sprintf("%vchat_command_%v_%v.mp4", c.TempDir, handler.ID, cam.Name)
 
-		err := cam.SaveVideo(ops, length, maxsize, path)
+		err := cam.SaveVideo(clipVidOps(cam), length, maxsize, path)
 		if err != nil {
 			log.Printf("[ERROR] [%v] cam.SaveVideo: %v", handler.ID, err)
 			msg = "Error Getting '" + cam.Name + "' Video: " + err.Error()
@@ -210,7 +218,7 @@ func (c *Chat) cmdVids(handler *Handler) (*Reply, error) {
 
 			path := fmt.Sprintf("%vchat_command_%v_%v.mp4", c.TempDir, handler.ID, cam.Name)
 
-			err := cam.SaveVideo(ops, length, maxsize, path)
+			err := cam.SaveVideo(clipVidOps(cam), length, maxsize, path)
 			if err != nil {
 				log.Printf("[ERROR] [%v] cam.SaveVideo: %v", handler.ID, err)
 				msg += "Error Getting '" + cam.Name + "' Video: " + err.Error() + "\n"

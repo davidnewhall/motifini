@@ -4,7 +4,7 @@ This application has a few features.
 
 - Allows you to send messages via `Telegram` using with an HTTP API call.
 - The webserver is optional.
-- It also integrates with ffmpeg to capture videos from SecuritySpy.
+- It captures short SecuritySpy video clips in pure Go (no ffmpeg binary).
 - Allows subscribing to motion notifications on SecuritySpy cameras.
 - You can receive a video in Messages.app or Telegram when there is motion.
 - SecuritySpy is not optional, and is the main feature of this application.

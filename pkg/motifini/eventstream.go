@@ -14,10 +14,10 @@ import (
 const (
 	eventStreamBuf = 1000
 	eventRetry     = 5 * time.Second
-	defaultLength  = 5 * time.Second
+	defaultLength  = 6 * time.Second
 	defaultSize    = 1.5 * 1024 * 1024
-	defaultCodec   = "ulaw"
-	defaultHeight  = 500
+	defaultCodec   = "aac"
+	defaultHeight  = 720
 )
 
 // ProcessEventStream processes the securityspy event stream.
@@ -110,7 +110,11 @@ func (m *Motifini) handleCameraMotion(event *securityspy.Event) {
 	}
 
 	err := event.Camera.SaveVideo(
-		&securityspy.VidOps{ACodec: defaultCodec, Height: defaultHeight}, defaultLength, defaultSize, path)
+		&securityspy.VidOps{
+			ACodec: defaultCodec,
+			Height: defaultHeight,
+			VCodec: event.Camera.PreferredVCodec(),
+		}, defaultLength, defaultSize, path)
 	if err != nil {
 		m.Error.Printf("[%v] event.Camera.SaveVideo: %v", reqID, err)
 		return
