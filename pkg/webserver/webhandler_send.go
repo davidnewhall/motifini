@@ -3,10 +3,13 @@ package webserver
 import (
 	"fmt"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/davidnewhall/motifini/pkg/chat"
 	"github.com/davidnewhall/motifini/pkg/messenger"
 	"github.com/gorilla/mux"
 	"golift.io/securityspy/v2"
@@ -24,26 +27,24 @@ func (c *Config) sendVideoHandler(writer http.ResponseWriter, request *http.Requ
 		"rate":    request.FormValue("rate"),
 		"size":    request.FormValue("size"),
 		"acodec":  request.FormValue("acodec"),
+		"vcodec":  request.FormValue("vcodec"),
 	}
 	reqID, code, reply := messenger.ReqID(messenger.IDLength), http.StatusOK, "OK"
 
 	cam := c.SSpy.Cameras.ByName(name)
 	if cam == nil {
 		c.Debug.Printf("[%v] Invalid 'cam' provided: %v", reqID, name)
-
 		code, reply = http.StatusInternalServerError, "ERROR: Camera not found in configuration!"
 	}
 
 	for t := range strings.SplitSeq(recipients, ",") {
 		if t == "" || !contains(c.AllowedTo, t) {
 			c.Debug.Printf("[%v] Invalid 'to' provided: %v", reqID, t)
-
 			code, reply = http.StatusInternalServerError, "ERROR: Missing 'to' or 'cam'"
 		}
 	}
 
 	if code == http.StatusOK {
-		// TODO: make a channel with a queue for these.
 		err := c.processVideoRequest(reqID, cam, recipients, vals, vars)
 		if err != nil {
 			code = http.StatusInternalServerError
@@ -52,7 +53,6 @@ func (c *Config) sendVideoHandler(writer http.ResponseWriter, request *http.Requ
 	}
 
 	reply = "REQ ID: " + reqID + ", msg: " + reply + "\n"
-
 	c.finishReq(writer, request, reqID, code, reply, "-")
 }
 
@@ -61,15 +61,19 @@ func toInt(s string) int {
 	return i
 }
 
-// Since this runs in a go routine it sort of defeats the purpose of the queue. sorta?
 func (c *Config) processVideoRequest(
 	reqID string, cam *securityspy.Camera, recipients string, formVals, vars map[string]string,
 ) error {
-	path := c.TempDir + "motifini_relay_" + reqID + "_" + cam.Name + ".mov"
+	path := filepath.Join(c.TempDir, "motifini_relay_"+reqID+"_"+cam.Name+".mov")
 
 	audioCodec := strings.TrimSpace(formVals["acodec"])
 	if audioCodec == "" {
-		audioCodec = "ulaw"
+		audioCodec = "aac"
+	}
+
+	videoCodec := strings.TrimSpace(formVals["vcodec"])
+	if videoCodec == "" {
+		videoCodec = cam.PreferredVCodec()
 	}
 
 	ops := &securityspy.VidOps{
@@ -78,6 +82,7 @@ func (c *Config) processVideoRequest(
 		Quality: toInt(formVals["quality"]),
 		FPS:     toInt(formVals["rate"]),
 		ACodec:  audioCodec,
+		VCodec:  videoCodec,
 	}
 	timeLength := parseVideoLength(formVals["time"])
 	size, _ := strconv.ParseInt(formVals["size"], 10, 64)
@@ -87,12 +92,13 @@ func (c *Config) processVideoRequest(
 		c.Error.Printf("[%v] SaveVideo: %v", reqID, err)
 		return fmt.Errorf("SaveVideo: %w", err)
 	}
+	defer os.Remove(path) // SendTelegram no longer deletes; clean up after all recipients.
 
 	// Input data OK, video grabbed, send an attachment to each recipient.
 	for t := range strings.SplitSeq(recipients, ",") {
 		if vars["app"] == messenger.APITelegram {
 			dest, _ := strconv.ParseInt(t, 10, 64)
-			c.Msgs.SendTelegram(reqID, "", path, dest)
+			c.Msgs.SendTelegram(reqID, chat.CameraCaption(cam.Name, chat.CaptionVideo), path, dest, c.telegramContact(dest))
 		}
 	}
 
@@ -126,7 +132,7 @@ func (c *Config) sendPictureHandler(writer http.ResponseWriter, request *http.Re
 
 	var reply string
 
-	path := c.TempDir + "motifini_relay_" + reqID + "_" + name + ".jpg"
+	path := filepath.Join(c.TempDir, "motifini_relay_"+reqID+"_"+name+".jpg")
 
 	// Check input data.
 	for _, t := range recipients {
@@ -152,7 +158,6 @@ func (c *Config) sendPictureHandler(writer http.ResponseWriter, request *http.Re
 		code, reply = c.sendPictureToRecipients(reqID, cam, path, recipients, vars)
 	}
 
-	// There's a better way to do this....
 	c.finishReq(writer, request, reqID, code, reply, "-")
 }
 
@@ -166,12 +171,13 @@ func (c *Config) sendPictureToRecipients(
 		c.Error.Printf("[%v] cam.SaveJPEG: %v", reqID, err)
 		return http.StatusInternalServerError, "ERROR: " + err.Error()
 	}
+	defer os.Remove(path) // SendTelegram no longer deletes; clean up after all recipients.
 
 	// Input data OK, send a message to each recipient.
 	for _, t := range recipients {
 		if vars["app"] == messenger.APITelegram {
 			dest, _ := strconv.ParseInt(t, 10, 64)
-			c.Msgs.SendTelegram(reqID, "", path, dest)
+			c.Msgs.SendTelegram(reqID, chat.CameraCaption(cam.Name, chat.CaptionPhoto), path, dest, c.telegramContact(dest))
 		}
 	}
 
@@ -204,11 +210,24 @@ func (c *Config) sendMessageHandler(writer http.ResponseWriter, request *http.Re
 		for _, t := range recipients {
 			if vars["app"] == messenger.APITelegram {
 				dest, _ := strconv.ParseInt(t, 10, 64)
-				c.Msgs.SendTelegram(reqID, msg, "", dest)
+				c.Msgs.SendTelegram(reqID, msg, "", dest, c.telegramContact(dest))
 			}
 		}
 	}
 
 	reply = "REQ ID: " + reqID + ", msg: " + reply + "\n"
 	c.finishReq(writer, request, reqID, code, reply, "-")
+}
+
+func (c *Config) telegramContact(id int64) string {
+	if c.Subs == nil {
+		return ""
+	}
+
+	sub, err := c.Subs.GetSubscriberByID(id, messenger.APITelegram)
+	if err != nil || sub == nil {
+		return ""
+	}
+
+	return sub.Contact
 }

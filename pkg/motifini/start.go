@@ -5,11 +5,9 @@ import (
 	"io"
 	"log"
 	"os"
-	"os/exec"
 	"os/signal"
 	"strings"
 	"syscall"
-	"time"
 
 	"github.com/davidnewhall/motifini/pkg/chat"
 	"github.com/davidnewhall/motifini/pkg/export"
@@ -26,10 +24,12 @@ import (
 
 // Application identity and default timing values.
 const (
-	Binary             = "motifini"
-	DefaultRepeatDelay = time.Minute
-	DefaultEnvPrefix   = "MO"
+	Binary           = "motifini"
+	DefaultEnvPrefix = "MO"
 )
+
+// DefaultRepeatDelay mirrors chat.DefaultRepeatDelay for callers outside pkg/chat.
+const DefaultRepeatDelay = chat.DefaultRepeatDelay
 
 // Motifini is the main application struct.
 type Motifini struct {
@@ -172,6 +172,8 @@ func (m *Motifini) Run() error {
 		return fmt.Errorf("sub state: %w", err)
 	}
 
+	chat.EnsureBuiltInEvents(m.Subs)
+
 	m.Info.Println("Connecting to SecuritySpy:", m.Conf.SecuritySpy.URL)
 
 	m.SSpy, err = securityspy.New(m.Conf.SecuritySpy)
@@ -179,13 +181,7 @@ func (m *Motifini) Run() error {
 		return fmt.Errorf("connecting to securityspy: %w", err)
 	}
 
-	m.SSpy.Encoder = "/opt/homebrew/bin/ffmpeg"
-
-	ffmpegPath, err := exec.LookPath("ffmpeg")
-	if err == nil {
-		m.SSpy.Encoder = ffmpegPath
-	}
-
+	m.publishDebugStats()
 	m.ProcessEventStream()
 	defer m.SSpy.Events.Stop(true)
 
@@ -244,6 +240,45 @@ func (m *Motifini) startWebserver() error {
 	}
 
 	return nil
+}
+
+// publishDebugStats exposes live gauges on /debug/vars.
+func (m *Motifini) publishDebugStats() {
+	export.PublishCount("subscribers", func() int64 {
+		if m.Subs == nil {
+			return 0
+		}
+
+		return int64(len(m.Subs.Subscribers))
+	})
+	export.PublishCount("admins", func() int64 {
+		if m.Subs == nil {
+			return 0
+		}
+
+		return int64(len(m.Subs.GetAdmins()))
+	})
+	export.PublishCount("cameras", func() int64 {
+		if m.SSpy == nil {
+			return 0
+		}
+
+		return int64(len(m.SSpy.Cameras.All()))
+	})
+	export.PublishCount("cameras_online", func() int64 {
+		if m.SSpy == nil {
+			return 0
+		}
+
+		var online int64
+		for _, cam := range m.SSpy.Cameras.All() {
+			if cam != nil && cam.Connected.Val {
+				online++
+			}
+		}
+
+		return online
+	})
 }
 
 // waitForSignal runs things at an interval and looks for an exit signal

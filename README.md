@@ -2,20 +2,14 @@
 
 This application has a few features.
 
-- Allows you to send messages via `Telegram` using with an HTTP API call.
-- The webserver is optional.
-- It also integrates with ffmpeg to capture videos from SecuritySpy.
-- Allows subscribing to motion notifications on SecuritySpy cameras.
-- You can receive a video in Messages.app or Telegram when there is motion.
-- SecuritySpy is not optional, and is the main feature of this application.
-
-This code is still very crude, under construction and lacking full documentation.
-Telegram was recently added (12/22021), and works very well with SecuritySpy.
+- Send Telegram messages via an optional HTTP API.
+- Captures short SecuritySpy video clips in pure Go (no ffmpeg binary).
+- Subscribe to motion / human / vehicle / animal notifications on SecuritySpy cameras.
+- Receive alert videos in Telegram when something happens.
+- SecuritySpy is required; Telegram is the notification channel.
 
 My wife and I use this to receive videos in Telegram for cameras we care about.
 I have a couple other family members relying on this app; they also use SecuritySpy.
-
-This once worked with iMessage but has been converted to Telegram-only.
 
 ## SecuritySpy
 
@@ -35,39 +29,64 @@ Add a bot token and set a password in the config.
 Once the app fires up, message your bot `/id <password>`.
 Then message it `/help`.
 
+New users who message without auth are logged and get **no reply** until they are allowed:
+
+1. **Self-serve:** they send `/id <telegram.password>` (from config), or
+2. **Admin:** after they message once, you send `/allow <telegramIdOrUsername>` (also `/auth`).
+   Revoke with `/deny <id>`.
+
+`/admin <user>` only grants admin commands; it does **not** unlock the bot. Use `/allow` for that.
+
+Set a display name when someone has no Telegram `@username`:
+
+```
+/name <chatId> Jane Doe
+```
+
+Aliases: `/rename`, `/nick`.
+
 ## Example Config File
 
-Only addresses added to the config can have messages sent to them.
+Only Telegram chat IDs listed in `allowed_to` can receive messages from the HTTP API.
 
 - Location: `/usr/local/etc/motifini.conf`
 - Example: [examples/motifini.conf.example](examples/motifini.conf.example)
-
-**Setting `clear_messages` to true will delete every conversation in Messages.app.**
 
 ## HTTP Endpoints
 
 If you enable the webserver, these are (some) of the endpoints.
 
 - /api/v1.0/send/telegram/video/{to}/{camera}
-Uses FFMPEG to capture a video from an IP camera (or other URL).
+Captures a short live clip from SecuritySpy (no ffmpeg binary).
   - **`to` (csv), list of message recipients**
-  - **`cam` (string), camera name**
-  - `width` (int), frame size, default: `1280`
-  - `height` (int), frame size, default: `720`
-  - `quality` (int), h264 quality setting, default: `20`
-  - `time` (int), max video duration in seconds, default `15`
-  - `rate` (int), output frame rate, default `5`
-  - `size` (int), max file size, default: `2500000` (~2.5MB)
+  - **`camera` (string), camera name**
+  - `width` (int), frame size
+  - `height` (int), frame size
+  - `crf` / quality (int)
+  - `time` (duration or seconds), max video length
+  - `rate` (int), output frame rate
+  - `size` (int), max file size
 
 - /api/v1.0/send/telegram/picture/{to}/{camera}
-This method requires SecuritySpy be running.
+Snapshot from SecuritySpy.
   - **`to` (csv), list of message recipients**
-  - **`cam` (string), camera name**
+  - **`camera` (string), camera name**
 
 - /api/v1.0/send/telegram/msg/{to}?msg={msg}
-Just sends a plain-ol' message with Telegram.
+Plain Telegram text.
   - **`to` (csv), list of message recipients**
   - **`msg` (string), text to send**
+
+- /api/v1.0/sub/{subscribe|unsubscribe|pause|unpause}/{api}/{contact}/{event}
+Manage a subscriber's event subscription (Telegram `api` + chat id or contact name).
+  - `minutes` (pause only, default `60`)
+
+- /api/v1.0/event/{notify|remove}/{event}
+Notify subscribers of a named event (optional camera snapshot when the name matches a camera),
+or remove an event and all its subscriptions.
+
+- /debug/vars
+expvar stats (HTTP counts, subscribers, cameras, …).
 
 ## IndigoDomo
 
@@ -101,11 +120,5 @@ except Exception as err:
     indigo.server.log(u"Error with Motifini: {}".format(err))
 ```
 
-## TODO
-
-- Better Usage/Install Documentation
-- Some reasonable way to add and control events, and how they fire.
-  - For instance if you want a motion detector to fire a camera, or two, or a text message, how do you define and action that?
-  - Or any combination of "event -> take some cool action (ie. send a specific type of notification)"
-  - notifications currently supported: text, video, picture.
-- Add more info to expvar data: events, cameras, subscribers, telegram stats.
+Subscriptions and motion classifications are managed in Telegram (`/sub`, `/subs`, `/stop`, `/delay`).
+Home automation can still fire notifications via the HTTP endpoints above.

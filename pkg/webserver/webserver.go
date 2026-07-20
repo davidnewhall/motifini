@@ -94,8 +94,7 @@ func (c *Config) Start() {
 	router.HandleFunc("/api/v1.0/send/{app:telegram}/picture/{to}/{camera}", c.sendPictureHandler).Methods("GET")
 	router.HandleFunc("/api/v1.0/send/{app:telegram}/msg/{to}", c.sendMessageHandler).
 		Methods("GET").Queries("msg", "{msg}")
-	router.HandleFunc("/api/v1.0/event/{cmd:remove|update|add|notify}/{event}", c.eventsHandler).Methods("POST")
-	// need to figure out what user interface will use these methods.
+	router.HandleFunc("/api/v1.0/event/{cmd:remove|notify}/{event}", c.eventsHandler).Methods("POST")
 	router.HandleFunc("/api/v1.0/sub/{cmd:subscribe|unsubscribe|pause|unpause}/{api}/{contact}/{event}",
 		c.subsHandler).Methods("GET")
 	router.PathPrefix("/").HandlerFunc(c.handleAll)

@@ -2,10 +2,8 @@ package chat
 
 import (
 	"fmt"
-	"log"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	"golift.io/securityspy/v2"
@@ -18,10 +16,11 @@ const (
 )
 
 const (
-	maxsize = 1024 * 1024 // 1mb
-	length  = 5 * time.Second
-	height  = 800
-	quality = 20
+	maxsize    = 1024 * 1024 // 1mb
+	length     = 5 * time.Second
+	height     = 720 // SS RTSP resize; 800 often stalls to ~1fps under load
+	jpegHeight = 1080
+	quality    = 20 // JPEG only; stripped from RTSP by securityspy
 )
 
 // nonAdminCommands contains all the built-in non-admin commands.
@@ -33,98 +32,82 @@ func (c *Chat) nonAdminCommands() *Commands { //nolint:funlen // it's not that b
 			{
 				Run:  c.cmdCams,
 				AKA:  []string{"cams", "cam", "cameras"},
-				Desc: "Displays all available cameras by name.",
+				Desc: "Browse cameras — tap for snapshot or video.",
 				Save: false,
 			},
 			{
 				Run:  c.cmdEvents,
 				AKA:  []string{"events"},
-				Desc: "Displays all available events.",
+				Desc: "List events — tap to subscribe.",
 				Save: false,
 			},
 			{
 				Run:  c.cmdSubs,
 				AKA:  []string{"subs", "subscribers"},
-				Desc: "Shows your subscriptions.",
+				Desc: "Your subscriptions with manage / pause / delay shortcuts.",
 				Save: false,
 			},
 			{
 				Run:  c.cmdSub,
 				AKA:  []string{"sub", "sun"},
-				Use:  "<camera|event>",
-				Desc: "Enables notifications from <camera> or <event>.",
+				Use:  "[camera class|event|camera:class]",
+				Desc: "Subscribe via menu, or text: /sub Office human",
 				Save: true,
 			},
 			{
 				Run:  c.cmdUnsub,
 				AKA:  []string{"unsub", "unsung", "unsubscribe", "unsure", "unseen"},
-				Use:  "<cam|event>",
-				Desc: "Stops notifications from <cam>, or <event> or everything if '*' is passed.",
+				Use:  "[cam|event|*]",
+				Desc: "Unsubscribe via menu, or text: /unsub Office · /unsub * clears all",
 				Save: true,
 			},
 			{
 				Run:  c.cmdStop,
 				AKA:  []string{"stop", "quit", "pause"},
 				Use:  "[mins] [camera]",
-				Desc: "Stops all motion notifications for 10 minutes or [mins] on all cameras or [camera].",
+				Desc: "Pause alerts via menu, or text: /stop 10 · /stop 10 Office",
 				Save: true,
 			},
 			{
 				Run:  c.cmdPics,
 				AKA:  []string{"pics", "pic", "pictures"},
 				Use:  "[camera]",
-				Desc: "Sends pictures from all cameras, or from [camera].",
+				Desc: "Snapshot via menu, or text: /pics Office",
 				Save: false,
 			},
 			{
 				Run:  c.cmdVids,
 				AKA:  []string{"vid", "vids", "video"},
 				Use:  "[camera]",
-				Desc: "Sends video from all cameras, or from [camera].",
+				Desc: "Video clip via menu, or text: /vid Office",
 				Save: false,
 			},
 			{
-				Run: c.cmdDelay,
-				AKA: []string{"delay"},
-				Use: "<seconds> <event>",
-				Desc: "The default delay between notifications from an event is 60 seconds. " +
-					"You can adjust that per event using this command.",
-				Save: false,
+				Run:  c.cmdDelay,
+				AKA:  []string{"delay"},
+				Use:  "[seconds] [event]",
+				Desc: "Set repeat delay via menu, or text: /delay 60 Office:human",
+				Save: true,
 			},
 		},
 	}
 }
 
 func (c *Chat) cmdCams(_ *Handler) (*Reply, error) {
-	cams := c.SSpy.Cameras.All()
+	root := c.camsWizardRoot()
+	root.Edit = false
 
-	var msg strings.Builder
-	fmt.Fprintf(&msg, "There are %d cameras:\n", len(cams))
-
-	for _, cam := range cams {
-		fmt.Fprintf(&msg, "%v: %v\n", cam.Number, cam.Name)
-	}
-
-	return &Reply{Reply: msg.String()}, nil
+	return root, nil
 }
 
 func (c *Chat) cmdEvents(_ *Handler) (*Reply, error) {
-	events := c.Subs.Events.Names()
+	root := c.eventsWizardRoot()
+	root.Edit = false
 
-	var msg strings.Builder
-	fmt.Fprintf(&msg, "There are %d events:\n", len(events))
-
-	for i, event := range events {
-		description, _ := c.Subs.Events.RuleGetS(event, "description")
-		fmt.Fprintf(&msg, "%v: %v - %v\n", i, event, description)
-	}
-
-	return &Reply{Reply: msg.String()}, nil
+	return root, nil
 }
 
 func (c *Chat) cmdPics(handler *Handler) (*Reply, error) {
-	msg := ""
-
 	if len(handler.Text) > 1 {
 		name := strings.Join(handler.Text[1:], " ")
 		cam := c.SSpy.Cameras.ByName(name)
@@ -133,51 +116,31 @@ func (c *Chat) cmdPics(handler *Handler) (*Reply, error) {
 			return &Reply{Reply: "Unknown Camera: " + name}, ErrBadUsage
 		}
 
-		path := fmt.Sprintf("%vchat_command_%v_%v.jpg", c.TempDir, handler.ID, cam.Name)
-
-		err := cam.SaveJPEG(&securityspy.VidOps{}, path)
-		if err != nil {
-			log.Printf("[ERROR] [%v] cam.SaveJPEG: %v", handler.ID, err)
-			msg = "Error Getting '" + cam.Name + "' Picture: " + err.Error()
+		path, errMsg := c.snapOne(handler, cam, false)
+		files := []string{}
+		if path != "" {
+			files = []string{path}
 		}
 
-		return &Reply{Reply: msg, Files: []string{path}}, nil
+		return &Reply{Reply: nonEmpty(errMsg, CameraCaption(cam.Name, CaptionPhoto)), Files: files}, nil
 	}
 
-	var (
-		paths     = []string{}
-		waitGroup sync.WaitGroup
-	)
+	root := c.picsWizardRoot()
+	root.Edit = false
 
-	for _, cam := range c.SSpy.Cameras.All() {
-		waitGroup.Add(1)
+	return root, nil
+}
 
-		go func(cam *securityspy.Camera) {
-			defer waitGroup.Done()
-
-			path := fmt.Sprintf("%vchat_command_%v_%v.jpg", c.TempDir, handler.ID, cam.Name)
-
-			err := cam.SaveJPEG(&securityspy.VidOps{}, path)
-			if err != nil {
-				log.Printf("[ERROR] [%v] cam.SaveJPEG: %v", handler.ID, err)
-				msg += "Error Getting '" + cam.Name + "' Picture: " + err.Error() + "\n"
-
-				return
-			}
-
-			paths = append(paths, path)
-		}(cam)
+func clipVidOps(cam *securityspy.Camera) *securityspy.VidOps {
+	return &securityspy.VidOps{
+		Height:  height,
+		Quality: quality,
+		ACodec:  "aac",
+		VCodec:  cam.PreferredVCodec(),
 	}
-
-	waitGroup.Wait()
-
-	return &Reply{Reply: msg, Files: paths}, nil
 }
 
 func (c *Chat) cmdVids(handler *Handler) (*Reply, error) {
-	msg := ""
-	ops := &securityspy.VidOps{Height: height, Quality: quality, ACodec: "ulaw"}
-
 	if len(handler.Text) > 1 {
 		name := strings.Join(handler.Text[1:], " ")
 		cam := c.SSpy.Cameras.ByName(name)
@@ -186,72 +149,39 @@ func (c *Chat) cmdVids(handler *Handler) (*Reply, error) {
 			return &Reply{Reply: "Unknown Camera: " + name}, ErrBadUsage
 		}
 
-		path := fmt.Sprintf("%vchat_command_%v_%v.mp4", c.TempDir, handler.ID, cam.Name)
-
-		err := cam.SaveVideo(ops, length, maxsize, path)
-		if err != nil {
-			log.Printf("[ERROR] [%v] cam.SaveVideo: %v", handler.ID, err)
-			msg = "Error Getting '" + cam.Name + "' Video: " + err.Error()
+		path, errMsg := c.snapOne(handler, cam, true)
+		files := []string{}
+		if path != "" {
+			files = []string{path}
 		}
 
-		return &Reply{Reply: msg, Files: []string{path}}, nil
+		return &Reply{Reply: nonEmpty(errMsg, CameraCaption(cam.Name, CaptionVideo)), Files: files}, nil
 	}
 
-	var (
-		paths     = []string{}
-		waitGroup sync.WaitGroup
-	)
+	root := c.vidsWizardRoot()
+	root.Edit = false
 
-	for _, cam := range c.SSpy.Cameras.All() {
-		waitGroup.Add(1)
-
-		go func(cam *securityspy.Camera) {
-			defer waitGroup.Done()
-
-			path := fmt.Sprintf("%vchat_command_%v_%v.mp4", c.TempDir, handler.ID, cam.Name)
-
-			err := cam.SaveVideo(ops, length, maxsize, path)
-			if err != nil {
-				log.Printf("[ERROR] [%v] cam.SaveVideo: %v", handler.ID, err)
-				msg += "Error Getting '" + cam.Name + "' Video: " + err.Error() + "\n"
-
-				return
-			}
-
-			paths = append(paths, path)
-		}(cam)
-	}
-
-	waitGroup.Wait()
-
-	return &Reply{Reply: msg, Files: paths}, nil
+	return root, nil
 }
 
 func (c *Chat) cmdSub(handler *Handler) (*Reply, error) {
-	kind := "event"
-
 	if len(handler.Text) < twoItems {
-		return &Reply{Reply: "must provide an event or camera name to subscribe"}, ErrBadUsage
+		root := c.subWizardRoot()
+		root.Edit = false // first message, not an edit
+
+		return root, nil
 	}
 
-	event := strings.Join(handler.Text[1:], " ")
-
-	if !c.Subs.Events.Exists(event) {
-		kind = "camera"
-
-		cam := c.SSpy.Cameras.ByName(event)
-		if cam == nil {
-			return &Reply{Reply: "Event or Camera not found: " + event}, ErrBadUsage
-		}
-
-		event = cam.Name
-	}
-
-	msg := "You've been subscribed to " + kind + ": " + event
-
-	err := handler.Sub.Subscribe(event)
+	key, kind, err := c.resolveSubTarget(handler.Text[1:])
 	if err != nil {
-		msg = "You're already subscribed to: " + kind + ": " + event
+		return &Reply{Reply: err.Error()}, ErrBadUsage
+	}
+
+	msg := "You've been subscribed to " + kind + ": " + formatSubLabel(key)
+
+	err = handler.Sub.Subscribe(key)
+	if err != nil {
+		msg = "You're already subscribed to " + kind + ": " + formatSubLabel(key)
 	}
 
 	msg += "\nYou have " + strconv.Itoa(handler.Sub.Events.Len()) + " event subscriptions."
@@ -262,38 +192,21 @@ func (c *Chat) cmdSub(handler *Handler) (*Reply, error) {
 func (c *Chat) cmdSubs(handler *Handler) (*Reply, error) {
 	if handler.Sub.Admin && len(handler.Text) > 1 {
 		// admin asking for subs for someone else.
-		return nil, nil //nolint:nilnil // handled by iMessageAdminSubs()
+		return nil, nil //nolint:nilnil // handled by cmdAdminSubs()
 	}
 
-	var msg strings.Builder
-	msg.WriteString("Your Subscriptions:")
+	root := c.subsWizardRoot(handler)
+	root.Edit = false
 
-	for i, event := range handler.Sub.Events.Names() {
-		fmt.Fprintf(&msg, "\n%v: %v", i, event)
-
-		if handler.Sub.Events.IsPaused(event) {
-			until := time.Until(handler.Sub.Events.PauseTime(event)).Round(time.Second)
-			fmt.Fprintf(&msg, ", paused %v", until)
-		}
-
-		delay, ok := handler.Sub.Events.RuleGetD(event, "delay")
-		if ok {
-			fmt.Fprintf(&msg, ", delay: %v", delay)
-		}
-	}
-
-	msg.WriteString("\n")
-
-	if handler.Sub.Events.Len() == 0 {
-		msg.WriteString("(none)\n")
-	}
-
-	return &Reply{Reply: msg.String()}, nil
+	return root, nil
 }
 
 func (c *Chat) cmdUnsub(handler *Handler) (*Reply, error) {
 	if len(handler.Text) < twoItems {
-		return &Reply{Reply: "must provide an event or camera name to unsubscribe"}, ErrBadUsage
+		root := c.unsubWizardRoot(handler)
+		root.Edit = false
+
+		return root, nil
 	}
 
 	event := strings.Join(handler.Text[1:], " ")
@@ -306,13 +219,23 @@ func (c *Chat) cmdUnsub(handler *Handler) (*Reply, error) {
 		return &Reply{Reply: "You've been unsubscribed from all events."}, nil
 	}
 
+	// Allow "Office human" / "Office:human" forms.
+	key, _, err := c.resolveSubTarget(handler.Text[1:])
+	if err == nil {
+		if name := handler.Sub.Events.Name(key); name != "" {
+			event = name
+		} else {
+			event = key
+		}
+	}
+
 	var msg strings.Builder
 
 	if name := handler.Sub.Events.Name(event); name == "" {
-		fmt.Fprintf(&msg, "You're not subscribed to: %s", event)
+		fmt.Fprintf(&msg, "You're not subscribed to: %s", formatSubLabel(event))
 	} else {
 		event = name
-		fmt.Fprintf(&msg, "You've been unsubscribed from: %s", event)
+		fmt.Fprintf(&msg, "You've been unsubscribed from: %s", formatSubLabel(event))
 	}
 
 	handler.Sub.Events.Remove(event)
@@ -323,12 +246,19 @@ func (c *Chat) cmdUnsub(handler *Handler) (*Reply, error) {
 
 func (c *Chat) cmdStop(handler *Handler) (*Reply, error) {
 	if len(handler.Text) == 1 {
-		handler.Text = append(handler.Text, "10") // default pause time of 10 minutes.
+		root := c.stopWizardRoot()
+		root.Edit = false
+
+		return root, nil
 	}
 
 	dur, err := strconv.Atoi(handler.Text[1])
 	if err != nil {
 		return &Reply{Reply: "Unable to parse into a number: " + handler.Text[1]}, ErrBadUsage
+	}
+
+	if dur < 0 || dur > MaxPauseMinutes {
+		return &Reply{Reply: fmt.Sprintf("Pause must be 0–%d minutes (24 hours).", MaxPauseMinutes)}, ErrBadUsage
 	}
 
 	// Pause a single event.
@@ -368,7 +298,10 @@ func (c *Chat) cmdStop(handler *Handler) (*Reply, error) {
 
 func (c *Chat) cmdDelay(handler *Handler) (*Reply, error) {
 	if len(handler.Text) < threeItems {
-		return &Reply{Reply: "must provide <seconds> as a number and the event or camera name"}, ErrBadUsage
+		root := c.delayWizardRoot(handler)
+		root.Edit = false
+
+		return root, nil
 	}
 
 	dur, err := strconv.Atoi(handler.Text[1])
