@@ -2,8 +2,10 @@ package chat
 
 import (
 	"testing"
+	"time"
 
 	"golift.io/securityspy/v2"
+	"golift.io/subscribe"
 )
 
 func TestCameraSubKey(t *testing.T) {
@@ -60,5 +62,26 @@ func TestCommandName(t *testing.T) {
 
 	if got := commandName("/sub@MyBot"); got != "sub" {
 		t.Fatalf("got %q", got)
+	}
+}
+
+func TestActiveKeysAmong(t *testing.T) {
+	t.Parallel()
+
+	if ActiveKeysAmong(nil, []string{"Office:human"}) != nil {
+		t.Fatal("nil sub")
+	}
+
+	sub := &subscribe.Subscriber{Events: &subscribe.Events{Map: make(map[string]*subscribe.Rules)}}
+	_ = sub.Subscribe("Office:human")
+
+	got := ActiveKeysAmong(sub, []string{"Office", "Office:human", "Office:motion"})
+	if len(got) != 1 || got[0] != "Office:human" {
+		t.Fatalf("got %v", got)
+	}
+
+	_ = sub.Events.Pause("Office:human", time.Hour)
+	if got = ActiveKeysAmong(sub, []string{"Office:human"}); len(got) != 0 {
+		t.Fatalf("paused should be excluded: %v", got)
 	}
 }

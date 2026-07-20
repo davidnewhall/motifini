@@ -3,6 +3,7 @@ package webserver
 import (
 	"fmt"
 	"net/http"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -90,6 +91,7 @@ func (c *Config) processVideoRequest(
 		c.Error.Printf("[%v] SaveVideo: %v", reqID, err)
 		return fmt.Errorf("SaveVideo: %w", err)
 	}
+	defer os.Remove(path) // SendTelegram no longer deletes; clean up after all recipients.
 
 	// Input data OK, video grabbed, send an attachment to each recipient.
 	for t := range strings.SplitSeq(recipients, ",") {
@@ -168,6 +170,7 @@ func (c *Config) sendPictureToRecipients(
 		c.Error.Printf("[%v] cam.SaveJPEG: %v", reqID, err)
 		return http.StatusInternalServerError, "ERROR: " + err.Error()
 	}
+	defer os.Remove(path) // SendTelegram no longer deletes; clean up after all recipients.
 
 	// Input data OK, send a message to each recipient.
 	for _, t := range recipients {

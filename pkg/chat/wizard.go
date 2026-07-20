@@ -455,17 +455,23 @@ func CollectSubscribers(data *subscribe.Subscribe, keys []string) []*subscribe.S
 	return out
 }
 
-// ActiveKeysAmong returns which of keys the subscriber currently receives (exists + not paused).
+// ActiveKeysAmong returns which of keys the subscriber is subscribed to and not paused.
 func ActiveKeysAmong(sub *subscribe.Subscriber, keys []string) []string {
-	if sub == nil {
+	if sub == nil || sub.Events == nil {
 		return nil
 	}
 
-	var out []string
+	out := make([]string, 0, len(keys))
 	for _, key := range keys {
-		if !sub.Events.IsPaused(key) {
-			out = append(out, key)
+		if !sub.Events.Exists(key) {
+			continue
 		}
+
+		if sub.Events.IsPaused(key) {
+			continue
+		}
+
+		out = append(out, key)
 	}
 
 	return out
