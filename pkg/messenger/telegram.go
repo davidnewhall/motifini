@@ -102,7 +102,12 @@ func (m *Messenger) recvTelegramCallback(callback *tgbotapi.CallbackQuery) {
 		return
 	}
 
-	if a, _ := sub.Meta["hasAuth"].(bool); !a {
+	hasAuth := false
+	if sub.Meta != nil {
+		hasAuth, _ = sub.Meta["hasAuth"].(bool)
+	}
+
+	if !hasAuth {
 		_, _ = m.telebot.Request(tgbotapi.NewCallback(callback.ID, "Not authenticated"))
 		m.Info.Printf("Telegram callback from %d:%s NOT authenticated", callback.Message.Chat.ID, displayName)
 

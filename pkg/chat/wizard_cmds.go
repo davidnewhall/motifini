@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -414,7 +415,7 @@ func (c *Chat) snapOne(handler *Handler, cam *securityspy.Camera, video bool) (s
 
 func (c *Chat) captureCam(handler *Handler, cam *securityspy.Camera, video bool) (string, string) {
 	if video {
-		path := fmt.Sprintf("%vchat_command_%v_%v.mp4", c.TempDir, handler.ID, cam.Name)
+		path := filepath.Join(c.TempDir, fmt.Sprintf("chat_command_%v_%v.mp4", handler.ID, cam.Name))
 		log.Printf("[INFO] [%v] SaveVideo starting for %s", handler.ID, cam.Name)
 
 		err := cam.SaveVideo(clipVidOps(cam), length, maxsize, path)
@@ -427,7 +428,7 @@ func (c *Chat) captureCam(handler *Handler, cam *securityspy.Camera, video bool)
 		return path, ""
 	}
 
-	path := fmt.Sprintf("%vchat_command_%v_%v.jpg", c.TempDir, handler.ID, cam.Name)
+	path := filepath.Join(c.TempDir, fmt.Sprintf("chat_command_%v_%v.jpg", handler.ID, cam.Name))
 	log.Printf("[INFO] [%v] SaveJPEG starting for %s", handler.ID, cam.Name)
 
 	err := cam.SaveJPEG(&securityspy.VidOps{Height: jpegHeight, Quality: quality}, path)
@@ -553,6 +554,14 @@ func (c *Chat) stopWizardApply(handler *Handler, payload string) (*Reply, bool) 
 	}
 
 	mins := atoiDefault(minsStr, 10)
+	if mins < 0 || mins > MaxPauseMinutes {
+		return &Reply{
+			Reply: fmt.Sprintf("Pause must be 0–%d minutes (24 hours).", MaxPauseMinutes),
+			Edit:  true,
+			Toast: "Error",
+		}, false
+	}
+
 	dur := time.Duration(mins) * time.Minute
 
 	if rest == "a" {

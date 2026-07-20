@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -63,7 +64,7 @@ func toInt(s string) int {
 func (c *Config) processVideoRequest(
 	reqID string, cam *securityspy.Camera, recipients string, formVals, vars map[string]string,
 ) error {
-	path := c.TempDir + "motifini_relay_" + reqID + "_" + cam.Name + ".mov"
+	path := filepath.Join(c.TempDir, "motifini_relay_"+reqID+"_"+cam.Name+".mov")
 
 	audioCodec := strings.TrimSpace(formVals["acodec"])
 	if audioCodec == "" {
@@ -131,7 +132,7 @@ func (c *Config) sendPictureHandler(writer http.ResponseWriter, request *http.Re
 
 	var reply string
 
-	path := c.TempDir + "motifini_relay_" + reqID + "_" + name + ".jpg"
+	path := filepath.Join(c.TempDir, "motifini_relay_"+reqID+"_"+name+".jpg")
 
 	// Check input data.
 	for _, t := range recipients {

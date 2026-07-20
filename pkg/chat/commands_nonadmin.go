@@ -174,7 +174,7 @@ func (c *Chat) cmdSub(handler *Handler) (*Reply, error) {
 
 	key, kind, err := c.resolveSubTarget(handler.Text[1:])
 	if err != nil {
-		return &Reply{Reply: "Event or Camera not found."}, ErrBadUsage
+		return &Reply{Reply: err.Error()}, ErrBadUsage
 	}
 
 	msg := "You've been subscribed to " + kind + ": " + formatSubLabel(key)
@@ -255,6 +255,10 @@ func (c *Chat) cmdStop(handler *Handler) (*Reply, error) {
 	dur, err := strconv.Atoi(handler.Text[1])
 	if err != nil {
 		return &Reply{Reply: "Unable to parse into a number: " + handler.Text[1]}, ErrBadUsage
+	}
+
+	if dur < 0 || dur > MaxPauseMinutes {
+		return &Reply{Reply: fmt.Sprintf("Pause must be 0–%d minutes (24 hours).", MaxPauseMinutes)}, ErrBadUsage
 	}
 
 	// Pause a single event.

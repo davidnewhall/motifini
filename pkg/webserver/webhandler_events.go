@@ -2,6 +2,7 @@ package webserver
 
 import (
 	"net/http"
+	"path/filepath"
 	"strings"
 
 	"github.com/davidnewhall/motifini/pkg/messenger"
@@ -42,7 +43,7 @@ func (c *Config) notifyHandler(
 	path := ""
 
 	if cam != nil && len(subs) > 0 {
-		path = c.TempDir + "motifini_relay_" + reqID + "_" + vars["event"] + ".jpg"
+		path = filepath.Join(c.TempDir, "motifini_relay_"+reqID+"_"+vars["event"]+".jpg")
 
 		err := cam.SaveJPEG(&securityspy.VidOps{}, path)
 		if err != nil {

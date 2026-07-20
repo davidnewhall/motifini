@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/davidnewhall/motifini/pkg/chat"
 	"github.com/davidnewhall/motifini/pkg/messenger"
 	"github.com/gorilla/mux"
 	"golift.io/subscribe"
@@ -105,6 +106,11 @@ func applyPause(sub *subscribe.Subscriber, event, minutesStr string) (int, strin
 		}
 
 		mins = n
+	}
+
+	if mins < 0 || mins > chat.MaxPauseMinutes {
+		return http.StatusBadRequest,
+			fmt.Sprintf("ERROR: minutes must be 0–%d (24 hours)\n", chat.MaxPauseMinutes)
 	}
 
 	if name := sub.Events.Name(event); name != "" {

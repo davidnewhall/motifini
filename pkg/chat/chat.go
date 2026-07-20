@@ -16,6 +16,9 @@ import (
 // DefaultRepeatDelay is used when a subscription has no explicit "delay" rule.
 const DefaultRepeatDelay = time.Minute
 
+// MaxPauseMinutes is the longest pause/stop duration accepted (24 hours).
+const MaxPauseMinutes = 1440
+
 /* Do not include message-provider-specific code in chat_* files. */
 
 // Chat is the input data to initialize the library.
