@@ -1,0 +1,38 @@
+version: '2'
+output:
+  path-mode: abs
+linters:
+  default: all
+  disable:
+    - exhaustruct
+    - depguard
+    - wsl
+    - funcorder
+    - exhaustive
+    - nlreturn
+    - gomodguard # deprecated
+    - godox # fix these!
+  settings:
+    gocritic:
+      enable-all: true
+      settings:
+        unnamedResult:
+          checkExported: true
+    errcheck:
+      check-type-assertions: true
+      check-blank: false
+      disable-default-exclusions: false
+      exclude-functions:
+        - (*os.File).Close
+        - (io.Closer).Close
+        - os.Remove
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0
+formatters:
+  enable:
+    - gci
+    - gofmt
+    - gofumpt
+    - goimports
