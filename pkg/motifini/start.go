@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strings"
 	"syscall"
 
@@ -120,6 +121,16 @@ func Start() error {
 	}
 
 	app.Conf.Validate()
+	// Print log paths to stdout before setLogging may redirect away from the console.
+	// Config path was already printed by ParseConfigFile ("Loading Configuration File: ...").
+	if path := strings.TrimSpace(app.Conf.Global.LogFile); path != "" {
+		app.Info.Println("App log file:", path)
+	}
+
+	if path := strings.TrimSpace(app.Conf.Global.EventLog); path != "" {
+		app.Info.Println("Event log file:", path)
+	}
+
 	app.setLogging()
 	defer app.closeLogging()
 
@@ -162,11 +173,6 @@ func (m *Motifini) setLogging() {
 	m.Debug = log.New(debugOut, "[DEBUG] ", flags)
 	m.Event = log.New(io.Discard, "[EVENT] ", flags)
 
-	if m.appLog != nil {
-		m.Info.Printf("App logging to %s (%d files @ %dMB)",
-			m.Conf.Global.LogFile, m.Conf.Global.LogFiles, m.Conf.Global.LogFileMb)
-	}
-
 	if path := strings.TrimSpace(m.Conf.Global.EventLog); path != "" {
 		m.openEventLog(path, flags)
 	}
@@ -186,6 +192,12 @@ func (m *Motifini) newRotator(path string) (*rotatorr.Logger, error) {
 }
 
 func (m *Motifini) openEventLog(path string, flags int) {
+	if logPath := strings.TrimSpace(m.Conf.Global.LogFile); logPath != "" &&
+		filepath.Clean(path) == filepath.Clean(logPath) {
+		m.Error.Printf("event_log %q matches log_file; event stream logging disabled", path)
+		return
+	}
+
 	rotator, err := m.newRotator(path)
 	if err != nil {
 		m.Error.Printf("Opening event log %q: %v (event stream logging disabled)", path, err)
