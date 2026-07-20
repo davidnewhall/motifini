@@ -1,3 +1,4 @@
+// Package motifini wires configuration, SecuritySpy, chat, messengers, and the HTTP server.
 package motifini
 
 import (
@@ -13,6 +14,10 @@ import (
 const (
 	eventStreamBuf = 1000
 	eventRetry     = 5 * time.Second
+	defaultLength  = 5 * time.Second
+	defaultSize    = 1.5 * 1024 * 1024
+	defaultCodec   = "ulaw"
+	defaultHeight  = 500
 )
 
 // ProcessEventStream processes the securityspy event stream.
@@ -25,7 +30,7 @@ func (m *Motifini) ProcessEventStream() {
 	go m.handleEvents(e)
 }
 
-func (m *Motifini) handleEvents(e chan securityspy.Event) { //nolint:cyclop
+func (m *Motifini) handleEvents(e chan securityspy.Event) { //nolint:cyclop // it's not that bad.
 	m.Info.Println("Event Stream Watcher Started")
 	defer m.Error.Println("Event Stream Watcher Closed")
 
@@ -101,7 +106,7 @@ func (m *Motifini) handleCameraMotion(e securityspy.Event) {
 	}
 
 	err := e.Camera.SaveVideo(
-		&securityspy.VidOps{ACodec: "ulaw", Height: 600}, 5*time.Second, 1*1024*1024, path) //nolint:gomnd
+		&securityspy.VidOps{ACodec: defaultCodec, Height: defaultHeight}, defaultLength, defaultSize, path)
 	if err != nil {
 		m.Error.Printf("[%v] event.Camera.SaveVideo: %v", id, err)
 		return

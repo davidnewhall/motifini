@@ -13,6 +13,7 @@ import (
 	"golift.io/subscribe"
 )
 
+// Supported messenger APIs.
 const (
 	APITelegram = "telegram"
 )
@@ -30,6 +31,7 @@ type Messenger struct {
 	stopall  chan struct{}
 }
 
+// ErrNillConfigItem is returned when a required Messenger field is missing.
 var ErrNillConfigItem = errors.New("a required configuration item was not provided")
 
 // New provides a messenger handler.
@@ -69,6 +71,7 @@ func New(m *Messenger) error {
 	return m.Start()
 }
 
+// Start connects configured messengers and begins background receivers.
 func (m *Messenger) Start() error {
 	m.stopall = make(chan struct{})
 
@@ -85,7 +88,7 @@ func (m *Messenger) Start() error {
 
 // Stop closes the telegram routine.
 func (m *Messenger) Stop() {
-	defer close(m.stopall)
+	close(m.stopall)
 }
 
 // SendFileOrMsg will send a notification to any subscriber provided using any supported messenger.
@@ -107,7 +110,7 @@ func ReqID(n int) string {
 	b := make([]rune, n)
 
 	for i := range b {
-		b[i] = l[rand.Intn(len(l))] //nolint:gosec
+		b[i] = l[rand.Intn(len(l))] //nolint:gosec // not security critical.
 	}
 
 	return string(b)

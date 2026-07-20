@@ -1,3 +1,4 @@
+// Package main is the Motifini entrypoint.
 package main
 
 import (

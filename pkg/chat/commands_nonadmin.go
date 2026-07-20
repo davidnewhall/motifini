@@ -25,7 +25,7 @@ const (
 )
 
 // nonAdminCommands contains all the built-in non-admin commands.
-func (c *Chat) nonAdminCommands() *Commands {
+func (c *Chat) nonAdminCommands() *Commands { //nolint:funlen // it's not that bad.
 	return &Commands{
 		Title: "User",
 		Level: LevelUser,
@@ -95,7 +95,7 @@ func (c *Chat) nonAdminCommands() *Commands {
 	}
 }
 
-func (c *Chat) cmdCams(h *Handler) (*Reply, error) {
+func (c *Chat) cmdCams(_ *Handler) (*Reply, error) {
 	cams := c.SSpy.Cameras.All()
 
 	var msg strings.Builder
@@ -108,7 +108,7 @@ func (c *Chat) cmdCams(h *Handler) (*Reply, error) {
 	return &Reply{Reply: msg.String()}, nil
 }
 
-func (c *Chat) cmdEvents(h *Handler) (*Reply, error) {
+func (c *Chat) cmdEvents(_ *Handler) (*Reply, error) {
 	events := c.Subs.Events.Names()
 
 	var msg strings.Builder
@@ -253,8 +253,8 @@ func (c *Chat) cmdSub(h *Handler) (*Reply, error) {
 
 func (c *Chat) cmdSubs(h *Handler) (*Reply, error) {
 	if h.Sub.Admin && len(h.Text) > 1 {
-		// admin asking for subs for someone else. handled by iMessageAdminSubs()
-		return nil, nil
+		// admin asking for subs for someone else.
+		return nil, nil //nolint:nilnil // handled by iMessageAdminSubs()
 	}
 
 	var msg strings.Builder
@@ -274,7 +274,9 @@ func (c *Chat) cmdSubs(h *Handler) (*Reply, error) {
 		}
 	}
 
-	if msg.WriteString("\n"); h.Sub.Events.Len() == 0 {
+	msg.WriteString("\n")
+
+	if h.Sub.Events.Len() == 0 {
 		msg.WriteString("(none)\n")
 	}
 
@@ -366,11 +368,13 @@ func (c *Chat) cmdDelay(h *Handler) (*Reply, error) {
 	}
 
 	event := strings.Join(h.Text[twoItems:], " ")
-	if name := h.Sub.Events.Name(event); name == "" {
+
+	name := h.Sub.Events.Name(event)
+	if name == "" {
 		return &Reply{Reply: "You are not subscribed to: " + event}, nil
-	} else {
-		event = name
 	}
+
+	event = name
 
 	h.Sub.Events.RuleSetD(event, "delay", time.Duration(dur)*time.Second)
 

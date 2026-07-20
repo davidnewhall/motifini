@@ -24,6 +24,7 @@ import (
 	"golift.io/version"
 )
 
+// Application identity and default timing values.
 const (
 	Binary             = "motifini"
 	DefaultRepeatDelay = time.Minute
@@ -45,13 +46,14 @@ type Motifini struct {
 
 // Flags defines our application's CLI arguments.
 type Flags struct {
+	*pflag.FlagSet
+
 	EnvPrefix  string
 	ConfigFile string
 	VersionReq bool
-	*pflag.FlagSet
 }
 
-// Configuration for Motifini.
+// Config is the configuration for Motifini.
 type Config struct {
 	Global struct {
 		TempDir   string `toml:"temp_dir"`
@@ -72,7 +74,7 @@ func (flag *Flags) ParseArgs(args []string) {
 	*flag = Flags{FlagSet: pflag.NewFlagSet(Binary, pflag.ExitOnError)}
 
 	flag.Usage = func() {
-		fmt.Printf("Usage: %s [--config=filepath] [--version] [--debug]", Binary) //nolint:forbidigo
+		fmt.Printf("Usage: %s [--config=filepath] [--version] [--debug]", Binary) //nolint:forbidigo // cli usage
 		flag.PrintDefaults()
 	}
 
@@ -88,7 +90,7 @@ func Start() error {
 	m.Flag.ParseArgs(os.Args[1:])
 
 	if m.Flag.VersionReq {
-		fmt.Println(version.Print(Binary)) //nolint:forbidigo
+		fmt.Println(version.Print(Binary)) //nolint:forbidigo // version request
 		return nil                         // don't run anything else w/ version request.
 	}
 
@@ -97,9 +99,14 @@ func Start() error {
 		return err
 	}
 
+	const maxPort = 65535
+	if m.Conf.Webserver.Port > maxPort {
+		m.Conf.Webserver.Port = maxPort
+	}
+
 	m.setLogging()
-	export.Init(Binary) // Initialize the main expvar map.
-	export.Map.ListenPort.Set(int64(m.Conf.Webserver.Port))
+	export.Init(Binary)                                     // Initialize the main expvar map.
+	export.Map.ListenPort.Set(int64(m.Conf.Webserver.Port)) //nolint:gosec // caught above.
 	export.Map.Version.Set(version.Version + "-" + version.Revision)
 	export.Map.ConfigFile.Set(m.Flag.ConfigFile)
 	m.Info.Printf("Motifini %v-%v Starting! (PID: %v)", version.Version, version.Revision, os.Getpid())
@@ -154,9 +161,10 @@ func (c *Config) Validate() {
 }
 
 // Run starts the app after all configs are collected.
-func (m *Motifini) Run() (err error) {
+func (m *Motifini) Run() error {
 	m.Info.Println("Opening Subscriber Database:", m.Conf.Global.StateFile)
 
+	var err error
 	if m.Subs, err = subscribe.GetDB(m.Conf.Global.StateFile); err != nil {
 		return fmt.Errorf("sub state: %w", err)
 	}

@@ -36,6 +36,7 @@ type Command struct {
 	Save bool
 }
 
+// CmdLevel is the authorization level required to run a command.
 type CmdLevel int
 
 // Commands contains a list of related or grouped commands.
@@ -45,6 +46,7 @@ type Commands struct {
 	List  []*Command
 }
 
+// Command access levels.
 const (
 	LevelNone CmdLevel = iota
 	LevelUser
@@ -75,7 +77,9 @@ func New(c *Chat) *Chat {
 		c.TempDir = "/tmp"
 	}
 
-	defaults := []*Commands{c.nonAdminCommands(), c.adminCommands()}
+	defaults := make([]*Commands, 0, 2+len(c.Cmds)) //nolint:mnd // commands below....
+	defaults = append(defaults, c.nonAdminCommands())
+	defaults = append(defaults, c.adminCommands())
 	c.Cmds = append(defaults, c.Cmds...)
 
 	return c
@@ -161,7 +165,7 @@ func (c *Chat) getSubscriber(contactID, api string) (*subscribe.Subscriber, erro
 		return s, nil
 	}
 
-	id, _ := strconv.ParseInt(contactID, 10, 64) //nolint:gomnd
+	id, _ := strconv.ParseInt(contactID, 10, 64)
 
 	s, err = c.Subs.GetSubscriberByID(id, api)
 	if err != nil {

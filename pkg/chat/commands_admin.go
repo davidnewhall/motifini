@@ -9,8 +9,13 @@ import (
 	"time"
 )
 
+const (
+	subscriberArgRequired = "<subscriber>"
+	subscriberArgOptional = "[subscriber]"
+)
+
 // adminCommands contains all the built-in admin commands like 'ignore'.
-func (c *Chat) adminCommands() *Commands {
+func (c *Chat) adminCommands() *Commands { //nolint:funlen // it's not that bad.
 	return &Commands{
 		Title: "Admin",
 		Level: LevelAdmin,
@@ -21,7 +26,7 @@ func (c *Chat) adminCommands() *Commands {
 				Desc: "Returns public IP from ifconfig.me.",
 			},
 			{
-				Run:  func(h *Handler) (*Reply, error) { return &Reply{Reply: "Saved"}, c.Subs.StateFileSave() },
+				Run:  func(_ *Handler) (*Reply, error) { return &Reply{Reply: "Saved"}, c.Subs.StateFileSave() },
 				AKA:  []string{"save"},
 				Use:  "",
 				Desc: "Saves subscriber data to a file.",
@@ -29,7 +34,7 @@ func (c *Chat) adminCommands() *Commands {
 			{
 				Run:  c.cmdAdminSubs,
 				AKA:  []string{"subs", "subscribers"},
-				Use:  "[subscriber]",
+				Use:  subscriberArgOptional,
 				Desc: "Displays all subscribers.",
 			},
 			{
@@ -40,14 +45,14 @@ func (c *Chat) adminCommands() *Commands {
 			{
 				Run:  c.cmdAdminIgnore,
 				AKA:  []string{"ignore"},
-				Use:  "<subscriber>",
+				Use:  subscriberArgRequired,
 				Desc: "Ignores a subscriber.",
 				Save: true,
 			},
 			{
 				Run:  c.cmdAdminUnignore,
 				AKA:  []string{"unignore"},
-				Use:  "<subscriber>",
+				Use:  subscriberArgRequired,
 				Desc: "Removes a subscriber's ignore.",
 				Save: true,
 			},
@@ -59,14 +64,14 @@ func (c *Chat) adminCommands() *Commands {
 			{
 				Run:  c.cmdAdminAdmin,
 				AKA:  []string{"admin"},
-				Use:  "<subscriber>",
+				Use:  subscriberArgRequired,
 				Desc: "Gives a subscriber administrative access.",
 				Save: true,
 			},
 			{
 				Run:  c.cmdAdminUnadmin,
 				AKA:  []string{"unadmin", "unmasking", "inadmissible", "unassuming"},
-				Use:  "<subscriber>",
+				Use:  subscriberArgRequired,
 				Desc: "Removes a subscriber's administrative access.",
 				Save: true,
 			},
@@ -74,7 +79,7 @@ func (c *Chat) adminCommands() *Commands {
 	}
 }
 
-func (c *Chat) cmdAdminAdmins(h *Handler) (*Reply, error) {
+func (c *Chat) cmdAdminAdmins(_ *Handler) (*Reply, error) {
 	admins := c.Subs.GetAdmins()
 
 	var msg strings.Builder
@@ -88,7 +93,7 @@ func (c *Chat) cmdAdminAdmins(h *Handler) (*Reply, error) {
 	return &Reply{Reply: msg.String()}, nil
 }
 
-func (c *Chat) cmdAdminIgnores(h *Handler) (*Reply, error) {
+func (c *Chat) cmdAdminIgnores(_ *Handler) (*Reply, error) {
 	ignores := c.Subs.GetIgnored()
 
 	var msg strings.Builder
@@ -102,7 +107,7 @@ func (c *Chat) cmdAdminIgnores(h *Handler) (*Reply, error) {
 	return &Reply{Reply: msg.String()}, nil
 }
 
-func (c *Chat) cmdAdminSubs(h *Handler) (*Reply, error) { //nolint:cyclop
+func (c *Chat) cmdAdminSubs(h *Handler) (*Reply, error) { //nolint:cyclop // it's not that bad.
 	if len(h.Text) == 1 {
 		subs := c.Subs.Subscribers
 
@@ -127,7 +132,7 @@ func (c *Chat) cmdAdminSubs(h *Handler) (*Reply, error) { //nolint:cyclop
 
 	s, err := c.getSubscriber(h.Text[1], h.API)
 	if err != nil {
-		return &Reply{Reply: "Subscriber does not exist: " + h.Text[1]}, nil //nolint:nilerr
+		return &Reply{Reply: "Subscriber does not exist: " + h.Text[1]}, nil //nolint:nilerr // we do not use the error.
 	}
 
 	subs := s.Events.Names()

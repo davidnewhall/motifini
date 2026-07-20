@@ -12,19 +12,23 @@ import (
 )
 
 const (
+	// IDLength is the length of generated request IDs for Telegram logs.
 	IDLength              = 4
 	mebibyte              = 1024 * 1024
 	uploadWait            = 20 * time.Second
 	telegramCaptionMaxLen = 1024
 )
 
+// TelegramConfig is the Telegram bot settings from the config file.
 type TelegramConfig struct {
 	Token string `toml:"token"`
 	Debug bool   `toml:"debug"`
 	Pass  string `toml:"password"`
 }
 
-func (m *Messenger) connectTelegram() (err error) {
+func (m *Messenger) connectTelegram() error {
+	var err error
+
 	m.telebot, err = tgbotapi.NewBotAPI(m.Telegram.Token)
 	if err != nil {
 		return fmt.Errorf("token failed: %w", err)
@@ -74,7 +78,6 @@ func (m *Messenger) recvTelegramHandler(msg tgbotapi.Message) {
 		sub.Meta["user"] = msg.From
 	}
 
-	//nolint:wsl
 	if strings.TrimPrefix(msg.Text, "/") == "id "+m.Telegram.Pass {
 		sub.Meta["hasAuth"] = true
 		sub = m.Subs.CreateSubWithID(msg.Chat.ID, msg.From.UserName,
@@ -128,6 +131,7 @@ func (m *Messenger) replyTelegramHandler(msg tgbotapi.Message, handler *chat.Han
 	}
 }
 
+// SendTelegram sends a text message or file to a Telegram chat ID.
 func (m *Messenger) SendTelegram(reqID string, msg, path string, telegramID int64) {
 	if m.telebot == nil {
 		return
@@ -144,7 +148,8 @@ func (m *Messenger) SendTelegram(reqID string, msg, path string, telegramID int6
 	}
 }
 
-func (m *Messenger) SendTelegramFile(reqID, path, caption string, id int64) (err error) {
+// SendTelegramFile uploads a local file to Telegram and then deletes it.
+func (m *Messenger) SendTelegramFile(reqID, path, caption string, id int64) error {
 	if m.telebot == nil {
 		return nil
 	}
@@ -155,7 +160,7 @@ func (m *Messenger) SendTelegramFile(reqID, path, caption string, id int64) (err
 	}
 
 	// TODO: this can't stay here in case other things need the file.
-	defer os.Remove(path)
+	defer os.Remove(path) //nolint:errcheck
 
 	caption = trimTelegramCaption(caption)
 

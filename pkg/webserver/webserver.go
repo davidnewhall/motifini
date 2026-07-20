@@ -24,11 +24,13 @@ import (
 	"golift.io/subscribe"
 )
 
+// HTTP server defaults.
 const (
 	DefaultListenPort = 8765
 	Timeout           = 30 * time.Second
 )
 
+// Config holds HTTP server dependencies and listen settings.
 type Config struct {
 	http      *http.Server
 	SSpy      *securityspy.Server

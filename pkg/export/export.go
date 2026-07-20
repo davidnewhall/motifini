@@ -1,6 +1,8 @@
 // Package export is a standalone package to deal with expvar data. Other packages
 // can import this one to expose debug details on the expvar interface.
 // More exports can be easily added.
+//
+//nolint:gochecknoglobals // we want these to be global.
 package export
 
 import (
@@ -14,8 +16,9 @@ var maps mapsList
 
 // mapsList holds a list of reusable expvar maps.
 type mapsList struct {
-	list map[string]*expvar.Map
 	sync.Mutex
+
+	list map[string]*expvar.Map
 }
 
 // Data contains our expvar exports.
@@ -34,6 +37,7 @@ type Data struct {
 	Errors     expvar.Int
 }
 
+// Map is the process-wide expvar export data.
 var Map *Data
 
 // Init needs to be called before using the Map.
@@ -74,7 +78,8 @@ func GetMap(name string) *expvar.Map {
 // GetPublishedMap returns a published map if one exists, or returns a new one.
 func GetPublishedMap(name string) *expvar.Map {
 	if p := expvar.Get(name); p != nil {
-		return p.(*expvar.Map)
+		l, _ := p.(*expvar.Map)
+		return l
 	}
 
 	p := GetMap(name)

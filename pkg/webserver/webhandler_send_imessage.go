@@ -76,10 +76,10 @@ func (c *Config) processVideoRequest(id string, cam *securityspy.Camera, to stri
 		FPS:     toInt(v["rate"]),
 		ACodec:  audioCodec,
 	}
-	time := parseVideoLength(v["time"])
+	timeLength := parseVideoLength(v["time"])
 	size, _ := strconv.ParseInt(v["size"], 10, 64)
 
-	if err := cam.SaveVideo(ops, time, size, path); err != nil {
+	if err := cam.SaveVideo(ops, timeLength, size, path); err != nil {
 		c.Error.Printf("[%v] SaveVideo: %v", id, err)
 		return fmt.Errorf("SaveVideo: %w", err)
 	}
@@ -88,7 +88,7 @@ func (c *Config) processVideoRequest(id string, cam *securityspy.Camera, to stri
 	for t := range strings.SplitSeq(to, ",") {
 		switch vars["app"] {
 		case messenger.APITelegram:
-			to, _ := strconv.ParseInt(t, 10, 64) //nolint:gomnd
+			to, _ := strconv.ParseInt(t, 10, 64)
 			c.Msgs.SendTelegram(id, "", path, to)
 		}
 	}
@@ -147,7 +147,7 @@ func (c *Config) sendPictureHandler(w http.ResponseWriter, r *http.Request) {
 		for _, t := range to {
 			switch vars["app"] {
 			case messenger.APITelegram:
-				to, _ := strconv.ParseInt(t, 10, 64) //nolint:gomnd
+				to, _ := strconv.ParseInt(t, 10, 64)
 				c.Msgs.SendTelegram(id, "", path, to)
 			}
 		}
@@ -185,7 +185,7 @@ func (c *Config) sendMessageHandler(w http.ResponseWriter, r *http.Request) {
 		for _, t := range to {
 			switch vars["app"] {
 			case messenger.APITelegram:
-				to, _ := strconv.ParseInt(t, 10, 64) //nolint:gomnd
+				to, _ := strconv.ParseInt(t, 10, 64)
 				c.Msgs.SendTelegram(id, msg, "", to)
 			}
 		}
