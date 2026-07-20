@@ -39,7 +39,7 @@ New users who message without auth are logged and get **no reply** until they ar
 
 Set a display name when someone has no Telegram `@username`:
 
-```
+```text
 /name <chatId> Jane Doe
 ```
 
@@ -51,6 +51,14 @@ Only Telegram chat IDs listed in `allowed_to` can receive messages from the HTTP
 
 - Location: `/usr/local/etc/motifini.conf`
 - Example: [examples/motifini.conf.example](examples/motifini.conf.example)
+
+Optional `[motifini]` settings:
+
+- `debug` — verbose Telegram/HTTP diagnostics (also written to `log_file` when set)
+- `log_file` — path for a rotating app log (when set, further logs leave stdout/stderr; config and log paths are still printed to stdout first)
+- `event_log` — path for a rotating SecuritySpy event-stream log (omit to disable; must differ from `log_file`)
+- `log_file_mb` — max size per rotated log file in MB (default `5`)
+- `log_files` — number of rotated log files to keep (default `10`)
 
 ## HTTP Endpoints
 
