@@ -41,6 +41,8 @@ func (m *Motifini) handleEvents(events chan securityspy.Event) {
 }
 
 func (m *Motifini) dispatchEvent(event *securityspy.Event) {
+	m.logStreamEvent(event)
+
 	switch event.Type { //nolint:exhaustive // use default wisely
 	case securityspy.EventKeepAlive, securityspy.EventTriggerMotion:
 		// ignore.
@@ -70,14 +72,22 @@ func (m *Motifini) dispatchEvent(event *securityspy.Event) {
 		m.notifySystemEvent(chat.EventSecSpyError, msg)
 	case securityspy.EventConfigChange:
 		m.handleConfigChange()
-	default:
-		camName := ""
-		if event.Camera != nil {
-			camName = "camera: " + event.Camera.Name
-		}
-
-		m.Debug.Println("Event:", event.String(), camName, event.Msg)
 	}
+}
+
+// logStreamEvent writes SecuritySpy events to the optional event log file.
+// Keep-alives are omitted (too noisy). When event_log is unset, Event discards.
+func (m *Motifini) logStreamEvent(event *securityspy.Event) {
+	if event.Type == securityspy.EventKeepAlive {
+		return
+	}
+
+	camName := ""
+	if event.Camera != nil {
+		camName = "camera: " + event.Camera.Name
+	}
+
+	m.Event.Println(event.String(), camName, event.Msg)
 }
 
 func (m *Motifini) handleStreamDisconnect(event *securityspy.Event) {

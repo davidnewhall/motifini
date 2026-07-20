@@ -16,6 +16,8 @@ import (
 	"github.com/spf13/pflag"
 	"golift.io/cnfg"
 	"golift.io/cnfgfile"
+	"golift.io/rotatorr"
+	"golift.io/rotatorr/timerotator"
 	"golift.io/securityspy/v2"
 	"golift.io/securityspy/v2/server"
 	"golift.io/subscribe"
@@ -26,6 +28,10 @@ import (
 const (
 	Binary           = "motifini"
 	DefaultEnvPrefix = "MO"
+
+	defaultLogFileMb = 5
+	defaultLogFiles  = 10
+	megabyte         = 1024 * 1024
 )
 
 // DefaultRepeatDelay mirrors chat.DefaultRepeatDelay for callers outside pkg/chat.
@@ -33,15 +39,19 @@ const DefaultRepeatDelay = chat.DefaultRepeatDelay
 
 // Motifini is the main application struct.
 type Motifini struct {
-	Flag  *Flags
-	Conf  *Config
-	HTTP  *webserver.Config
-	SSpy  *securityspy.Server
-	Subs  *subscribe.Subscribe
-	Msgs  *messenger.Messenger
-	Info  *log.Logger
-	Error *log.Logger
-	Debug *log.Logger
+	Flag      *Flags
+	Conf      *Config
+	HTTP      *webserver.Config
+	SSpy      *securityspy.Server
+	Subs      *subscribe.Subscribe
+	Msgs      *messenger.Messenger
+	Info      *log.Logger
+	Error     *log.Logger
+	Debug     *log.Logger
+	Event     *log.Logger // SecuritySpy event stream (optional rotating file)
+	logWriter io.Writer   // Info/MSGS/HTTP sink (stdout and/or rotating log_file)
+	appLog    io.Closer
+	eventLog  io.Closer
 }
 
 // Flags defines our application's CLI arguments.
@@ -58,6 +68,10 @@ type Config struct {
 	Global struct {
 		TempDir   string `toml:"temp_dir"`
 		StateFile string `toml:"state_file"`
+		LogFile   string `toml:"log_file"`    // optional rotating app log (info/error/debug)
+		EventLog  string `toml:"event_log"`   // optional rotating SecuritySpy event stream log
+		LogFiles  int    `toml:"log_files"`   // rotated log file count (default 10)
+		LogFileMb int    `toml:"log_file_mb"` // rotated log size in MB (default 5)
 		Debug     bool   `toml:"debug"`
 	} `toml:"motifini"`
 	Webserver struct {
@@ -105,13 +119,15 @@ func Start() error {
 		app.Conf.Webserver.Port = maxPort
 	}
 
+	app.Conf.Validate()
 	app.setLogging()
+	defer app.closeLogging()
+
 	export.Init(Binary)                                       // Initialize the main expvar map.
 	export.Map.ListenPort.Set(int64(app.Conf.Webserver.Port)) //nolint:gosec // caught above.
 	export.Map.Version.Set(version.Version + "-" + version.Revision)
 	export.Map.ConfigFile.Set(app.Flag.ConfigFile)
 	app.Info.Printf("Motifini %v-%v Starting! (PID: %v)", version.Version, version.Revision, os.Getpid())
-	app.Conf.Validate()
 
 	defer app.Info.Printf("Exiting!")
 
@@ -119,17 +135,79 @@ func Start() error {
 }
 
 func (m *Motifini) setLogging() {
-	debugOut := io.Discard
 	flags := log.LstdFlags
+	infoOut := io.Writer(os.Stdout)
+	errOut := io.Writer(os.Stderr)
+	debugOut := io.Discard
+
+	if path := strings.TrimSpace(m.Conf.Global.LogFile); path != "" {
+		rotator, err := m.newRotator(path)
+		if err != nil {
+			_, _ = fmt.Fprintf(os.Stderr, "[ERROR] Opening log file %q: %v (logging to stdout/stderr only)\n", path, err)
+		} else {
+			m.appLog = rotator
+			infoOut = rotator
+			errOut = rotator
+		}
+	}
 
 	if m.Conf.Global.Debug {
-		debugOut = os.Stdout
+		debugOut = infoOut
 		flags = log.LstdFlags | log.Lshortfile
 	}
 
-	m.Info = log.New(os.Stdout, "[INFO] ", flags)
-	m.Error = log.New(os.Stderr, "[ERROR] ", flags)
+	m.logWriter = infoOut
+	m.Info = log.New(infoOut, "[INFO] ", flags)
+	m.Error = log.New(errOut, "[ERROR] ", flags)
 	m.Debug = log.New(debugOut, "[DEBUG] ", flags)
+	m.Event = log.New(io.Discard, "[EVENT] ", flags)
+
+	if m.appLog != nil {
+		m.Info.Printf("App logging to %s (%d files @ %dMB)",
+			m.Conf.Global.LogFile, m.Conf.Global.LogFiles, m.Conf.Global.LogFileMb)
+	}
+
+	if path := strings.TrimSpace(m.Conf.Global.EventLog); path != "" {
+		m.openEventLog(path, flags)
+	}
+}
+
+func (m *Motifini) newRotator(path string) (*rotatorr.Logger, error) {
+	logger, err := rotatorr.New(&rotatorr.Config{
+		Filepath: path,
+		FileSize: int64(m.Conf.Global.LogFileMb) * megabyte,
+		Rotatorr: &timerotator.Layout{FileCount: m.Conf.Global.LogFiles},
+	})
+	if err != nil {
+		return nil, fmt.Errorf("rotatorr: %w", err)
+	}
+
+	return logger, nil
+}
+
+func (m *Motifini) openEventLog(path string, flags int) {
+	rotator, err := m.newRotator(path)
+	if err != nil {
+		m.Error.Printf("Opening event log %q: %v (event stream logging disabled)", path, err)
+		return
+	}
+
+	m.eventLog = rotator
+	m.Event = log.New(rotator, "[EVENT] ", flags)
+	m.Info.Printf("SecuritySpy event stream logging to %s (%d files @ %dMB)",
+		path, m.Conf.Global.LogFiles, m.Conf.Global.LogFileMb)
+}
+
+func (m *Motifini) closeLogging() {
+	if m.eventLog != nil {
+		_ = m.eventLog.Close()
+		m.eventLog = nil
+	}
+
+	if m.appLog != nil {
+		_ = m.appLog.Close()
+		m.appLog = nil
+	}
 }
 
 // ParseConfigFile parses and returns our configuration data.
@@ -158,6 +236,14 @@ func (c *Config) Validate() {
 		c.Global.TempDir = "/tmp/"
 	} else if !strings.HasSuffix(c.Global.TempDir, "/") {
 		c.Global.TempDir += "/"
+	}
+
+	if c.Global.LogFileMb < 1 {
+		c.Global.LogFileMb = defaultLogFileMb
+	}
+
+	if c.Global.LogFiles < 1 {
+		c.Global.LogFiles = defaultLogFiles
 	}
 }
 
@@ -207,7 +293,7 @@ func (m *Motifini) startMessenger() error {
 		Subs:     m.Subs,
 		Telegram: m.Conf.Telegram,
 		TempDir:  m.Conf.Global.TempDir,
-		Info:     log.New(os.Stdout, "[MSGS] ", m.Info.Flags()),
+		Info:     log.New(m.logWriter, "[MSGS] ", m.Info.Flags()),
 		Debug:    m.Debug,
 		Error:    m.Error,
 	}
@@ -226,7 +312,7 @@ func (m *Motifini) startWebserver() error {
 		SSpy:      m.SSpy,
 		Subs:      m.Subs,
 		Msgs:      m.Msgs,
-		Info:      log.New(os.Stdout, "[HTTP] ", m.Info.Flags()),
+		Info:      log.New(m.logWriter, "[HTTP] ", m.Info.Flags()),
 		Debug:     m.Debug,
 		Error:     m.Error,
 		TempDir:   m.Conf.Global.TempDir,
