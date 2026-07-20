@@ -9,19 +9,27 @@ import (
 	"golift.io/securityspy/v2"
 )
 
-// /api/v1.0/event/{cmd:remove|update|add|notify}/{event} handler.
+// /api/v1.0/event/{cmd:remove|notify}/{event} handler.
 func (c *Config) eventsHandler(writer http.ResponseWriter, request *http.Request) {
 	reqID, vars := messenger.ReqID(messenger.IDLength), mux.Vars(request)
 
 	switch cmd := strings.ToLower(vars["cmd"]); cmd {
 	case "remove":
-		//
-	case "update":
-		//
-	case "add":
-		//
+		c.Subs.EventRemove(vars["event"])
+		err := c.Subs.StateFileSave()
+		if err != nil {
+			c.finishReq(writer, request, reqID, http.StatusInternalServerError,
+				"ERROR: "+err.Error()+"\n", cmd)
+
+			return
+		}
+		c.finishReq(writer, request, reqID, http.StatusOK,
+			"OK: removed event "+vars["event"]+"\n", cmd)
 	case "notify":
 		c.notifyHandler(reqID, vars, writer, request)
+	default:
+		c.finishReq(writer, request, reqID, http.StatusNotImplemented,
+			"ERROR: unsupported event command\n", cmd)
 	}
 }
 
@@ -44,6 +52,9 @@ func (c *Config) notifyHandler(
 	}
 
 	msg := request.FormValue("msg")
+	if msg == "" && cam != nil {
+		msg = cam.Name
+	}
 	c.Msgs.SendFileOrMsg(reqID, msg, path, subs)
 	c.finishReq(writer, request, reqID, code, reply, msg)
 }

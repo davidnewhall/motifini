@@ -7,10 +7,14 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
 	"golift.io/securityspy/v2"
 	"golift.io/subscribe"
 )
+
+// DefaultRepeatDelay is used when a subscription has no explicit "delay" rule.
+const DefaultRepeatDelay = time.Minute
 
 /* Do not include message-provider-specific code in chat_* files. */
 
@@ -62,13 +66,11 @@ type Handler struct {
 	Sub  *subscribe.Subscriber
 	Text []string
 	From string
-}
-
-// Reply is what the requestor gets in return. A message and/or some files.
-type Reply struct {
-	Reply string
-	Files []string
-	Found bool
+	// Callback is set for inline-keyboard presses (Telegram callback_data).
+	Callback string
+	// SendFile, when set, delivers each captured file immediately (progressive Telegram sends).
+	// Path ownership transfers to the callback (it should delete the file when done).
+	SendFile func(path, caption string) error
 }
 
 // New just adds the basic commands to a Chat struct.
@@ -86,17 +88,53 @@ func New(chatCfg *Chat) *Chat {
 
 // HandleCommand builds responses and runs actions from incoming chat commands.
 func (c *Chat) HandleCommand(handler *Handler) *Reply {
-	if c.Subs == nil || c.SSpy == nil || c.TempDir == "" ||
-		handler == nil || handler.Sub == nil || handler.Sub.Ignored || handler.Text == nil {
+	if !c.commandReady(handler) {
 		return &Reply{}
 	}
 
-	if strings.EqualFold("help", strings.TrimPrefix(handler.Text[0], "/")) {
+	if reply := c.applyPendingRename(handler); reply != nil {
+		return reply
+	}
+
+	if strings.EqualFold("help", commandName(handler.Text[0])) {
 		return c.doHelp(handler)
 	}
 
-	// Run a command.
 	resp, save := c.doCmd(handler)
+	if save {
+		_ = c.Subs.StateFileSave()
+	}
+
+	return resp
+}
+
+func (c *Chat) commandReady(handler *Handler) bool {
+	return c.Subs != nil && c.SSpy != nil && c.TempDir != "" &&
+		handler != nil && handler.Sub != nil && !handler.Sub.Ignored && handler.Text != nil
+}
+
+// applyPendingRename returns a reply when a rename was consumed.
+// nil means fall through (no pending rename, or slash command cancelled it).
+func (c *Chat) applyPendingRename(handler *Handler) *Reply {
+	reply, handled, save := c.consumePendingRename(handler)
+	if !handled {
+		return nil
+	}
+
+	if save {
+		_ = c.Subs.StateFileSave()
+	}
+
+	return reply
+}
+
+// HandleCallback routes inline-keyboard presses (messenger-agnostic callback_data).
+func (c *Chat) HandleCallback(handler *Handler) *Reply {
+	if c.Subs == nil || c.SSpy == nil || handler == nil || handler.Sub == nil || handler.Sub.Ignored {
+		return &Reply{}
+	}
+
+	resp, save := c.handleWizardCallback(handler)
 	if save {
 		_ = c.Subs.StateFileSave()
 	}
@@ -106,8 +144,10 @@ func (c *Chat) HandleCommand(handler *Handler) *Reply {
 
 func (c *Chat) doHelp(handler *Handler) *Reply {
 	if len(handler.Text) < twoItems {
-		// Request general help.
-		handler.Text = append(handler.Text, "")
+		root := c.helpWizardRootFor(handler)
+		root.Edit = false
+
+		return root
 	}
 
 	// Request help for specific command.
@@ -144,11 +184,10 @@ func (c *Chat) doCmd(handler *Handler) (*Reply, bool) {
 			continue
 		}
 
-		r, s := c.Cmds[i].run(handler)
-		resp.Reply += r.Reply
-		resp.Files = append(resp.Files, r.Files...)
-		found = r.Found || found
-		save = save || s
+		cmdReply, cmdSave := c.Cmds[i].run(handler)
+		mergeCmdReply(resp, cmdReply)
+		found = cmdReply.Found || found
+		save = save || cmdSave
 	}
 
 	if !found && handler.Sub.Admin {
@@ -156,6 +195,37 @@ func (c *Chat) doCmd(handler *Handler) (*Reply, bool) {
 	}
 
 	return resp, save
+}
+
+// mergeCmdReply folds one command result into the accumulated reply.
+// Multiple command groups can match the same alias (e.g. user+admin /subs).
+func mergeCmdReply(resp, part *Reply) {
+	if part.Reply != "" {
+		if resp.Reply != "" {
+			resp.Reply = strings.TrimRight(resp.Reply, "\n") + "\n\n"
+		}
+
+		resp.Reply += part.Reply
+	}
+
+	resp.Files = append(resp.Files, part.Files...)
+	if len(part.Keyboard) > 0 {
+		resp.Keyboard = part.Keyboard
+	}
+
+	resp.Edit = resp.Edit || part.Edit
+	if part.Toast != "" {
+		resp.Toast = part.Toast
+	}
+}
+
+func commandName(raw string) string {
+	name := strings.ToLower(strings.TrimPrefix(raw, "/"))
+	if at := strings.IndexByte(name, '@'); at >= 0 {
+		name = name[:at]
+	}
+
+	return name
 }
 
 func (c *Chat) getSubscriber(contactID, api string) (*subscribe.Subscriber, error) {
@@ -175,7 +245,7 @@ func (c *Chat) getSubscriber(contactID, api string) (*subscribe.Subscriber, erro
 }
 
 func (c *Commands) run(handler *Handler) (*Reply, bool) {
-	cmdName := strings.ToLower(strings.TrimPrefix(handler.Text[0], "/"))
+	cmdName := commandName(handler.Text[0])
 	cmd := c.GetCommand(cmdName)
 
 	if cmd == nil || cmd.Run == nil {

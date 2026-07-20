@@ -7,17 +7,27 @@ linters:
     - exhaustruct
     - depguard
     - wsl
+    - wsl_v5
     - funcorder
     - exhaustive
     - nlreturn
     - gomodguard # deprecated
-    - godox # fix these!
+    # UI button labels / toast strings — constants hurt readability more than they help.
+    - goconst
+    # Wizard layouts use small literals (2-col rows, pause defaults, etc.).
+    - mnd
+    - testpackage
   settings:
+    # Wizard/callback routers are large switches; 15 keeps real spaghetti out.
+    cyclop:
+      max-complexity: 15
+    gocyclo:
+      min-complexity: 30
     gocritic:
       enable-all: true
-      settings:
-        unnamedResult:
-          checkExported: true
+      # Conflicts with nonamedreturns; unnamed (string, string) pairs are fine.
+      disabled-checks:
+        - unnamedResult
     errcheck:
       check-type-assertions: true
       check-blank: false

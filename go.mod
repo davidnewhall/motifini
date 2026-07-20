@@ -9,8 +9,8 @@ require (
 	github.com/stretchr/testify v1.11.1
 	golift.io/cnfg v0.2.5
 	golift.io/cnfgfile v0.0.0-20240713024420-a5436d84eb48
-	golift.io/securityspy/v2 v2.1.0
-	golift.io/subscribe v0.0.0-20260303021808-295369d7455a
+	golift.io/securityspy/v2 v2.1.1-0.20260720201818-773e6c2f3c09
+	golift.io/subscribe v0.0.0-20260720203740-de586e9886b0
 	golift.io/version v0.0.2
 )
 

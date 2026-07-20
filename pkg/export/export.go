@@ -1,6 +1,5 @@
 // Package export is a standalone package to deal with expvar data. Other packages
 // can import this one to expose debug details on the expvar interface.
-// More exports can be easily added.
 //
 //nolint:gochecknoglobals // we want these to be global.
 package export
@@ -55,6 +54,18 @@ func Init(name string) {
 	Map.Set("messge_recv", &Map.Recv)
 	Map.Set("error_count", &Map.Errors)
 	Map.StartAt.Set(time.Now().String())
+}
+
+// PublishCount registers a live integer gauge under the main expvar map.
+// The getter is called on each /debug/vars scrape.
+func PublishCount(name string, getter func() int64) {
+	if Map == nil || getter == nil || name == "" {
+		return
+	}
+
+	Map.Set(name, expvar.Func(func() any {
+		return getter()
+	}))
 }
 
 // GetMap returns an unpublished map if one exists, or returns a new one.

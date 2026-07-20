@@ -7,6 +7,7 @@ import (
 	"io"
 	"log"
 	"math/rand"
+	"os"
 
 	"github.com/davidnewhall/motifini/pkg/chat"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
@@ -94,11 +95,16 @@ func (m *Messenger) Stop() {
 
 // SendFileOrMsg will send a notification to any subscriber provided using any supported messenger.
 // This method is used by event handlers to notify subscribers.
+// When path is set, the file is removed after all subscribers have been attempted.
 func (m *Messenger) SendFileOrMsg(reqID, msg, path string, subs []*subscribe.Subscriber) {
+	if path != "" {
+		defer os.Remove(path) // best-effort temp cleanup
+	}
+
 	for _, sub := range subs {
 		switch sub.API {
 		case APITelegram:
-			m.SendTelegram(reqID, msg, path, sub.ID)
+			m.SendTelegram(reqID, msg, path, sub.ID, sub.Contact)
 		default:
 			m.Error.Printf("[%v] Unknown Notification API '%v' for contact: %v", reqID, sub.API, sub.Contact)
 		}
