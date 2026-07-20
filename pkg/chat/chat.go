@@ -72,32 +72,31 @@ type Reply struct {
 }
 
 // New just adds the basic commands to a Chat struct.
-func New(c *Chat) *Chat {
-	if c.TempDir == "" {
-		c.TempDir = "/tmp"
+func New(chatCfg *Chat) *Chat {
+	if chatCfg.TempDir == "" {
+		chatCfg.TempDir = "/tmp"
 	}
 
-	defaults := make([]*Commands, 0, 2+len(c.Cmds)) //nolint:mnd // commands below....
-	defaults = append(defaults, c.nonAdminCommands())
-	defaults = append(defaults, c.adminCommands())
-	c.Cmds = append(defaults, c.Cmds...)
+	defaults := make([]*Commands, 0, 2+len(chatCfg.Cmds)) //nolint:mnd // commands below....
+	defaults = append(defaults, chatCfg.nonAdminCommands(), chatCfg.adminCommands())
+	chatCfg.Cmds = append(defaults, chatCfg.Cmds...)
 
-	return c
+	return chatCfg
 }
 
 // HandleCommand builds responses and runs actions from incoming chat commands.
-func (c *Chat) HandleCommand(h *Handler) *Reply {
+func (c *Chat) HandleCommand(handler *Handler) *Reply {
 	if c.Subs == nil || c.SSpy == nil || c.TempDir == "" ||
-		h == nil || h.Sub == nil || h.Sub.Ignored || h.Text == nil {
+		handler == nil || handler.Sub == nil || handler.Sub.Ignored || handler.Text == nil {
 		return &Reply{}
 	}
 
-	if strings.EqualFold("help", strings.TrimPrefix(h.Text[0], "/")) {
-		return c.doHelp(h)
+	if strings.EqualFold("help", strings.TrimPrefix(handler.Text[0], "/")) {
+		return c.doHelp(handler)
 	}
 
 	// Run a command.
-	resp, save := c.doCmd(h)
+	resp, save := c.doCmd(handler)
 	if save {
 		_ = c.Subs.StateFileSave()
 	}
@@ -105,10 +104,10 @@ func (c *Chat) HandleCommand(h *Handler) *Reply {
 	return resp
 }
 
-func (c *Chat) doHelp(h *Handler) *Reply {
-	if len(h.Text) < twoItems {
+func (c *Chat) doHelp(handler *Handler) *Reply {
+	if len(handler.Text) < twoItems {
 		// Request general help.
-		h.Text = append(h.Text, "")
+		handler.Text = append(handler.Text, "")
 	}
 
 	// Request help for specific command.
@@ -118,72 +117,72 @@ func (c *Chat) doHelp(h *Handler) *Reply {
 	)
 
 	for i := range c.Cmds {
-		if !h.Sub.Admin && c.Cmds[i].Level > LevelUser {
+		if !handler.Sub.Admin && c.Cmds[i].Level > LevelUser {
 			continue
 		}
 
-		reply, ok := c.Cmds[i].help(h.Text[1])
+		reply, ok := c.Cmds[i].help(handler.Text[1])
 		cmdFound = ok || cmdFound
 		resp.Reply += reply
 	}
 
 	if !cmdFound {
-		resp.Reply += "Command not found: " + h.Text[1]
+		resp.Reply += "Command not found: " + handler.Text[1]
 	}
 
 	return resp
 }
 
-func (c *Chat) doCmd(h *Handler) (*Reply, bool) {
+func (c *Chat) doCmd(handler *Handler) (*Reply, bool) {
 	var (
 		resp        = &Reply{}
 		save, found bool
 	)
 
 	for i := range c.Cmds {
-		if !h.Sub.Admin && c.Cmds[i].Level > LevelUser {
+		if !handler.Sub.Admin && c.Cmds[i].Level > LevelUser {
 			continue
 		}
 
-		r, s := c.Cmds[i].run(h)
+		r, s := c.Cmds[i].run(handler)
 		resp.Reply += r.Reply
 		resp.Files = append(resp.Files, r.Files...)
 		found = r.Found || found
 		save = save || s
 	}
 
-	if !found && h.Sub.Admin {
-		resp.Reply = "Command not found: " + h.Text[0]
+	if !found && handler.Sub.Admin {
+		resp.Reply = "Command not found: " + handler.Text[0]
 	}
 
 	return resp, save
 }
 
 func (c *Chat) getSubscriber(contactID, api string) (*subscribe.Subscriber, error) {
-	s, err := c.Subs.GetSubscriber(contactID, api)
+	subscriber, err := c.Subs.GetSubscriber(contactID, api)
 	if err == nil {
-		return s, nil
+		return subscriber, nil
 	}
 
-	id, _ := strconv.ParseInt(contactID, 10, 64)
+	reqID, _ := strconv.ParseInt(contactID, 10, 64)
 
-	s, err = c.Subs.GetSubscriberByID(id, api)
+	subscriber, err = c.Subs.GetSubscriberByID(reqID, api)
 	if err != nil {
-		return s, fmt.Errorf("missing subscriber: %w", err)
+		return subscriber, fmt.Errorf("missing subscriber: %w", err)
 	}
 
-	return s, nil
+	return subscriber, nil
 }
 
-func (c *Commands) run(h *Handler) (*Reply, bool) {
-	cmdName := strings.ToLower(strings.TrimPrefix(h.Text[0], "/"))
+func (c *Commands) run(handler *Handler) (*Reply, bool) {
+	cmdName := strings.ToLower(strings.TrimPrefix(handler.Text[0], "/"))
 	cmd := c.GetCommand(cmdName)
 
 	if cmd == nil || cmd.Run == nil {
 		return &Reply{Found: false}, false
 	}
 
-	reply, err := cmd.Run(h)
+	reply, err := cmd.Run(handler)
 	if reply == nil {
 		reply = &Reply{Found: true}
 	}

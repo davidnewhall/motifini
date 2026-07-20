@@ -11,6 +11,7 @@ package webserver
 import (
 	"context"
 	"fmt"
+	"html"
 	"io"
 	"log"
 	"net/http"
@@ -46,40 +47,40 @@ type Config struct {
 
 // Start validates the config and returns any errors.
 // If all goes well, this will not return until the server shuts down.
-func Start(c *Config) error {
-	if c.SSpy == nil {
+func Start(cfg *Config) error {
+	if cfg.SSpy == nil {
 		return fmt.Errorf("%w: securityspy is nil", messenger.ErrNillConfigItem)
 	}
 
-	if c.Subs == nil {
+	if cfg.Subs == nil {
 		return fmt.Errorf("%w: subscribe is nil", messenger.ErrNillConfigItem)
 	}
 
-	if c.Msgs == nil {
+	if cfg.Msgs == nil {
 		return fmt.Errorf("%w: messenger is nil", messenger.ErrNillConfigItem)
 	}
 
-	if c.Info == nil {
-		c.Info = log.New(io.Discard, "", 0)
+	if cfg.Info == nil {
+		cfg.Info = log.New(io.Discard, "", 0)
 	}
 
-	if c.Debug == nil {
-		c.Debug = log.New(io.Discard, "", 0)
+	if cfg.Debug == nil {
+		cfg.Debug = log.New(io.Discard, "", 0)
 	}
 
-	if c.Error == nil {
-		c.Error = log.New(io.Discard, "", 0)
+	if cfg.Error == nil {
+		cfg.Error = log.New(io.Discard, "", 0)
 	}
 
-	if c.TempDir == "" {
-		c.TempDir = "/tmp/"
+	if cfg.TempDir == "" {
+		cfg.TempDir = "/tmp/"
 	}
 
-	if c.Port == 0 {
-		c.Port = DefaultListenPort
+	if cfg.Port == 0 {
+		cfg.Port = DefaultListenPort
 	}
 
-	c.Start()
+	cfg.Start()
 
 	return nil
 }
@@ -87,30 +88,31 @@ func Start(c *Config) error {
 // Start creates the http routers and starts http server
 // This code block shows all the routes, for now.
 func (c *Config) Start() {
-	r := mux.NewRouter()
-	r.Handle("/debug/vars", http.DefaultServeMux).Methods("GET")
-	r.HandleFunc("/api/v1.0/send/{app:telegram}/video/{to}/{camera}", c.sendVideoHandler).Methods("GET")
-	r.HandleFunc("/api/v1.0/send/{app:telegram}/picture/{to}/{camera}", c.sendPictureHandler).Methods("GET")
-	r.HandleFunc("/api/v1.0/send/{app:telegram}/msg/{to}", c.sendMessageHandler).
+	router := mux.NewRouter()
+	router.Handle("/debug/vars", http.DefaultServeMux).Methods("GET")
+	router.HandleFunc("/api/v1.0/send/{app:telegram}/video/{to}/{camera}", c.sendVideoHandler).Methods("GET")
+	router.HandleFunc("/api/v1.0/send/{app:telegram}/picture/{to}/{camera}", c.sendPictureHandler).Methods("GET")
+	router.HandleFunc("/api/v1.0/send/{app:telegram}/msg/{to}", c.sendMessageHandler).
 		Methods("GET").Queries("msg", "{msg}")
-	r.HandleFunc("/api/v1.0/event/{cmd:remove|update|add|notify}/{event}", c.eventsHandler).Methods("POST")
+	router.HandleFunc("/api/v1.0/event/{cmd:remove|update|add|notify}/{event}", c.eventsHandler).Methods("POST")
 	// need to figure out what user interface will use these methods.
-	r.HandleFunc("/api/v1.0/sub/{cmd:subscribe|unsubscribe|pause|unpause}/{api}/{contact}/{event}",
+	router.HandleFunc("/api/v1.0/sub/{cmd:subscribe|unsubscribe|pause|unpause}/{api}/{contact}/{event}",
 		c.subsHandler).Methods("GET")
-	r.PathPrefix("/").HandlerFunc(c.handleAll)
+	router.PathPrefix("/").HandlerFunc(c.handleAll)
 
 	c.http = &http.Server{
 		Addr:         fmt.Sprintf("127.0.0.1:%d", c.Port),
 		WriteTimeout: Timeout,
 		ReadTimeout:  Timeout,
 		IdleTimeout:  time.Minute,
-		Handler:      r, // *mux.Router
+		Handler:      router, // *mux.Router
 	}
 
 	c.Info.Print("Web server listening at http://", c.http.Addr)
 
 	go func() {
-		if err := c.http.ListenAndServe(); err != nil {
+		err := c.http.ListenAndServe()
+		if err != nil {
 			c.Error.Println("Web Server Stopped:", err)
 		}
 	}()
@@ -126,31 +128,39 @@ func (c *Config) Stop() error {
 	ctx, cancel := context.WithTimeout(context.Background(), Timeout)
 	defer cancel()
 
-	if err := c.http.Shutdown(ctx); err != nil {
+	err := c.http.Shutdown(ctx)
+	if err != nil {
 		return fmt.Errorf("shutting down web server: %w", err)
 	}
 
 	return nil
 }
 
-func (c *Config) finishReq(w http.ResponseWriter, r *http.Request, id string, code int, reply string, cmd string) {
+func (c *Config) finishReq(
+	writer http.ResponseWriter, request *http.Request, reqID string, code int, reply, cmd string,
+) {
 	export.Map.HTTPVisits.Add(1)
 	c.Info.Printf(`[%v] %v %v "%v %v" %d %d "%v" "%v"`,
-		id, r.RemoteAddr, r.Host, r.Method, r.URL.String(), code, len(reply), r.UserAgent(), cmd)
-	w.WriteHeader(code)
+		reqID, request.RemoteAddr, request.Host, request.Method, request.URL.String(),
+		code, len(reply), request.UserAgent(), cmd)
+	// Force plain-text rendering and escape the body so a browser can never
+	// interpret the reply (which may echo back request input) as HTML/script.
+	writer.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	writer.WriteHeader(code)
 
-	if _, err := w.Write([]byte(reply)); err != nil {
-		c.Error.Printf("[%v] Error Sending Reply: %v", id, err)
+	_, err := writer.Write([]byte(html.EscapeString(reply)))
+	if err != nil {
+		c.Error.Printf("[%v] Error Sending Reply: %v", reqID, err)
 	}
 }
 
 // handle any unknown URIs.
-func (c *Config) handleAll(w http.ResponseWriter, r *http.Request) {
+func (c *Config) handleAll(writer http.ResponseWriter, request *http.Request) {
 	export.Map.HTTPVisits.Add(1)
 	export.Map.DefaultURL.Add(1)
 
-	id, code, reply := messenger.ReqID(messenger.IDLength), http.StatusMethodNotAllowed, "FAIL\n"
-	c.finishReq(w, r, id, code, reply, "-")
+	reqID, code, reply := messenger.ReqID(messenger.IDLength), http.StatusMethodNotAllowed, "FAIL\n"
+	c.finishReq(writer, request, reqID, code, reply, "-")
 }
 
 // check for a thing in a thing.

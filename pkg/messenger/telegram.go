@@ -53,7 +53,7 @@ func (m *Messenger) startTelegram() {
 		select {
 		case update := <-updates:
 			if update.Message != nil { // If we got a message
-				m.recvTelegramHandler(*update.Message)
+				m.recvTelegramHandler(update.Message)
 			}
 		case <-m.stopall:
 			return
@@ -61,7 +61,7 @@ func (m *Messenger) startTelegram() {
 	}
 }
 
-func (m *Messenger) recvTelegramHandler(msg tgbotapi.Message) {
+func (m *Messenger) recvTelegramHandler(msg *tgbotapi.Message) {
 	m.Debug.Printf("Telegram [%d,%s] %s", msg.Chat.ID, msg.From.UserName, msg.Text)
 
 	sub, err := m.Subs.GetSubscriberByID(msg.Chat.ID, APITelegram)
@@ -109,12 +109,14 @@ func (m *Messenger) recvTelegramHandler(msg tgbotapi.Message) {
 	m.replyTelegramHandler(msg, handler)
 }
 
-func (m *Messenger) replyTelegramHandler(msg tgbotapi.Message, handler *chat.Handler) {
+func (m *Messenger) replyTelegramHandler(msg *tgbotapi.Message, handler *chat.Handler) {
 	resp := m.Chat.HandleCommand(handler)
 	// Send the reply as files and/or text.
 	if resp.Reply != "" && len(resp.Files) == 0 {
 		reply := tgbotapi.NewMessage(msg.Chat.ID, resp.Reply)
-		if _, err := m.telebot.Send(reply); err != nil {
+
+		_, err := m.telebot.Send(reply)
+		if err != nil {
 			m.Error.Printf("[%s] Error Sending Telegram message: %v", handler.ID, err)
 		}
 	}
@@ -132,60 +134,66 @@ func (m *Messenger) replyTelegramHandler(msg tgbotapi.Message, handler *chat.Han
 }
 
 // SendTelegram sends a text message or file to a Telegram chat ID.
-func (m *Messenger) SendTelegram(reqID string, msg, path string, telegramID int64) {
+func (m *Messenger) SendTelegram(reqID, msg, path string, telegramID int64) {
 	if m.telebot == nil {
 		return
 	}
 
 	if path != "" {
-		if err := m.SendTelegramFile(reqID, path, msg, telegramID); err != nil {
+		err := m.SendTelegramFile(reqID, path, msg, telegramID)
+		if err != nil {
 			m.Error.Printf("[%s] Error Sending Telegram file: %v", reqID, err)
 		}
 	} else if msg != "" {
-		if _, err := m.telebot.Send(tgbotapi.NewMessage(telegramID, msg)); err != nil {
+		_, err := m.telebot.Send(tgbotapi.NewMessage(telegramID, msg))
+		if err != nil {
 			m.Error.Printf("[%s] Error Sending Telegram message: %v", reqID, err)
 		}
 	}
 }
 
 // SendTelegramFile uploads a local file to Telegram and then deletes it.
-func (m *Messenger) SendTelegramFile(reqID, path, caption string, id int64) error {
+func (m *Messenger) SendTelegramFile(reqID, path, caption string, telegramID int64) error {
 	if m.telebot == nil {
 		return nil
 	}
 
-	f, err := os.Stat(path)
+	fileInfo, err := os.Stat(path)
 	if err != nil {
 		return fmt.Errorf("reading file: %w", err)
 	}
 
 	// TODO: this can't stay here in case other things need the file.
-	defer os.Remove(path) //nolint:errcheck
+	defer os.Remove(path)
 
 	caption = trimTelegramCaption(caption)
 
-	switch x := filepath.Ext(path); x {
+	switch ext := filepath.Ext(path); ext {
 	case ".gif", ".jpg", ".jpeg", ".png":
-		m.Info.Printf("[%s] Telegram: Sending Photo (%s, %.2fMb) to %d", reqID, path, float64(f.Size())/mebibyte, id)
-		photo := tgbotapi.NewPhoto(id, tgbotapi.FilePath(path))
+		m.Info.Printf("[%s] Telegram: Sending Photo (%s, %.2fMb) to %d",
+			reqID, path, float64(fileInfo.Size())/mebibyte, telegramID)
+		photo := tgbotapi.NewPhoto(telegramID, tgbotapi.FilePath(path))
 		photo.AllowSendingWithoutReply = true
 		photo.DisableNotification = false
 		photo.Caption = caption
 		_, err = m.telebot.Send(photo)
 	case ".mov", ".m4v", ".mp4":
-		m.Info.Printf("[%s] Telegram: Sending Video (%s, %.2fMb) to %d", reqID, path, float64(f.Size())/mebibyte, id)
-		video := tgbotapi.NewVideo(id, tgbotapi.FilePath(path))
+		m.Info.Printf("[%s] Telegram: Sending Video (%s, %.2fMb) to %d",
+			reqID, path, float64(fileInfo.Size())/mebibyte, telegramID)
+		video := tgbotapi.NewVideo(telegramID, tgbotapi.FilePath(path))
 		video.SupportsStreaming = true
 		video.Caption = caption
 		_, err = m.telebot.Send(video)
 	case ".wav", ".mp3":
-		m.Info.Printf("[%s] Telegram: Sending Audio (%s, %.2fMb) to %d", reqID, path, float64(f.Size())/mebibyte, id)
-		audio := tgbotapi.NewAudio(id, tgbotapi.FilePath(path))
+		m.Info.Printf("[%s] Telegram: Sending Audio (%s, %.2fMb) to %d",
+			reqID, path, float64(fileInfo.Size())/mebibyte, telegramID)
+		audio := tgbotapi.NewAudio(telegramID, tgbotapi.FilePath(path))
 		audio.Caption = caption
 		_, err = m.telebot.Send(audio)
 	default:
-		m.Info.Printf("[%s] Telegram: Sending Document (%s, %.2fMb) to %d", reqID, path, float64(f.Size())/mebibyte, id)
-		doc := tgbotapi.NewDocument(id, tgbotapi.FilePath(path))
+		m.Info.Printf("[%s] Telegram: Sending Document (%s, %.2fMb) to %d",
+			reqID, path, float64(fileInfo.Size())/mebibyte, telegramID)
+		doc := tgbotapi.NewDocument(telegramID, tgbotapi.FilePath(path))
 		doc.Caption = caption
 		_, err = m.telebot.Send(doc)
 	}

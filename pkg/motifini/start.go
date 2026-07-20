@@ -86,35 +86,36 @@ func (flag *Flags) ParseArgs(args []string) {
 
 // Start the daemon.
 func Start() error {
-	m := &Motifini{Flag: &Flags{}, Info: log.New(os.Stdout, "[INFO] ", log.LstdFlags)}
-	m.Flag.ParseArgs(os.Args[1:])
+	app := &Motifini{Flag: &Flags{}, Info: log.New(os.Stdout, "[INFO] ", log.LstdFlags)}
+	app.Flag.ParseArgs(os.Args[1:])
 
-	if m.Flag.VersionReq {
+	if app.Flag.VersionReq {
 		fmt.Println(version.Print(Binary)) //nolint:forbidigo // version request
 		return nil                         // don't run anything else w/ version request.
 	}
 
-	if err := m.ParseConfigFile(); err != nil {
-		m.Flag.Usage()
+	err := app.ParseConfigFile()
+	if err != nil {
+		app.Flag.Usage()
 		return err
 	}
 
 	const maxPort = 65535
-	if m.Conf.Webserver.Port > maxPort {
-		m.Conf.Webserver.Port = maxPort
+	if app.Conf.Webserver.Port > maxPort {
+		app.Conf.Webserver.Port = maxPort
 	}
 
-	m.setLogging()
-	export.Init(Binary)                                     // Initialize the main expvar map.
-	export.Map.ListenPort.Set(int64(m.Conf.Webserver.Port)) //nolint:gosec // caught above.
+	app.setLogging()
+	export.Init(Binary)                                       // Initialize the main expvar map.
+	export.Map.ListenPort.Set(int64(app.Conf.Webserver.Port)) //nolint:gosec // caught above.
 	export.Map.Version.Set(version.Version + "-" + version.Revision)
-	export.Map.ConfigFile.Set(m.Flag.ConfigFile)
-	m.Info.Printf("Motifini %v-%v Starting! (PID: %v)", version.Version, version.Revision, os.Getpid())
-	m.Conf.Validate()
+	export.Map.ConfigFile.Set(app.Flag.ConfigFile)
+	app.Info.Printf("Motifini %v-%v Starting! (PID: %v)", version.Version, version.Revision, os.Getpid())
+	app.Conf.Validate()
 
-	defer m.Info.Printf("Exiting!")
+	defer app.Info.Printf("Exiting!")
 
-	return m.Run()
+	return app.Run()
 }
 
 func (m *Motifini) setLogging() {
@@ -165,25 +166,46 @@ func (m *Motifini) Run() error {
 	m.Info.Println("Opening Subscriber Database:", m.Conf.Global.StateFile)
 
 	var err error
-	if m.Subs, err = subscribe.GetDB(m.Conf.Global.StateFile); err != nil {
+
+	m.Subs, err = subscribe.GetDB(m.Conf.Global.StateFile)
+	if err != nil {
 		return fmt.Errorf("sub state: %w", err)
 	}
 
 	m.Info.Println("Connecting to SecuritySpy:", m.Conf.SecuritySpy.URL)
 
-	if m.SSpy, err = securityspy.New(m.Conf.SecuritySpy); err != nil {
+	m.SSpy, err = securityspy.New(m.Conf.SecuritySpy)
+	if err != nil {
 		return fmt.Errorf("connecting to securityspy: %w", err)
 	}
 
 	m.SSpy.Encoder = "/opt/homebrew/bin/ffmpeg"
 
-	if p, err := exec.LookPath("ffmpeg"); err == nil {
-		m.SSpy.Encoder = p
+	ffmpegPath, err := exec.LookPath("ffmpeg")
+	if err == nil {
+		m.SSpy.Encoder = ffmpegPath
 	}
 
 	m.ProcessEventStream()
 	defer m.SSpy.Events.Stop(true)
 
+	err = m.startMessenger()
+	if err != nil {
+		return err
+	}
+
+	if m.Conf.Webserver.Enable {
+		err = m.startWebserver()
+		if err != nil {
+			return err
+		}
+	}
+
+	return m.waitForSignal()
+}
+
+// startMessenger builds and connects the chat/messenger stack.
+func (m *Motifini) startMessenger() error {
 	m.Msgs = &messenger.Messenger{
 		Chat:     chat.New(&chat.Chat{TempDir: m.Conf.Global.TempDir, Subs: m.Subs, SSpy: m.SSpy}),
 		Subs:     m.Subs,
@@ -193,29 +215,35 @@ func (m *Motifini) Run() error {
 		Debug:    m.Debug,
 		Error:    m.Error,
 	}
-	if err := messenger.New(m.Msgs); err != nil {
+
+	err := messenger.New(m.Msgs)
+	if err != nil {
 		return fmt.Errorf("connecting to messenger: %w", err)
 	}
 
-	if m.Conf.Webserver.Enable {
-		m.HTTP = &webserver.Config{
-			SSpy:      m.SSpy,
-			Subs:      m.Subs,
-			Msgs:      m.Msgs,
-			Info:      log.New(os.Stdout, "[HTTP] ", m.Info.Flags()),
-			Debug:     m.Debug,
-			Error:     m.Error,
-			TempDir:   m.Conf.Global.TempDir,
-			AllowedTo: m.Conf.Webserver.AllowedTo,
-			Port:      m.Conf.Webserver.Port,
-		}
+	return nil
+}
 
-		if err := webserver.Start(m.HTTP); err != nil {
-			return fmt.Errorf("webserver problem: %w", err)
-		}
+// startWebserver builds and starts the HTTP API.
+func (m *Motifini) startWebserver() error {
+	m.HTTP = &webserver.Config{
+		SSpy:      m.SSpy,
+		Subs:      m.Subs,
+		Msgs:      m.Msgs,
+		Info:      log.New(os.Stdout, "[HTTP] ", m.Info.Flags()),
+		Debug:     m.Debug,
+		Error:     m.Error,
+		TempDir:   m.Conf.Global.TempDir,
+		AllowedTo: m.Conf.Webserver.AllowedTo,
+		Port:      m.Conf.Webserver.Port,
 	}
 
-	return m.waitForSignal()
+	err := webserver.Start(m.HTTP)
+	if err != nil {
+		return fmt.Errorf("webserver problem: %w", err)
+	}
+
+	return nil
 }
 
 // waitForSignal runs things at an interval and looks for an exit signal
@@ -228,7 +256,8 @@ func (m *Motifini) waitForSignal() error {
 	m.saveSubDB()
 
 	if m.HTTP != nil {
-		if err := m.HTTP.Stop(); err != nil {
+		err := m.HTTP.Stop()
+		if err != nil {
 			return fmt.Errorf("stopping web server: %w", err)
 		}
 	}
@@ -239,7 +268,8 @@ func (m *Motifini) waitForSignal() error {
 // saveSubDB just saves the state file/db and logs any error.
 // called from a few places. SaveStateFile() provides the file lock.
 func (m *Motifini) saveSubDB() {
-	if err := m.Subs.StateFileSave(); err != nil {
+	err := m.Subs.StateFileSave()
+	if err != nil {
 		m.Error.Printf("saving subscribers state file: %v", err)
 		return
 	}

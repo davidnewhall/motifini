@@ -107,59 +107,59 @@ func (c *Chat) cmdAdminIgnores(_ *Handler) (*Reply, error) {
 	return &Reply{Reply: msg.String()}, nil
 }
 
-func (c *Chat) cmdAdminSubs(h *Handler) (*Reply, error) { //nolint:cyclop // it's not that bad.
-	if len(h.Text) == 1 {
+func (c *Chat) cmdAdminSubs(handler *Handler) (*Reply, error) { //nolint:cyclop // it's not that bad.
+	if len(handler.Text) == 1 {
 		subs := c.Subs.Subscribers
 
 		var msg strings.Builder
 		fmt.Fprintf(&msg, "There are %d total subscribers:", len(subs))
 
-		for i, target := range subs {
-			var x string
+		for index, target := range subs {
+			var status string
 
 			if target.Ignored {
-				x = ", ignored"
+				status = ", ignored"
 			} else if target.Admin {
-				x = ", admin"
+				status = ", admin"
 			}
 
 			fmt.Fprintf(&msg, "\n%d: (%v) %v (%v)%s (%d subscriptions)",
-				i+1, target.API, target.ID, target.Contact, x, target.Events.Len())
+				index+1, target.API, target.ID, target.Contact, status, target.Events.Len())
 		}
 
 		return &Reply{Reply: msg.String()}, nil
 	}
 
-	s, err := c.getSubscriber(h.Text[1], h.API)
+	subscriber, err := c.getSubscriber(handler.Text[1], handler.API)
 	if err != nil {
-		return &Reply{Reply: "Subscriber does not exist: " + h.Text[1]}, nil //nolint:nilerr // we do not use the error.
+		return &Reply{Reply: "Subscriber does not exist: " + handler.Text[1]}, nil //nolint:nilerr // we do not use the error.
 	}
 
-	subs := s.Events.Names()
+	subs := subscriber.Events.Names()
 	if len(subs) == 0 {
-		return &Reply{Reply: h.Text[1] + " has no subscriptions."}, nil
+		return &Reply{Reply: handler.Text[1] + " has no subscriptions."}, nil
 	}
 
-	var x string
+	var status string
 
-	if s.Ignored {
-		x = ", ignored"
-	} else if s.Admin {
-		x = ", admin"
+	if subscriber.Ignored {
+		status = ", ignored"
+	} else if subscriber.Admin {
+		status = ", admin"
 	}
 
 	var msg strings.Builder
-	fmt.Fprintf(&msg, "%s%s has %d subscriptions:", s.Contact, x, len(subs))
+	fmt.Fprintf(&msg, "%s%s has %d subscriptions:", subscriber.Contact, status, len(subs))
 
 	for i, event := range subs {
 		fmt.Fprintf(&msg, "\n%d: %s", i+1, event)
 
-		if s.Events.IsPaused(event) {
-			until := time.Until(s.Events.PauseTime(event)).Round(time.Second)
+		if subscriber.Events.IsPaused(event) {
+			until := time.Until(subscriber.Events.PauseTime(event)).Round(time.Second)
 			fmt.Fprintf(&msg, ", paused %v", until)
 		}
 
-		delay, ok := h.Sub.Events.RuleGetD(event, "delay")
+		delay, ok := handler.Sub.Events.RuleGetD(event, "delay")
 		if ok {
 			fmt.Fprintf(&msg, ", delay: %v", delay)
 		}
@@ -168,14 +168,14 @@ func (c *Chat) cmdAdminSubs(h *Handler) (*Reply, error) { //nolint:cyclop // it'
 	return &Reply{Reply: msg.String()}, nil
 }
 
-func (c *Chat) cmdAdminUnadmin(h *Handler) (*Reply, error) {
-	if len(h.Text) != twoItems {
+func (c *Chat) cmdAdminUnadmin(handler *Handler) (*Reply, error) {
+	if len(handler.Text) != twoItems {
 		return &Reply{}, ErrBadUsage
 	}
 
-	target, err := c.getSubscriber(h.Text[1], h.API)
+	target, err := c.getSubscriber(handler.Text[1], handler.API)
 	if err != nil {
-		return &Reply{Reply: "Subscriber does not exist: " + h.Text[1]}, ErrBadUsage
+		return &Reply{Reply: "Subscriber does not exist: " + handler.Text[1]}, ErrBadUsage
 	}
 
 	target.Admin = false
@@ -183,14 +183,14 @@ func (c *Chat) cmdAdminUnadmin(h *Handler) (*Reply, error) {
 	return &Reply{Reply: "Subscriber '" + target.Contact + "' updated without admin privileges."}, nil
 }
 
-func (c *Chat) cmdAdminAdmin(h *Handler) (*Reply, error) {
-	if len(h.Text) != twoItems {
+func (c *Chat) cmdAdminAdmin(handler *Handler) (*Reply, error) {
+	if len(handler.Text) != twoItems {
 		return &Reply{}, ErrBadUsage
 	}
 
-	target, err := c.getSubscriber(h.Text[1], h.API)
+	target, err := c.getSubscriber(handler.Text[1], handler.API)
 	if err != nil {
-		return &Reply{Reply: "Subscriber does not exist: " + h.Text[1]}, ErrBadUsage
+		return &Reply{Reply: "Subscriber does not exist: " + handler.Text[1]}, ErrBadUsage
 	}
 
 	target.Admin = true
@@ -198,14 +198,14 @@ func (c *Chat) cmdAdminAdmin(h *Handler) (*Reply, error) {
 	return &Reply{Reply: "Subscriber '" + target.Contact + "' updated with admin privileges."}, nil
 }
 
-func (c *Chat) cmdAdminUnignore(h *Handler) (*Reply, error) {
-	if len(h.Text) != twoItems {
+func (c *Chat) cmdAdminUnignore(handler *Handler) (*Reply, error) {
+	if len(handler.Text) != twoItems {
 		return &Reply{}, ErrBadUsage
 	}
 
-	target, err := c.getSubscriber(h.Text[1], h.API)
+	target, err := c.getSubscriber(handler.Text[1], handler.API)
 	if err != nil {
-		return &Reply{Reply: "Subscriber does not exist: " + h.Text[1]}, ErrBadUsage
+		return &Reply{Reply: "Subscriber does not exist: " + handler.Text[1]}, ErrBadUsage
 	}
 
 	target.Ignored = false
@@ -213,14 +213,14 @@ func (c *Chat) cmdAdminUnignore(h *Handler) (*Reply, error) {
 	return &Reply{Reply: "Subscriber '" + target.Contact + "' no longer ignored."}, nil
 }
 
-func (c *Chat) cmdAdminIgnore(h *Handler) (*Reply, error) {
-	if len(h.Text) != twoItems {
+func (c *Chat) cmdAdminIgnore(handler *Handler) (*Reply, error) {
+	if len(handler.Text) != twoItems {
 		return &Reply{}, ErrBadUsage
 	}
 
-	target, err := c.getSubscriber(h.Text[1], h.API)
+	target, err := c.getSubscriber(handler.Text[1], handler.API)
 	if err != nil {
-		return &Reply{Reply: "Subscriber does not exist: " + h.Text[1]}, ErrBadUsage
+		return &Reply{Reply: "Subscriber does not exist: " + handler.Text[1]}, ErrBadUsage
 	}
 
 	target.Ignored = true

@@ -122,20 +122,22 @@ func (c *Chat) cmdEvents(_ *Handler) (*Reply, error) {
 	return &Reply{Reply: msg.String()}, nil
 }
 
-func (c *Chat) cmdPics(h *Handler) (*Reply, error) {
+func (c *Chat) cmdPics(handler *Handler) (*Reply, error) {
 	msg := ""
 
-	if len(h.Text) > 1 {
-		name := strings.Join(h.Text[1:], " ")
+	if len(handler.Text) > 1 {
+		name := strings.Join(handler.Text[1:], " ")
 		cam := c.SSpy.Cameras.ByName(name)
 
 		if cam == nil {
 			return &Reply{Reply: "Unknown Camera: " + name}, ErrBadUsage
 		}
 
-		path := fmt.Sprintf("%vchat_command_%v_%v.jpg", c.TempDir, h.ID, cam.Name)
-		if err := cam.SaveJPEG(&securityspy.VidOps{}, path); err != nil {
-			log.Printf("[ERROR] [%v] cam.SaveJPEG: %v", h.ID, err)
+		path := fmt.Sprintf("%vchat_command_%v_%v.jpg", c.TempDir, handler.ID, cam.Name)
+
+		err := cam.SaveJPEG(&securityspy.VidOps{}, path)
+		if err != nil {
+			log.Printf("[ERROR] [%v] cam.SaveJPEG: %v", handler.ID, err)
 			msg = "Error Getting '" + cam.Name + "' Picture: " + err.Error()
 		}
 
@@ -143,19 +145,21 @@ func (c *Chat) cmdPics(h *Handler) (*Reply, error) {
 	}
 
 	var (
-		paths = []string{}
-		wg    sync.WaitGroup
+		paths     = []string{}
+		waitGroup sync.WaitGroup
 	)
 
 	for _, cam := range c.SSpy.Cameras.All() {
-		wg.Add(1)
+		waitGroup.Add(1)
 
 		go func(cam *securityspy.Camera) {
-			defer wg.Done()
+			defer waitGroup.Done()
 
-			path := fmt.Sprintf("%vchat_command_%v_%v.jpg", c.TempDir, h.ID, cam.Name)
-			if err := cam.SaveJPEG(&securityspy.VidOps{}, path); err != nil {
-				log.Printf("[ERROR] [%v] cam.SaveJPEG: %v", h.ID, err)
+			path := fmt.Sprintf("%vchat_command_%v_%v.jpg", c.TempDir, handler.ID, cam.Name)
+
+			err := cam.SaveJPEG(&securityspy.VidOps{}, path)
+			if err != nil {
+				log.Printf("[ERROR] [%v] cam.SaveJPEG: %v", handler.ID, err)
 				msg += "Error Getting '" + cam.Name + "' Picture: " + err.Error() + "\n"
 
 				return
@@ -165,26 +169,28 @@ func (c *Chat) cmdPics(h *Handler) (*Reply, error) {
 		}(cam)
 	}
 
-	wg.Wait()
+	waitGroup.Wait()
 
 	return &Reply{Reply: msg, Files: paths}, nil
 }
 
-func (c *Chat) cmdVids(h *Handler) (*Reply, error) {
+func (c *Chat) cmdVids(handler *Handler) (*Reply, error) {
 	msg := ""
 	ops := &securityspy.VidOps{Height: height, Quality: quality, ACodec: "ulaw"}
 
-	if len(h.Text) > 1 {
-		name := strings.Join(h.Text[1:], " ")
+	if len(handler.Text) > 1 {
+		name := strings.Join(handler.Text[1:], " ")
 		cam := c.SSpy.Cameras.ByName(name)
 
 		if cam == nil {
 			return &Reply{Reply: "Unknown Camera: " + name}, ErrBadUsage
 		}
 
-		path := fmt.Sprintf("%vchat_command_%v_%v.mp4", c.TempDir, h.ID, cam.Name)
-		if err := cam.SaveVideo(ops, length, maxsize, path); err != nil {
-			log.Printf("[ERROR] [%v] cam.SaveVideo: %v", h.ID, err)
+		path := fmt.Sprintf("%vchat_command_%v_%v.mp4", c.TempDir, handler.ID, cam.Name)
+
+		err := cam.SaveVideo(ops, length, maxsize, path)
+		if err != nil {
+			log.Printf("[ERROR] [%v] cam.SaveVideo: %v", handler.ID, err)
 			msg = "Error Getting '" + cam.Name + "' Video: " + err.Error()
 		}
 
@@ -192,20 +198,21 @@ func (c *Chat) cmdVids(h *Handler) (*Reply, error) {
 	}
 
 	var (
-		paths = []string{}
-		wg    sync.WaitGroup
+		paths     = []string{}
+		waitGroup sync.WaitGroup
 	)
 
 	for _, cam := range c.SSpy.Cameras.All() {
-		wg.Add(1)
+		waitGroup.Add(1)
 
 		go func(cam *securityspy.Camera) {
-			defer wg.Done()
+			defer waitGroup.Done()
 
-			path := fmt.Sprintf("%vchat_command_%v_%v.mp4", c.TempDir, h.ID, cam.Name)
+			path := fmt.Sprintf("%vchat_command_%v_%v.mp4", c.TempDir, handler.ID, cam.Name)
 
-			if err := cam.SaveVideo(ops, length, maxsize, path); err != nil {
-				log.Printf("[ERROR] [%v] cam.SaveVideo: %v", h.ID, err)
+			err := cam.SaveVideo(ops, length, maxsize, path)
+			if err != nil {
+				log.Printf("[ERROR] [%v] cam.SaveVideo: %v", handler.ID, err)
 				msg += "Error Getting '" + cam.Name + "' Video: " + err.Error() + "\n"
 
 				return
@@ -215,19 +222,19 @@ func (c *Chat) cmdVids(h *Handler) (*Reply, error) {
 		}(cam)
 	}
 
-	wg.Wait()
+	waitGroup.Wait()
 
 	return &Reply{Reply: msg, Files: paths}, nil
 }
 
-func (c *Chat) cmdSub(h *Handler) (*Reply, error) {
+func (c *Chat) cmdSub(handler *Handler) (*Reply, error) {
 	kind := "event"
 
-	if len(h.Text) < twoItems {
+	if len(handler.Text) < twoItems {
 		return &Reply{Reply: "must provide an event or camera name to subscribe"}, ErrBadUsage
 	}
 
-	event := strings.Join(h.Text[1:], " ")
+	event := strings.Join(handler.Text[1:], " ")
 
 	if !c.Subs.Events.Exists(event) {
 		kind = "camera"
@@ -242,17 +249,18 @@ func (c *Chat) cmdSub(h *Handler) (*Reply, error) {
 
 	msg := "You've been subscribed to " + kind + ": " + event
 
-	if err := h.Sub.Subscribe(event); err != nil {
+	err := handler.Sub.Subscribe(event)
+	if err != nil {
 		msg = "You're already subscribed to: " + kind + ": " + event
 	}
 
-	msg += "\nYou have " + strconv.Itoa(h.Sub.Events.Len()) + " event subscriptions."
+	msg += "\nYou have " + strconv.Itoa(handler.Sub.Events.Len()) + " event subscriptions."
 
 	return &Reply{Reply: msg}, nil
 }
 
-func (c *Chat) cmdSubs(h *Handler) (*Reply, error) {
-	if h.Sub.Admin && len(h.Text) > 1 {
+func (c *Chat) cmdSubs(handler *Handler) (*Reply, error) {
+	if handler.Sub.Admin && len(handler.Text) > 1 {
 		// admin asking for subs for someone else.
 		return nil, nil //nolint:nilnil // handled by iMessageAdminSubs()
 	}
@@ -260,15 +268,15 @@ func (c *Chat) cmdSubs(h *Handler) (*Reply, error) {
 	var msg strings.Builder
 	msg.WriteString("Your Subscriptions:")
 
-	for i, event := range h.Sub.Events.Names() {
+	for i, event := range handler.Sub.Events.Names() {
 		fmt.Fprintf(&msg, "\n%v: %v", i, event)
 
-		if h.Sub.Events.IsPaused(event) {
-			until := time.Until(h.Sub.Events.PauseTime(event)).Round(time.Second)
+		if handler.Sub.Events.IsPaused(event) {
+			until := time.Until(handler.Sub.Events.PauseTime(event)).Round(time.Second)
 			fmt.Fprintf(&msg, ", paused %v", until)
 		}
 
-		delay, ok := h.Sub.Events.RuleGetD(event, "delay")
+		delay, ok := handler.Sub.Events.RuleGetD(event, "delay")
 		if ok {
 			fmt.Fprintf(&msg, ", delay: %v", delay)
 		}
@@ -276,23 +284,23 @@ func (c *Chat) cmdSubs(h *Handler) (*Reply, error) {
 
 	msg.WriteString("\n")
 
-	if h.Sub.Events.Len() == 0 {
+	if handler.Sub.Events.Len() == 0 {
 		msg.WriteString("(none)\n")
 	}
 
 	return &Reply{Reply: msg.String()}, nil
 }
 
-func (c *Chat) cmdUnsub(h *Handler) (*Reply, error) {
-	if len(h.Text) < twoItems {
+func (c *Chat) cmdUnsub(handler *Handler) (*Reply, error) {
+	if len(handler.Text) < twoItems {
 		return &Reply{Reply: "must provide an event or camera name to unsubscribe"}, ErrBadUsage
 	}
 
-	event := strings.Join(h.Text[1:], " ")
+	event := strings.Join(handler.Text[1:], " ")
 
 	if event == "*" {
-		for _, e := range h.Sub.Events.Names() {
-			h.Sub.Events.Remove(e)
+		for _, e := range handler.Sub.Events.Names() {
+			handler.Sub.Events.Remove(e)
 		}
 
 		return &Reply{Reply: "You've been unsubscribed from all events."}, nil
@@ -300,43 +308,44 @@ func (c *Chat) cmdUnsub(h *Handler) (*Reply, error) {
 
 	var msg strings.Builder
 
-	if name := h.Sub.Events.Name(event); name == "" {
+	if name := handler.Sub.Events.Name(event); name == "" {
 		fmt.Fprintf(&msg, "You're not subscribed to: %s", event)
 	} else {
 		event = name
 		fmt.Fprintf(&msg, "You've been unsubscribed from: %s", event)
 	}
 
-	h.Sub.Events.Remove(event)
-	fmt.Fprintf(&msg, "\nYou have %d event subscriptions.", h.Sub.Events.Len())
+	handler.Sub.Events.Remove(event)
+	fmt.Fprintf(&msg, "\nYou have %d event subscriptions.", handler.Sub.Events.Len())
 
 	return &Reply{Reply: msg.String()}, nil
 }
 
-func (c *Chat) cmdStop(h *Handler) (*Reply, error) {
-	if len(h.Text) == 1 {
-		h.Text = append(h.Text, "10") // default pause time of 10 minutes.
+func (c *Chat) cmdStop(handler *Handler) (*Reply, error) {
+	if len(handler.Text) == 1 {
+		handler.Text = append(handler.Text, "10") // default pause time of 10 minutes.
 	}
 
-	dur, err := strconv.Atoi(h.Text[1])
+	dur, err := strconv.Atoi(handler.Text[1])
 	if err != nil {
-		return &Reply{Reply: "Unable to parse into a number: " + h.Text[1]}, ErrBadUsage
+		return &Reply{Reply: "Unable to parse into a number: " + handler.Text[1]}, ErrBadUsage
 	}
 
 	// Pause a single event.
-	if len(h.Text) > twoItems {
-		event := strings.Join(h.Text[twoItems:], " ")
-		if name := h.Sub.Events.Name(event); name != "" {
+	if len(handler.Text) > twoItems {
+		event := strings.Join(handler.Text[twoItems:], " ")
+		if name := handler.Sub.Events.Name(event); name != "" {
 			event = name
 		}
 
-		msg := "Notifications from '" + event + "' paused for at least " + h.Text[1] + " minutes."
+		msg := "Notifications from '" + event + "' paused for at least " + handler.Text[1] + " minutes."
 
 		if dur == 0 {
 			msg = "Notifications from '" + event + " are no longer paused."
 		}
 
-		if err := h.Sub.Events.Pause(event, time.Duration(dur)*time.Minute); err != nil {
+		err := handler.Sub.Events.Pause(event, time.Duration(dur)*time.Minute)
+		if err != nil {
 			msg = "You're not subscribed to: " + event
 		}
 
@@ -344,11 +353,11 @@ func (c *Chat) cmdStop(h *Handler) (*Reply, error) {
 	}
 
 	// Pause Everything.
-	for _, event := range h.Sub.Events.Names() {
-		_ = h.Sub.Events.Pause(event, time.Duration(dur)*time.Minute)
+	for _, event := range handler.Sub.Events.Names() {
+		_ = handler.Sub.Events.Pause(event, time.Duration(dur)*time.Minute)
 	}
 
-	msg := "Notifications paused for at least " + h.Text[1] + " minutes."
+	msg := "Notifications paused for at least " + handler.Text[1] + " minutes."
 
 	if dur == 0 {
 		msg = "Notifications are no longer paused."
@@ -357,26 +366,26 @@ func (c *Chat) cmdStop(h *Handler) (*Reply, error) {
 	return &Reply{Reply: msg}, nil
 }
 
-func (c *Chat) cmdDelay(h *Handler) (*Reply, error) {
-	if len(h.Text) < threeItems {
+func (c *Chat) cmdDelay(handler *Handler) (*Reply, error) {
+	if len(handler.Text) < threeItems {
 		return &Reply{Reply: "must provide <seconds> as a number and the event or camera name"}, ErrBadUsage
 	}
 
-	dur, err := strconv.Atoi(h.Text[1])
+	dur, err := strconv.Atoi(handler.Text[1])
 	if err != nil {
-		return &Reply{Reply: "Unable to parse into a number: " + h.Text[1]}, ErrBadUsage
+		return &Reply{Reply: "Unable to parse into a number: " + handler.Text[1]}, ErrBadUsage
 	}
 
-	event := strings.Join(h.Text[twoItems:], " ")
+	event := strings.Join(handler.Text[twoItems:], " ")
 
-	name := h.Sub.Events.Name(event)
+	name := handler.Sub.Events.Name(event)
 	if name == "" {
 		return &Reply{Reply: "You are not subscribed to: " + event}, nil
 	}
 
 	event = name
 
-	h.Sub.Events.RuleSetD(event, "delay", time.Duration(dur)*time.Second)
+	handler.Sub.Events.RuleSetD(event, "delay", time.Duration(dur)*time.Second)
 
 	return &Reply{Reply: fmt.Sprintf("Set repeat delay for '%s' to %ds", event, dur)}, nil
 }

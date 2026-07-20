@@ -35,40 +35,40 @@ type Messenger struct {
 var ErrNillConfigItem = errors.New("a required configuration item was not provided")
 
 // New provides a messenger handler.
-func New(m *Messenger) error {
-	if m.stopall != nil {
+func New(msgCfg *Messenger) error {
+	if msgCfg.stopall != nil {
 		return fmt.Errorf("%w: already running", ErrNillConfigItem)
 	}
 
-	if m.Telegram == nil {
+	if msgCfg.Telegram == nil {
 		return fmt.Errorf("%w: telegram is nil, need at least one", ErrNillConfigItem)
 	}
 
-	if m.Chat == nil {
+	if msgCfg.Chat == nil {
 		return fmt.Errorf("%w: chat is nil", ErrNillConfigItem)
 	}
 
-	if m.Subs == nil {
+	if msgCfg.Subs == nil {
 		return fmt.Errorf("%w: subscribe is nil", ErrNillConfigItem)
 	}
 
-	if m.Info == nil {
-		m.Info = log.New(io.Discard, "", 0)
+	if msgCfg.Info == nil {
+		msgCfg.Info = log.New(io.Discard, "", 0)
 	}
 
-	if m.Debug == nil {
-		m.Debug = log.New(io.Discard, "", 0)
+	if msgCfg.Debug == nil {
+		msgCfg.Debug = log.New(io.Discard, "", 0)
 	}
 
-	if m.Error == nil {
-		m.Error = log.New(io.Discard, "", 0)
+	if msgCfg.Error == nil {
+		msgCfg.Error = log.New(io.Discard, "", 0)
 	}
 
-	if m.TempDir == "" {
-		m.TempDir = "/tmp/"
+	if msgCfg.TempDir == "" {
+		msgCfg.TempDir = "/tmp/"
 	}
 
-	return m.Start()
+	return msgCfg.Start()
 }
 
 // Start connects configured messengers and begins background receivers.
@@ -76,7 +76,8 @@ func (m *Messenger) Start() error {
 	m.stopall = make(chan struct{})
 
 	if m.Telegram != nil {
-		if err := m.connectTelegram(); err != nil {
+		err := m.connectTelegram()
+		if err != nil {
 			return err
 		}
 
@@ -93,25 +94,25 @@ func (m *Messenger) Stop() {
 
 // SendFileOrMsg will send a notification to any subscriber provided using any supported messenger.
 // This method is used by event handlers to notify subscribers.
-func (m *Messenger) SendFileOrMsg(id, msg, path string, subs []*subscribe.Subscriber) {
+func (m *Messenger) SendFileOrMsg(reqID, msg, path string, subs []*subscribe.Subscriber) {
 	for _, sub := range subs {
 		switch sub.API {
 		case APITelegram:
-			m.SendTelegram(id, msg, path, sub.ID)
+			m.SendTelegram(reqID, msg, path, sub.ID)
 		default:
-			m.Error.Printf("[%v] Unknown Notification API '%v' for contact: %v", id, sub.API, sub.Contact)
+			m.Error.Printf("[%v] Unknown Notification API '%v' for contact: %v", reqID, sub.API, sub.Contact)
 		}
 	}
 }
 
 // ReqID makes a random string to identify requests in the logs.
 func ReqID(n int) string {
-	l := []rune("abcdefghjkmnopqrstuvwxyzABCDEFGHJKMNPQRTUVWXYZ23456789")
-	b := make([]rune, n)
+	letters := []rune("abcdefghjkmnopqrstuvwxyzABCDEFGHJKMNPQRTUVWXYZ23456789")
+	buf := make([]rune, n)
 
-	for i := range b {
-		b[i] = l[rand.Intn(len(l))] //nolint:gosec // not security critical.
+	for i := range buf {
+		buf[i] = letters[rand.Intn(len(letters))] //nolint:gosec // not security critical.
 	}
 
-	return string(b)
+	return string(buf)
 }

@@ -10,8 +10,8 @@ import (
 )
 
 func main() {
-	if err := motifini.Start(); err != nil &&
-		!errors.Is(err, http.ErrServerClosed) {
+	err := motifini.Start()
+	if err != nil && !errors.Is(err, http.ErrServerClosed) {
 		log.Fatalln("[ERROR]", err)
 	}
 }
