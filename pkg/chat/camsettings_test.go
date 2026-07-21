@@ -41,6 +41,35 @@ func TestGetCameraClipSettingsDefaults(t *testing.T) {
 	}
 }
 
+func TestGetCameraClipSettingsClamps(t *testing.T) {
+	t.Parallel()
+
+	events := &subscribe.Events{Map: make(map[string]*subscribe.Rules)}
+	data := &subscribe.Subscribe{Events: events}
+	EnsureCameraSettings(data, "Office")
+	key := CamSettingsKey("Office")
+	events.RuleSetD(key, ruleLength, 60*time.Second)
+	events.RuleSetI(key, ruleSize, 50*1024*1024)
+
+	got := GetCameraClipSettings(data, "Office")
+	if got.Length != time.Duration(MaxClipLengthSecs)*time.Second {
+		t.Fatalf("length: got %v want %ds", got.Length, MaxClipLengthSecs)
+	}
+	if got.Size != MaxClipSizeBytes {
+		t.Fatalf("size: got %d want %d", got.Size, MaxClipSizeBytes)
+	}
+
+	events.RuleSetD(key, ruleLength, time.Second)
+	events.RuleSetI(key, ruleSize, 100)
+	got = GetCameraClipSettings(data, "Office")
+	if got.Length != time.Duration(MinClipLengthSecs)*time.Second {
+		t.Fatalf("min length: got %v", got.Length)
+	}
+	if got.Size != MinClipSizeBytes {
+		t.Fatalf("min size: got %d", got.Size)
+	}
+}
+
 func TestCameraClipSettingsRoundTrip(t *testing.T) {
 	t.Parallel()
 

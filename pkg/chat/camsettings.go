@@ -104,11 +104,11 @@ func GetCameraClipSettings(data *subscribe.Subscribe, camName string) ClipSettin
 	}
 
 	if length, ok := data.Events.RuleGetD(key, ruleLength); ok && length > 0 {
-		settings.Length = length
+		settings.Length = clampClipLength(length)
 	}
 
 	if size, ok := data.Events.RuleGetI(key, ruleSize); ok && size > 0 {
-		settings.Size = size
+		settings.Size = clampClipSize(size)
 	}
 
 	return settings
@@ -121,6 +121,31 @@ func validScale(scale string) bool {
 	default:
 		return false
 	}
+}
+
+func clampClipLength(d time.Duration) time.Duration {
+	secs := int(d.Round(time.Second) / time.Second)
+	if secs < MinClipLengthSecs {
+		secs = MinClipLengthSecs
+	}
+
+	if secs > MaxClipLengthSecs {
+		secs = MaxClipLengthSecs
+	}
+
+	return time.Duration(secs) * time.Second
+}
+
+func clampClipSize(size int) int {
+	if size < MinClipSizeBytes {
+		return MinClipSizeBytes
+	}
+
+	if size > MaxClipSizeBytes {
+		return MaxClipSizeBytes
+	}
+
+	return size
 }
 
 func allowedClipLengthSecs(secs int) bool {
