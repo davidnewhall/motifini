@@ -12,18 +12,30 @@ macOS (Homebrew tap):
 
 ```bash
 brew install --cask golift/mugs/motifini
-# edit $(brew --prefix)/etc/motifini.conf (copied from the example on install), then:
-motifini --config="$(brew --prefix)/etc/motifini.conf"
+# edit $(brew --prefix)/etc/motifini.conf, then:
+launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.davidnewhall.motifini.plist
 ```
+
+The cask installs a LaunchAgent plist (not started until you bootstrap it). Control it with:
+
+```bash
+# start / load at login
+launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.davidnewhall.motifini.plist
+# restart
+launchctl kickstart -k gui/$(id -u)/com.davidnewhall.motifini
+# stop
+launchctl bootout gui/$(id -u)/com.davidnewhall.motifini
+```
+
+`brew services` only manages formulae, not casks — use `launchctl` above.
 
 The example config defaults to Apple Silicon Homebrew paths under `/opt/homebrew`
 (`state_file`, `log_file`, `event_log`). If `brew --prefix` is `/usr/local` (Intel)
 or anything else, change those paths to match — e.g. `$(brew --prefix)/var/...` —
 before starting, or Motifini may fail to write state/logs.
 
-Homebrew casks do not support Formula-style `brew services`; run Motifini in the
-foreground (or under your own launchd unit). Running without `--config` uses the
-binary default `/opt/homebrew/etc/motifini.conf`.
+Running without `--config` uses the binary default `/opt/homebrew/etc/motifini.conf`.
+Logs from the LaunchAgent go to `$(brew --prefix)/var/log/motifini.log`.
 
 Or download binaries for macOS (universal), Linux, FreeBSD, and Windows from
 [GitHub Releases](https://github.com/davidnewhall/motifini/releases).

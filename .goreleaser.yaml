@@ -86,8 +86,8 @@ homebrew_casks:
     url:
       template: "https://github.com/davidnewhall/motifini/releases/download/{{ .Tag }}/{{ .ArtifactName }}"
       verified: github.com/davidnewhall/motifini
-    # Do not set `service:` — on Homebrew 6+ cask `service` is a Moved artifact (plist path),
-    # not Formula's `service do` block. GoReleaser's quoted service string also breaks Ruby parse.
+    # Do not set `service:` — cask `service` is ~/Library/Services (Automator), not LaunchAgents.
+    # Install a LaunchAgent in postflight; manage with launchctl (brew services is formula-only).
     hooks:
       post:
         install: |
@@ -95,7 +95,44 @@ homebrew_casks:
           conf_dir.mkpath
           FileUtils.cp "#{staged_path}/examples/motifini.conf.example", conf_dir/"motifini.conf.example"
           FileUtils.cp "#{staged_path}/examples/motifini.conf.example", conf_dir/"motifini.conf" unless (conf_dir/"motifini.conf").exist?
-    caveats: "Edit #{HOMEBREW_PREFIX}/etc/motifini.conf then run: motifini --config=#{HOMEBREW_PREFIX}/etc/motifini.conf. Example state/log paths use /opt/homebrew/var/...; adjust if brew --prefix differs."
+          (HOMEBREW_PREFIX/"var/log").mkpath
+          label = "com.davidnewhall.motifini"
+          agent = Pathname.new(Dir.home)/"Library/LaunchAgents/#{label}.plist"
+          agent.dirname.mkpath
+          binary = HOMEBREW_PREFIX/"bin/motifini"
+          conf = conf_dir/"motifini.conf"
+          log = HOMEBREW_PREFIX/"var/log/motifini.log"
+          agent.write <<~XML
+            <?xml version="1.0" encoding="UTF-8"?>
+            <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+            <plist version="1.0">
+            <dict>
+              <key>Label</key><string>#{label}</string>
+              <key>ProgramArguments</key>
+              <array>
+                <string>#{binary}</string>
+                <string>--config</string>
+                <string>#{conf}</string>
+              </array>
+              <key>RunAtLoad</key><true/>
+              <key>KeepAlive</key><true/>
+              <key>WorkingDirectory</key><string>#{HOMEBREW_PREFIX}</string>
+              <key>StandardOutPath</key><string>#{log}</string>
+              <key>StandardErrorPath</key><string>#{log}</string>
+            </dict>
+            </plist>
+          XML
+        uninstall: |
+          label = "com.davidnewhall.motifini"
+          agent = Pathname.new(Dir.home)/"Library/LaunchAgents/#{label}.plist"
+          system "/bin/launchctl", "bootout", "gui/#{Process.uid}", label
+          agent.delete if agent.exist?
+    caveats: |
+      Edit #{HOMEBREW_PREFIX}/etc/motifini.conf then:
+        launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.davidnewhall.motifini.plist
+      Restart: launchctl kickstart -k gui/$(id -u)/com.davidnewhall.motifini
+      Stop:    launchctl bootout gui/$(id -u)/com.davidnewhall.motifini
+      (brew services does not manage casks.)
 
 changelog:
   sort: asc
