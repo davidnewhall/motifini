@@ -125,7 +125,7 @@ homebrew_casks:
         uninstall: |
           label = "io.golift.motifini"
           agent = Pathname.new(Dir.home)/"Library/LaunchAgents/#{label}.plist"
-          system "/bin/launchctl", "bootout", "gui/#{Process.uid}", label
+          system "/bin/launchctl", "bootout", "gui/#{Process.uid}/#{label}"
           agent.delete if agent.exist?
     caveats: |
       Edit #{HOMEBREW_PREFIX}/etc/motifini.conf then:
