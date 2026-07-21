@@ -144,6 +144,10 @@ func allowedClipSizeBytes(size int) bool {
 
 // heightForScale maps full/half/quarter to a request height.
 // Zero means omit height/width (native / full-size stream).
+//
+// SecuritySpy stream-copies native HEVC when requested height is >= half the
+// camera's native height (Mailbox 1440→720 stays 2560x1440; 719/718 recompresses).
+// Half therefore requests strictly below half native, then forces even pixels.
 func heightForScale(nativeHeight int, scale string) int {
 	if nativeHeight < 2 {
 		return 0
@@ -155,7 +159,7 @@ func heightForScale(nativeHeight int, scale string) int {
 	case ScaleQuarter:
 		return evenPixels(nativeHeight / 4)
 	default:
-		return evenPixels(nativeHeight / 2)
+		return evenPixels(nativeHeight/2 - 1)
 	}
 }
 

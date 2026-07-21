@@ -15,16 +15,18 @@ func TestHeightForScale(t *testing.T) {
 		t.Fatalf("full: got %d want 0", got)
 	}
 
-	if got := heightForScale(1440, ScaleHalf); got != 720 {
-		t.Fatalf("half 1440: got %d want 720", got)
+	// Mailbox: exact half (720) stream-copies; stay at 718.
+	if got := heightForScale(1440, ScaleHalf); got != 718 {
+		t.Fatalf("half 1440: got %d want 718", got)
 	}
 
 	if got := heightForScale(1440, ScaleQuarter); got != 360 {
 		t.Fatalf("quarter 1440: got %d want 360", got)
 	}
 
-	if got := heightForScale(1728, ScaleHalf); got != 864 {
-		t.Fatalf("half 1728: got %d want 864", got)
+	// Pool 1728: half−1 → 862 (below 864 cliff).
+	if got := heightForScale(1728, ScaleHalf); got != 862 {
+		t.Fatalf("half 1728: got %d want 862", got)
 	}
 
 	if got := heightForScale(1081, ScaleHalf); got%2 != 0 {
@@ -117,6 +119,14 @@ func TestVideoClipOpsScale(t *testing.T) {
 	}
 	if ops.VCodec != "h265" {
 		t.Fatalf("vcodec: got %q", ops.VCodec)
+	}
+
+	half := VideoClipOps(cam, ClipSettings{Scale: ScaleHalf})
+	if half.Height != 718 {
+		t.Fatalf("half height: got %d want 718", half.Height)
+	}
+	if half.Width != 1276 {
+		t.Fatalf("half width: got %d want 1276", half.Width)
 	}
 
 	full := VideoClipOps(cam, ClipSettings{Scale: ScaleFull})
