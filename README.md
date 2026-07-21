@@ -11,9 +11,8 @@ It starts even if SecuritySpy is temporarily down, retries in the background, an
 macOS (Homebrew tap):
 
 ```bash
-brew install golift/mugs/motifini
-cp "$(brew --prefix)/etc/motifini.conf.example" "$(brew --prefix)/etc/motifini.conf"
-# edit the config (token, SecuritySpy URL, etc.), then:
+brew install --cask golift/mugs/motifini
+# edit $(brew --prefix)/etc/motifini.conf (copied from the example on install), then:
 brew services start motifini
 ```
 
