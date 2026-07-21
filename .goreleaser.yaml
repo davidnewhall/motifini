@@ -63,8 +63,12 @@ archives:
 checksum:
   name_template: checksums.txt
 
-brews:
+homebrew_casks:
   - name: motifini
+    ids:
+      - motifini
+    binaries:
+      - motifini
     repository:
       owner: golift
       name: homebrew-mugs
@@ -73,27 +77,27 @@ brews:
     commit_author:
       name: goreleaserbot
       email: bot@goreleaser.com
-    commit_msg_template: "Brew formula update for {{ .ProjectName }} version {{ .Tag }}"
-    directory: Formula
+    commit_msg_template: "Brew cask update for {{ .ProjectName }} version {{ .Tag }}"
+    directory: Casks
     homepage: https://github.com/davidnewhall/motifini
     description: SecuritySpy Telegram Bot — motion clips and camera alerts in Telegram
     license: MIT
-    url_template: "https://github.com/davidnewhall/motifini/releases/download/{{ .Tag }}/{{ .ArtifactName }}"
-    install: |
-      bin.install "motifini"
-      etc.install "examples/motifini.conf.example" => "motifini.conf.example"
+    url:
+      template: "https://github.com/davidnewhall/motifini/releases/download/{{ .Tag }}/{{ .ArtifactName }}"
     service: |
-      run [opt_bin/"motifini", "--config", etc/"motifini.conf"]
+      run ["#{opt_bin}/motifini", "--config", "#{etc}/motifini.conf"]
       keep_alive true
-      log_path var/"log/motifini.log"
-      error_log_path var/"log/motifini.log"
+      log_path "#{var}/log/motifini.log"
+      error_log_path "#{var}/log/motifini.log"
+    hooks:
+      post:
+        install: |
+          FileUtils.cp "#{staged_path}/examples/motifini.conf.example", "#{etc}/motifini.conf.example"
+          FileUtils.cp "#{staged_path}/examples/motifini.conf.example", "#{etc}/motifini.conf" unless File.exist?("#{etc}/motifini.conf")
     caveats: |
-      Copy the example config, then edit it:
-        cp #{etc}/motifini.conf.example #{etc}/motifini.conf
-      Start with brew services:
+      Edit #{etc}/motifini.conf (example copied on install), then:
         brew services start motifini
-    test: |
-      assert_match "motifini, version #{version}", shell_output("#{bin}/motifini -v 2>&1")
+      State/log paths in the example default to /opt/homebrew/var/... — adjust if brew --prefix differs.
 
 changelog:
   sort: asc
