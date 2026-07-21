@@ -148,7 +148,7 @@ func (m *Motifini) handleConfigChange() {
 	if m.SSpy != nil {
 		err := m.SSpy.Refresh()
 		if err != nil {
-			m.Error.Println("Refreshing SecuritySpy Configuration:", err)
+			m.Debug.Println("Refreshing SecuritySpy Configuration:", err)
 		}
 	}
 
