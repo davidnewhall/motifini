@@ -31,8 +31,10 @@ func (c *Config) sendVideoHandler(writer http.ResponseWriter, request *http.Requ
 	}
 	reqID, code, reply := messenger.ReqID(messenger.IDLength), http.StatusOK, "OK"
 
-	cam := c.cameraByName(name)
-	if !c.securitySpyReady() {
+	if name == "" {
+		c.Debug.Printf("[%v] Missing 'cam' provided", reqID)
+		code, reply = http.StatusInternalServerError, "ERROR: Missing 'to' or 'cam'"
+	} else if !c.securitySpyReady() {
 		c.Debug.Printf("[%v] SecuritySpy cameras not loaded yet", reqID)
 		code, reply = http.StatusServiceUnavailable, "ERROR: SecuritySpy not ready (cameras not loaded)"
 	} else if cam == nil {
