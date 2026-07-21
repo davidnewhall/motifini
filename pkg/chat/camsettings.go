@@ -209,6 +209,15 @@ func FormatClipSettings(settings ClipSettings) string {
 		formatByteSize(settings.Size))
 }
 
+// cameraFrameSize returns "WIDTHxHEIGHT" or empty when unknown.
+func cameraFrameSize(cam *securityspy.Camera) string {
+	if cam == nil || cam.Width < 1 || cam.Height < 1 {
+		return ""
+	}
+
+	return fmt.Sprintf("%dx%d", cam.Width, cam.Height)
+}
+
 func scaleLabel(scale string) string {
 	switch scale {
 	case ScaleFull:

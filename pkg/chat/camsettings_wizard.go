@@ -82,7 +82,11 @@ func (c *Chat) camSetWizardRoot() *Reply {
 	for idx, cam := range cams {
 		settings := GetCameraClipSettings(c.Subs, cam.Name)
 		summary := FormatClipSettings(settings)
-		fmt.Fprintf(&msg, "• %s — %s\n", cam.Name, summary)
+		fmt.Fprintf(&msg, "• %s — %s", cam.Name, summary)
+		if frame := cameraFrameSize(cam); frame != "" {
+			fmt.Fprintf(&msg, " (%s)", frame)
+		}
+		msg.WriteByte('\n')
 		rows = append(rows, []Button{{
 			Label: fmt.Sprintf("%s (%s)", cam.Name, summary),
 			Data:  fmt.Sprintf("k:%d", idx),
@@ -103,10 +107,14 @@ func (c *Chat) camSetWizardCam(idxStr string) *Reply {
 
 	cam := cams[idx]
 	settings := GetCameraClipSettings(c.Subs, cam.Name)
+	current := FormatClipSettings(settings)
+	if frame := cameraFrameSize(cam); frame != "" {
+		current += " (" + frame + ")"
+	}
 
 	return &Reply{
 		Reply: fmt.Sprintf("%s clip settings\n\nCurrent: %s\n\nChoose what to change:",
-			cam.Name, FormatClipSettings(settings)),
+			cam.Name, current),
 		Edit: true,
 		Keyboard: [][]Button{
 			{
