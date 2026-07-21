@@ -125,27 +125,13 @@ func validScale(scale string) bool {
 
 func clampClipLength(d time.Duration) time.Duration {
 	secs := int(d.Round(time.Second) / time.Second)
-	if secs < MinClipLengthSecs {
-		secs = MinClipLengthSecs
-	}
-
-	if secs > MaxClipLengthSecs {
-		secs = MaxClipLengthSecs
-	}
+	secs = max(MinClipLengthSecs, min(secs, MaxClipLengthSecs))
 
 	return time.Duration(secs) * time.Second
 }
 
 func clampClipSize(size int) int {
-	if size < MinClipSizeBytes {
-		return MinClipSizeBytes
-	}
-
-	if size > MaxClipSizeBytes {
-		return MaxClipSizeBytes
-	}
-
-	return size
+	return max(MinClipSizeBytes, min(size, MaxClipSizeBytes))
 }
 
 func allowedClipLengthSecs(secs int) bool {
