@@ -43,8 +43,13 @@ func (m *Motifini) dispatchEvent(event *securityspy.Event) {
 	case securityspy.EventKeepAlive, securityspy.EventTriggerMotion:
 		// ignore.
 	case securityspy.EventMotionDetected:
-		// v4 motion event.
-		if m.SSpy.Info != nil && strings.HasPrefix(m.SSpy.Info.Version, "4") {
+		// v4 motion. If Info is not loaded yet (Refresh still retrying), treat as motion
+		// rather than dropping early events after the stream connects.
+		if m.SSpy == nil {
+			break
+		}
+
+		if m.SSpy.Info == nil || strings.HasPrefix(m.SSpy.Info.Version, "4") {
 			m.handleCameraMotion(event)
 		}
 	case securityspy.EventTriggerAction:
