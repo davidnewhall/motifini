@@ -48,7 +48,7 @@ func IsCamSettingsKey(name string) bool {
 	return strings.HasPrefix(name, camSettingsPrefix)
 }
 
-// CatalogEventNames lists subscribeable global events (excludes __cam: settings keys).
+// CatalogEventNames lists subscribable global events (excludes __cam: settings keys).
 func CatalogEventNames(events *subscribe.Events) []string {
 	if events == nil {
 		return nil

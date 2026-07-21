@@ -304,7 +304,15 @@ func (m *Motifini) Run() error {
 
 // connectSecuritySpy builds the client and refreshes once. Startup continues even when
 // SecuritySpy is down; a background loop retries until Refresh succeeds.
+// NewMust only builds the client (no network); connectivity failures come from Refresh.
 func (m *Motifini) connectSecuritySpy() {
+	if m.Conf.SecuritySpy == nil {
+		m.Error.Println("SecuritySpy config missing — camera features disabled")
+		m.SSpy = securityspy.NewMust(&server.Config{URL: "http://127.0.0.1/"})
+
+		return
+	}
+
 	m.Info.Println("Connecting to SecuritySpy:", m.Conf.SecuritySpy.URL)
 
 	m.SSpy = securityspy.NewMust(m.Conf.SecuritySpy)
