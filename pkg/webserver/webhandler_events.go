@@ -50,6 +50,7 @@ func (c *Config) notifyHandler(
 		if err != nil {
 			c.Error.Printf("[%v] cam.SaveJPEG: %v", reqID, err)
 			code, reply = http.StatusInternalServerError, "ERROR: "+err.Error()
+			path = "" // fall back to text-only; do not attach a missing/partial file
 		}
 	}
 
