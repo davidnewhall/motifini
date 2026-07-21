@@ -23,6 +23,8 @@ linters:
       max-complexity: 15
     gocyclo:
       min-complexity: 30
+    gomoddirectives:
+      replace-local: true # local securityspy while developing VideoURL helpers
     gocritic:
       enable-all: true
       # Conflicts with nonamedreturns; unnamed (string, string) pairs are fine.

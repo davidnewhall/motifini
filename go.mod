@@ -3,6 +3,7 @@ module github.com/davidnewhall/motifini
 go 1.26.5
 
 require (
+	github.com/dromara/carbon/v2 v2.6.16
 	github.com/go-telegram-bot-api/telegram-bot-api/v5 v5.5.1
 	github.com/gorilla/mux v1.8.1
 	github.com/spf13/pflag v1.0.10
@@ -10,7 +11,7 @@ require (
 	golift.io/cnfg v0.2.5
 	golift.io/cnfgfile v0.0.0-20240713024420-a5436d84eb48
 	golift.io/rotatorr v0.0.0-20260217050959-f6ac6fc7b38e
-	golift.io/securityspy/v2 v2.1.1-0.20260720201818-773e6c2f3c09
+	golift.io/securityspy/v2 v2.1.1
 	golift.io/subscribe v0.0.0-20260720203740-de586e9886b0
 	golift.io/version v0.0.2
 )

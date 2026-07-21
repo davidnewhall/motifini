@@ -132,12 +132,59 @@ func (c *Chat) cmdPics(handler *Handler) (*Reply, error) {
 }
 
 func clipVidOps(cam *securityspy.Camera) *securityspy.VidOps {
-	return &securityspy.VidOps{
-		Height:  height,
-		Quality: quality,
-		ACodec:  "aac",
-		VCodec:  cam.PreferredVCodec(),
+	ops := VideoClipOps(cam, height)
+	ops.Quality = quality // JPEG only; stripped from RTSP by securityspy
+
+	return ops
+}
+
+// VideoClipOps builds RTSP remux options using the camera's native codec, scaled to targetHeight.
+// Width is derived from the camera aspect ratio.
+//
+// SecuritySpy stream-copies native HEVC (ignoring height) when the requested height is
+// >= half the camera's native height — e.g. a camera with 1440p (2560x1440) stays 2560x1440 at height=720,
+// but recompresses at height=719. A camera with 1728p (2560x1728) still scales at 720 because 720 < 864.
+func VideoClipOps(cam *securityspy.Camera, targetHeight int) *securityspy.VidOps {
+	ops := &securityspy.VidOps{
+		Height: targetHeight,
+		ACodec: "aac",
 	}
+	if cam == nil {
+		return ops
+	}
+
+	ops.VCodec = cam.PreferredVCodec()
+	ops.Height = scaledStreamHeight(cam.Height, targetHeight)
+
+	if cam.Width > 0 && cam.Height > 0 && ops.Height > 0 {
+		w := cam.Width * ops.Height / cam.Height
+		ops.Width = w - w%2 // encoder-friendly even width
+	}
+
+	return ops
+}
+
+// scaledStreamHeight keeps the request strictly below half the native height so
+// SecuritySpy recompresses HEVC instead of stream-copying the main stream.
+func scaledStreamHeight(nativeHeight, targetHeight int) int {
+	if targetHeight < 2 {
+		return targetHeight
+	}
+
+	height := targetHeight
+	if nativeHeight > 0 && height*2 >= nativeHeight {
+		height = nativeHeight/2 - 1
+	}
+
+	if height%2 != 0 {
+		height--
+	}
+
+	if height < 2 {
+		return targetHeight
+	}
+
+	return height
 }
 
 func (c *Chat) cmdVids(handler *Handler) (*Reply, error) {
@@ -320,5 +367,6 @@ func (c *Chat) cmdDelay(handler *Handler) (*Reply, error) {
 
 	handler.Sub.Events.RuleSetD(event, "delay", time.Duration(dur)*time.Second)
 
-	return &Reply{Reply: fmt.Sprintf("Set repeat delay for '%s' to %ds", event, dur)}, nil
+	return &Reply{Reply: fmt.Sprintf("Set repeat delay for '%s' to %s",
+		event, formatDuration(time.Duration(dur)*time.Second))}, nil
 }

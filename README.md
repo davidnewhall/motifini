@@ -59,6 +59,7 @@ Optional `[motifini]` settings:
 - `event_log` — path for a rotating SecuritySpy event-stream log (omit to disable; must differ from `log_file`)
 - `log_file_mb` — max size per rotated log file in MB (default `5`)
 - `log_files` — number of rotated log files to keep (default `10`)
+- `security_spy_retry` — how often to retry connecting when SecuritySpy is down at startup (Go duration, default `5s`)
 
 ## HTTP Endpoints
 

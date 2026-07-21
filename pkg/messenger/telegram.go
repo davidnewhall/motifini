@@ -411,7 +411,11 @@ func (m *Messenger) SendTelegramFile(reqID, path, caption string, telegramID int
 		video := tgbotapi.NewVideo(telegramID, tgbotapi.FilePath(path))
 		video.SupportsStreaming = true
 		video.Caption = caption
+		started := time.Now()
 		_, err = m.telebot.Send(video)
+		if err == nil {
+			m.Info.Printf("[%s] Telegram: Sent Video to %s in %s", reqID, dest, time.Since(started).Round(time.Millisecond))
+		}
 	case ".wav", ".mp3":
 		m.Info.Printf("[%s] Telegram: Sending Audio (%s, %.2fMb) to %s",
 			reqID, path, float64(fileInfo.Size())/mebibyte, dest)

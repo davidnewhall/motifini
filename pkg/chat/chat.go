@@ -5,6 +5,8 @@ package chat
 import (
 	"errors"
 	"fmt"
+	"io"
+	"log"
 	"strconv"
 	"strings"
 	"time"
@@ -29,6 +31,9 @@ type Chat struct {
 	SSpy    *securityspy.Server
 	TempDir string
 	Cmds    []*Commands
+	Info    *log.Logger
+	Debug   *log.Logger
+	Error   *log.Logger
 }
 
 // ErrBadUsage is a standard error.
@@ -80,6 +85,18 @@ type Handler struct {
 func New(chatCfg *Chat) *Chat {
 	if chatCfg.TempDir == "" {
 		chatCfg.TempDir = "/tmp"
+	}
+
+	if chatCfg.Info == nil {
+		chatCfg.Info = log.New(io.Discard, "", 0)
+	}
+
+	if chatCfg.Debug == nil {
+		chatCfg.Debug = log.New(io.Discard, "", 0)
+	}
+
+	if chatCfg.Error == nil {
+		chatCfg.Error = log.New(io.Discard, "", 0)
 	}
 
 	defaults := make([]*Commands, 0, 2+len(chatCfg.Cmds)) //nolint:mnd // commands below....

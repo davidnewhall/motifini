@@ -17,7 +17,6 @@ const (
 	eventRetry     = 5 * time.Second
 	defaultLength  = 6 * time.Second
 	defaultSize    = 1.5 * 1024 * 1024
-	defaultCodec   = "aac"
 	defaultHeight  = 720
 )
 
@@ -48,15 +47,19 @@ func (m *Motifini) dispatchEvent(event *securityspy.Event) {
 		// ignore.
 	case securityspy.EventMotionDetected:
 		// v4 motion event.
-		if strings.HasPrefix(m.SSpy.Info.Version, "4") {
+		if m.SSpy.Info != nil && strings.HasPrefix(m.SSpy.Info.Version, "4") {
 			m.handleCameraMotion(event)
 		}
 	case securityspy.EventTriggerAction:
 		// v5 action event. (motion detected, actions enabled)
 		m.handleCameraMotion(event)
 	case securityspy.EventStreamConnect:
+		m.streamLive = true
 		m.Info.Println("SecuritySpy Event Stream Connected!")
-		m.notifySystemEvent(chat.EventStreamUp, "SecuritySpy event stream is back up.")
+
+		if m.streamSawDown {
+			m.notifySystemEvent(chat.EventStreamUp, "SecuritySpy event stream is back up.")
+		}
 	case securityspy.EventStreamDisconnect:
 		m.handleStreamDisconnect(event)
 	case securityspy.EventOffline:
@@ -91,6 +94,14 @@ func (m *Motifini) logStreamEvent(event *securityspy.Event) {
 }
 
 func (m *Motifini) handleStreamDisconnect(event *securityspy.Event) {
+	if !m.streamLive {
+		// Failed dials before any successful connect are not real disconnects.
+		m.Debug.Printf("SecuritySpy event stream not connected yet: %v", event.Msg)
+		return
+	}
+
+	m.streamLive = false
+	m.streamSawDown = true
 	m.Error.Println("SecuritySpy Event Stream Disconnected")
 
 	msg := "SecuritySpy event stream went down."
@@ -154,12 +165,14 @@ func (m *Motifini) handleCameraMotion(event *securityspy.Event) {
 		return // no one to notify of this camera's motion
 	}
 
-	err := event.Camera.SaveVideo(
-		&securityspy.VidOps{
-			ACodec: defaultCodec,
-			Height: defaultHeight,
-			VCodec: event.Camera.PreferredVCodec(),
-		}, defaultLength, defaultSize, path)
+	ops := chat.VideoClipOps(event.Camera, defaultHeight)
+
+	u, urlErr := event.Camera.RedactedVideoURL(ops)
+	if urlErr == nil {
+		m.Debug.Printf("[%v] SaveVideo %s URL: %s", reqID, event.Camera.Name, u)
+	}
+
+	err := event.Camera.SaveVideo(ops, defaultLength, defaultSize, path)
 	if err != nil {
 		m.Error.Printf("[%v] event.Camera.SaveVideo: %v", reqID, err)
 		return

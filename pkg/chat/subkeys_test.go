@@ -8,6 +8,39 @@ import (
 	"golift.io/subscribe"
 )
 
+func TestScaledStreamHeight(t *testing.T) {
+	t.Parallel()
+
+	// Mailbox 1440: 720 is exactly half → SS passthrough; stay at 718.
+	if got := scaledStreamHeight(1440, 720); got != 718 {
+		t.Fatalf("mailbox: got %d want 718", got)
+	}
+
+	// Pool 1728: 720 is below half (864) → keep 720.
+	if got := scaledStreamHeight(1728, 720); got != 720 {
+		t.Fatalf("pool: got %d want 720", got)
+	}
+}
+
+func TestFormatDuration(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		d    time.Duration
+		want string
+	}{
+		{time.Minute, "1 minute"},
+		{2 * time.Minute, "2 minutes"},
+		{30 * time.Second, "30 seconds"},
+		{time.Hour, "1 hour"},
+	}
+	for _, tc := range cases {
+		if got := formatDuration(tc.d); got != tc.want {
+			t.Fatalf("%v: got %q want %q", tc.d, got, tc.want)
+		}
+	}
+}
+
 func TestCameraSubKey(t *testing.T) {
 	t.Parallel()
 

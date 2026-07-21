@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/dromara/carbon/v2"
 	"golift.io/subscribe"
 )
 
@@ -79,7 +80,7 @@ func (c *Chat) subWizardRoot() *Reply {
 		Edit: true,
 		Keyboard: [][]Button{
 			{{Label: "Camera", Data: cbSubCam}, {Label: "Event", Data: cbSubEvt}},
-			{{Label: "Cancel", Data: cbCancel}},
+			{{Label: "Done", Data: cbCancel}},
 		},
 	}
 }
@@ -99,7 +100,7 @@ func (c *Chat) subWizardClasses() *Reply {
 				{Label: "Vehicle", Data: cbSubClass + classShort(ClassVehicle)},
 				{Label: "Animal", Data: cbSubClass + classShort(ClassAnimal)},
 			},
-			{{Label: "« Back", Data: cbSubRoot}, {Label: "Cancel", Data: cbCancel}},
+			{{Label: "« Back", Data: cbSubRoot}, {Label: "Done", Data: cbCancel}},
 		},
 	}
 }
@@ -142,7 +143,7 @@ func (c *Chat) subWizardCameras(handler *Handler, classShortCode string) *Reply 
 
 	rows = append(rows, []Button{
 		{Label: "« Back", Data: cbSubCam},
-		{Label: "Cancel", Data: cbCancel},
+		{Label: "Done", Data: cbCancel},
 	})
 
 	return &Reply{
@@ -178,7 +179,7 @@ func (c *Chat) subWizardEvents() *Reply {
 
 	rows = append(rows, []Button{
 		{Label: "« Back", Data: cbSubRoot},
-		{Label: "Cancel", Data: cbCancel},
+		{Label: "Done", Data: cbCancel},
 	})
 
 	return &Reply{
@@ -284,7 +285,7 @@ func (c *Chat) unsubWizardRoot(handler *Handler) *Reply {
 
 	rows = append(rows, []Button{
 		{Label: "Unsubscribe all", Data: "u:*"},
-		{Label: "Cancel", Data: cbCancel},
+		{Label: "Done", Data: cbCancel},
 	})
 
 	return &Reply{
@@ -366,6 +367,28 @@ func eventDelay(events *subscribe.Events, event string) time.Duration {
 	}
 
 	return DefaultRepeatDelay
+}
+
+// formatDuration turns a duration into a Telegram-friendly phrase via carbon
+// (e.g. "1 minute" instead of "1m0s").
+func formatDuration(dur time.Duration) string {
+	if dur < 0 {
+		dur = -dur
+	}
+
+	if dur < time.Second {
+		return "just now"
+	}
+
+	now := carbon.Now()
+	past := carbon.CreateFromStdTime(time.Now().Add(-dur))
+	phrase := past.DiffInString(now)
+
+	if phrase == "" {
+		return "just now"
+	}
+
+	return strings.TrimPrefix(phrase, "-")
 }
 
 // resolveSubTarget turns /sub args into a subscription key and kind label.

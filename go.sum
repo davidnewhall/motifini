@@ -8,6 +8,8 @@ github.com/bluenviron/mediacommon/v2 v2.9.1 h1:GpNnZgBwAamQO9ZE+JbNkQo82N1Jh/koS
 github.com/bluenviron/mediacommon/v2 v2.9.1/go.mod h1:jMf/OJDaJl02xRgkLM2zbidUHnDYqLnO1dMMveCmyyU=
 github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c=
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
+github.com/dromara/carbon/v2 v2.6.16 h1:AbxrnW1kJhR3KHdS8G96NFmxDwPFyre+t+xSiJIUD1I=
+github.com/dromara/carbon/v2 v2.6.16/go.mod h1:NGo3reeV5vhWCYWcSqbJRZm46MEwyfYI5EJRdVFoLJo=
 github.com/go-telegram-bot-api/telegram-bot-api/v5 v5.5.1 h1:wG8n/XJQ07TmjbITcGiUaOtXxdrINDz1b0J1w0SzqDc=
 github.com/go-telegram-bot-api/telegram-bot-api/v5 v5.5.1/go.mod h1:A2S0CWkNylc2phvKXWBBdD3K0iGnDBGbzRpISP2zBl8=
 github.com/go-test/deep v1.1.0 h1:WOcxcdHcvdgThNXjw0t76K42FXTU7HpNQWHpA2HHNlg=
@@ -50,8 +52,8 @@ golift.io/cnfgfile v0.0.0-20240713024420-a5436d84eb48 h1:c7cJWRr0cUnFHKtq072esKz
 golift.io/cnfgfile v0.0.0-20240713024420-a5436d84eb48/go.mod h1:zHm9o8SkZ6Mm5DfGahsrEJPsogyR0qItP59s5lJ98/I=
 golift.io/rotatorr v0.0.0-20260217050959-f6ac6fc7b38e h1:FgfNgbg2EUhFzAWPycsbh1dYiFJNLJFDDkn+E298DFQ=
 golift.io/rotatorr v0.0.0-20260217050959-f6ac6fc7b38e/go.mod h1:l/fgYTDxyEw15tRLjAtc13M3is1SXMU4hAIE0tdduAQ=
-golift.io/securityspy/v2 v2.1.1-0.20260720201818-773e6c2f3c09 h1:5zAMO2yqH9jL8yJUmEGWGNRLWD10Kvi6WeQS6HNXqI8=
-golift.io/securityspy/v2 v2.1.1-0.20260720201818-773e6c2f3c09/go.mod h1:pnDxzbSac8kRy+xxnjy7AJckNs4htQKz1YOAhjdNzaE=
+golift.io/securityspy/v2 v2.1.1 h1:HvY8krx5+LwW3xN80+tva63KGMZgYDjJVOQ6jUPsSIM=
+golift.io/securityspy/v2 v2.1.1/go.mod h1:pnDxzbSac8kRy+xxnjy7AJckNs4htQKz1YOAhjdNzaE=
 golift.io/subscribe v0.0.0-20260720203740-de586e9886b0 h1:YgnIrSnLiz/IPPjkh+cmDdJS0oc5QaNZo4409jzyCqA=
 golift.io/subscribe v0.0.0-20260720203740-de586e9886b0/go.mod h1:ZfzMeNnPbNbCKI4vt8NKtMi1pZpIe+OjpxHjzsgRmuc=
 golift.io/version v0.0.2 h1:i0gXRuSDHKs4O0sVDUg4+vNIuOxYoXhaxspftu2FRTE=

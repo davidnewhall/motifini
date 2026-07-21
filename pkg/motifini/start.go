@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/davidnewhall/motifini/pkg/chat"
 	"github.com/davidnewhall/motifini/pkg/export"
@@ -30,9 +31,10 @@ const (
 	Binary           = "motifini"
 	DefaultEnvPrefix = "MO"
 
-	defaultLogFileMb = 5
-	defaultLogFiles  = 10
-	megabyte         = 1024 * 1024
+	defaultLogFileMb        = 5
+	defaultLogFiles         = 10
+	defaultSecuritySpyRetry = 5 * time.Second
+	megabyte                = 1024 * 1024
 )
 
 // DefaultRepeatDelay mirrors chat.DefaultRepeatDelay for callers outside pkg/chat.
@@ -40,19 +42,21 @@ const DefaultRepeatDelay = chat.DefaultRepeatDelay
 
 // Motifini is the main application struct.
 type Motifini struct {
-	Flag      *Flags
-	Conf      *Config
-	HTTP      *webserver.Config
-	SSpy      *securityspy.Server
-	Subs      *subscribe.Subscribe
-	Msgs      *messenger.Messenger
-	Info      *log.Logger
-	Error     *log.Logger
-	Debug     *log.Logger
-	Event     *log.Logger // SecuritySpy event stream (optional rotating file)
-	logWriter io.Writer   // Info/MSGS/HTTP sink (stdout and/or rotating log_file)
-	appLog    io.Closer
-	eventLog  io.Closer
+	Flag          *Flags
+	Conf          *Config
+	HTTP          *webserver.Config
+	SSpy          *securityspy.Server
+	Subs          *subscribe.Subscribe
+	Msgs          *messenger.Messenger
+	Info          *log.Logger
+	Error         *log.Logger
+	Debug         *log.Logger
+	Event         *log.Logger // SecuritySpy event stream (optional rotating file)
+	logWriter     io.Writer   // Info/MSGS/HTTP sink (stdout and/or rotating log_file)
+	appLog        io.Closer
+	eventLog      io.Closer
+	streamLive    bool // true between EventStreamConnect and Disconnect
+	streamSawDown bool // true after a real disconnect (so "back up" is meaningful)
 }
 
 // Flags defines our application's CLI arguments.
@@ -67,13 +71,14 @@ type Flags struct {
 // Config is the configuration for Motifini.
 type Config struct {
 	Global struct {
-		TempDir   string `toml:"temp_dir"`
-		StateFile string `toml:"state_file"`
-		LogFile   string `toml:"log_file"`    // optional rotating app log (info/error/debug)
-		EventLog  string `toml:"event_log"`   // optional rotating SecuritySpy event stream log
-		LogFiles  int    `toml:"log_files"`   // rotated log file count (default 10)
-		LogFileMb int    `toml:"log_file_mb"` // rotated log size in MB (default 5)
-		Debug     bool   `toml:"debug"`
+		TempDir          string        `toml:"temp_dir"`
+		StateFile        string        `toml:"state_file"`
+		LogFile          string        `toml:"log_file"`           // optional rotating app log (info/error/debug)
+		EventLog         string        `toml:"event_log"`          // optional rotating SecuritySpy event stream log
+		LogFiles         int           `toml:"log_files"`          // rotated log file count (default 10)
+		LogFileMb        int           `toml:"log_file_mb"`        // rotated log size in MB (default 5)
+		SecuritySpyRetry cnfg.Duration `toml:"security_spy_retry"` // reconnect interval when SS is down (default 5s)
+		Debug            bool          `toml:"debug"`
 	} `toml:"motifini"`
 	Webserver struct {
 		Port      uint     `toml:"port"`
@@ -257,6 +262,10 @@ func (c *Config) Validate() {
 	if c.Global.LogFiles < 1 {
 		c.Global.LogFiles = defaultLogFiles
 	}
+
+	if c.Global.SecuritySpyRetry.Duration <= 0 {
+		c.Global.SecuritySpyRetry.Duration = defaultSecuritySpyRetry
+	}
 }
 
 // Run starts the app after all configs are collected.
@@ -272,12 +281,7 @@ func (m *Motifini) Run() error {
 
 	chat.EnsureBuiltInEvents(m.Subs)
 
-	m.Info.Println("Connecting to SecuritySpy:", m.Conf.SecuritySpy.URL)
-
-	m.SSpy, err = securityspy.New(m.Conf.SecuritySpy)
-	if err != nil {
-		return fmt.Errorf("connecting to securityspy: %w", err)
-	}
+	m.connectSecuritySpy()
 
 	m.publishDebugStats()
 	m.ProcessEventStream()
@@ -298,10 +302,51 @@ func (m *Motifini) Run() error {
 	return m.waitForSignal()
 }
 
+// connectSecuritySpy builds the client and refreshes once. Startup continues even when
+// SecuritySpy is down; a background loop retries until Refresh succeeds.
+func (m *Motifini) connectSecuritySpy() {
+	m.Info.Println("Connecting to SecuritySpy:", m.Conf.SecuritySpy.URL)
+
+	m.SSpy = securityspy.NewMust(m.Conf.SecuritySpy)
+
+	err := m.SSpy.Refresh()
+	if err == nil {
+		m.Info.Printf("Connected to SecuritySpy (%d cameras)", len(m.SSpy.Cameras.All()))
+		return
+	}
+
+	retry := m.Conf.Global.SecuritySpyRetry.Duration
+	m.Error.Printf("SecuritySpy unavailable: %v — will retry every %s", err, retry)
+	go m.retrySecuritySpy(retry)
+}
+
+func (m *Motifini) retrySecuritySpy(interval time.Duration) {
+	for {
+		time.Sleep(interval)
+
+		err := m.SSpy.Refresh()
+		if err != nil {
+			m.Debug.Printf("SecuritySpy still unavailable: %v — retrying in %s", err, interval)
+			continue
+		}
+
+		m.Info.Printf("Connected to SecuritySpy (%d cameras)", len(m.SSpy.Cameras.All()))
+
+		return
+	}
+}
+
 // startMessenger builds and connects the chat/messenger stack.
 func (m *Motifini) startMessenger() error {
 	m.Msgs = &messenger.Messenger{
-		Chat:     chat.New(&chat.Chat{TempDir: m.Conf.Global.TempDir, Subs: m.Subs, SSpy: m.SSpy}),
+		Chat: chat.New(&chat.Chat{
+			TempDir: m.Conf.Global.TempDir,
+			Subs:    m.Subs,
+			SSpy:    m.SSpy,
+			Info:    log.New(m.logWriter, "[CHAT] ", m.Info.Flags()),
+			Debug:   m.Debug,
+			Error:   m.Error,
+		}),
 		Subs:     m.Subs,
 		Telegram: m.Conf.Telegram,
 		TempDir:  m.Conf.Global.TempDir,
@@ -357,14 +402,14 @@ func (m *Motifini) publishDebugStats() {
 		return int64(len(m.Subs.GetAdmins()))
 	})
 	export.PublishCount("cameras", func() int64 {
-		if m.SSpy == nil {
+		if m.SSpy == nil || m.SSpy.Cameras == nil {
 			return 0
 		}
 
 		return int64(len(m.SSpy.Cameras.All()))
 	})
 	export.PublishCount("cameras_online", func() int64 {
-		if m.SSpy == nil {
+		if m.SSpy == nil || m.SSpy.Cameras == nil {
 			return 0
 		}
 
