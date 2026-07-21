@@ -381,7 +381,7 @@ func formatDuration(dur time.Duration) string {
 	}
 
 	if dur < time.Second {
-		return "just now"
+		return "0 seconds"
 	}
 
 	base := time.Now()
@@ -390,7 +390,7 @@ func formatDuration(dur time.Duration) string {
 	phrase := past.DiffInString(now)
 
 	if phrase == "" {
-		return "just now"
+		return "0 seconds"
 	}
 
 	return strings.TrimPrefix(phrase, "-")
