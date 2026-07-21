@@ -13,18 +13,18 @@ macOS (Homebrew tap):
 ```bash
 brew install --cask golift/mugs/motifini
 # edit $(brew --prefix)/etc/motifini.conf, then:
-launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.davidnewhall.motifini.plist
+launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/io.golift.motifini.plist
 ```
 
 The cask installs a LaunchAgent plist (not started until you bootstrap it). Control it with:
 
 ```bash
 # start / load at login
-launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.davidnewhall.motifini.plist
+launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/io.golift.motifini.plist
 # restart
-launchctl kickstart -k gui/$(id -u)/com.davidnewhall.motifini
+launchctl kickstart -k gui/$(id -u)/io.golift.motifini
 # stop
-launchctl bootout gui/$(id -u)/com.davidnewhall.motifini
+launchctl bootout gui/$(id -u)/io.golift.motifini
 ```
 
 `brew services` only manages formulae, not casks — use `launchctl` above.

@@ -96,7 +96,7 @@ homebrew_casks:
           FileUtils.cp "#{staged_path}/examples/motifini.conf.example", conf_dir/"motifini.conf.example"
           FileUtils.cp "#{staged_path}/examples/motifini.conf.example", conf_dir/"motifini.conf" unless (conf_dir/"motifini.conf").exist?
           (HOMEBREW_PREFIX/"var/log").mkpath
-          label = "com.davidnewhall.motifini"
+          label = "io.golift.motifini"
           agent = Pathname.new(Dir.home)/"Library/LaunchAgents/#{label}.plist"
           agent.dirname.mkpath
           binary = HOMEBREW_PREFIX/"bin/motifini"
@@ -123,15 +123,15 @@ homebrew_casks:
             </plist>
           XML
         uninstall: |
-          label = "com.davidnewhall.motifini"
+          label = "io.golift.motifini"
           agent = Pathname.new(Dir.home)/"Library/LaunchAgents/#{label}.plist"
           system "/bin/launchctl", "bootout", "gui/#{Process.uid}", label
           agent.delete if agent.exist?
     caveats: |
       Edit #{HOMEBREW_PREFIX}/etc/motifini.conf then:
-        launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.davidnewhall.motifini.plist
-      Restart: launchctl kickstart -k gui/$(id -u)/com.davidnewhall.motifini
-      Stop:    launchctl bootout gui/$(id -u)/com.davidnewhall.motifini
+        launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/io.golift.motifini.plist
+      Restart: launchctl kickstart -k gui/$(id -u)/io.golift.motifini
+      Stop:    launchctl bootout gui/$(id -u)/io.golift.motifini
       (brew services does not manage casks.)
 
 changelog:
