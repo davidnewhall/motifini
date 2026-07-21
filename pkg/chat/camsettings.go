@@ -9,7 +9,7 @@ import (
 	"golift.io/subscribe"
 )
 
-// Global catalog keys for admin per-camera clip settings (not subscribeable).
+// Global catalog keys for admin per-camera clip settings (not subscribable).
 const (
 	camSettingsPrefix = "__cam:"
 

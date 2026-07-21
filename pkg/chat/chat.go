@@ -129,7 +129,8 @@ func (c *Chat) HandleCommand(handler *Handler) *Reply {
 }
 
 func (c *Chat) commandReady(handler *Handler) bool {
-	return c.Subs != nil && c.SSpy != nil && c.TempDir != "" &&
+	// SSpy may be nil when [security_spy] is missing; camera cmds use allCameras()/cameraByName().
+	return c.Subs != nil && c.TempDir != "" &&
 		handler != nil && handler.Sub != nil && !handler.Sub.Ignored && handler.Text != nil
 }
 
@@ -150,7 +151,7 @@ func (c *Chat) applyPendingRename(handler *Handler) *Reply {
 
 // HandleCallback routes inline-keyboard presses (messenger-agnostic callback_data).
 func (c *Chat) HandleCallback(handler *Handler) *Reply {
-	if c.Subs == nil || c.SSpy == nil || handler == nil || handler.Sub == nil || handler.Sub.Ignored {
+	if c.Subs == nil || handler == nil || handler.Sub == nil || handler.Sub.Ignored {
 		return &Reply{}
 	}
 
