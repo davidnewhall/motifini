@@ -4,6 +4,7 @@ import "golift.io/subscribe"
 
 // Built-in non-camera system events users can subscribe to.
 const (
+	EventStarted       = "Motifini Started"
 	EventStreamDown    = "Event Stream Down"
 	EventStreamUp      = "Event Stream Up"
 	EventCameraOffline = "Camera Offline"
@@ -20,6 +21,10 @@ type BuiltInEvent struct {
 // BuiltInEvents are registered at startup so they appear in the Event subscribe wizard.
 func BuiltInEvents() []BuiltInEvent {
 	return []BuiltInEvent{
+		{
+			Name: EventStarted,
+			Desc: "Motifini finished starting (Telegram is ready)",
+		},
 		{
 			Name: EventStreamDown,
 			Desc: "Motifini lost the live link to SecuritySpy (no motion alerts until it reconnects)",

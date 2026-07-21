@@ -300,6 +300,9 @@ func (m *Motifini) Run() error {
 		}
 	}
 
+	m.notifySystemEvent(chat.EventStarted,
+		fmt.Sprintf("Motifini %s-%s started (PID %d).", version.Version, version.Revision, os.Getpid()))
+
 	return m.waitForSignal()
 }
 

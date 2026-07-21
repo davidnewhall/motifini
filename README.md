@@ -61,6 +61,11 @@ Optional `[motifini]` settings:
 - `log_files` — number of rotated log files to keep (default `10`)
 - `security_spy_retry` — how often to retry connecting when SecuritySpy is down at startup (Go duration, default `5s`)
 
+Built-in system events (subscribe via Events / `/sub`):
+
+- **Motifini Started** — text notification when Motifini finishes booting (Telegram ready)
+- Event Stream Up / Down, Camera Online / Offline, SecuritySpy Error
+
 Admin Telegram commands:
 
 - `/camset` (aka `/clipset`) — per-camera clip profile used for motion alerts and `/vid` (everyone gets the same clip)
