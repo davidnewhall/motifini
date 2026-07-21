@@ -1,146 +1,67 @@
-# Motifini
+# Motifini — SecuritySpy Telegram Bot
 
-This application has a few features.
+Motifini is a small daemon that connects [SecuritySpy](https://www.bensoftware.com/securityspy/) to a Telegram bot — with a full interactive menu, not just slash commands.
 
-- Send Telegram messages via an optional HTTP API.
-- Captures short SecuritySpy video clips in pure Go (no ffmpeg binary).
-- Subscribe to motion / human / vehicle / animal notifications on SecuritySpy cameras.
-- Receive alert videos in Telegram when something happens.
-- SecuritySpy is required; Telegram is the notification channel.
+When a camera triggers motion (or human / vehicle / animal classification), Motifini captures a short live clip and sends it to whoever subscribed to that camera. Each person configures their own subscriptions, pauses, and repeat delays. Admins tune per-camera clip quality for everyone. Snapshots, on-demand video, and system events (app started, event stream up/down, cameras online/offline) are all a tap away in Telegram.
 
-My wife and I use this to receive videos in Telegram for cameras we care about.
-I have a couple other family members relying on this app; they also use SecuritySpy.
+It starts even if SecuritySpy is temporarily down, retries in the background, and keeps the Telegram bot usable meanwhile. Video capture is pure Go (no ffmpeg binary).
 
-## SecuritySpy
+## Quick start
 
-This library taps into the SecuritySpy API and Event Stream. You do not need to do
-much besides provide a URL. You can then subscribe to any camera.
-It works with Telegram.
+1. Create a SecuritySpy web account with access to your cameras.
+2. Create a Telegram bot with [@BotFather](https://t.me/BotFather).
+3. Copy the example config and fill in URL, credentials, bot token, and password:
 
-Add an account to securityspy, and give it access to your cameras.
-I probably used admin, but you can certainly tune the permissions.
-Sorry, I do not know what they are right now. :(
+   [`https://github.com/davidnewhall/motifini/blob/main/examples/motifini.conf.example`](https://github.com/davidnewhall/motifini/blob/main/examples/motifini.conf.example)
 
-Put the url, username and password into the config file.
+   Default path: `/usr/local/etc/motifini.conf` (or `--config=/path/to/file`).
 
-## Telegram
+4. Run Motifini, then message the bot:
 
-Add a bot token and set a password in the config.
-Once the app fires up, message your bot `/id <password>`.
-Then message it `/help`.
+   ```text
+   /id <telegram.password>
+   /help
+   ```
 
-New users who message without auth are logged and get **no reply** until they are allowed:
+## Using the bot
 
-1. **Self-serve:** they send `/id <telegram.password>` (from config), or
-2. **Admin:** after they message once, you send `/allow <telegramIdOrUsername>` (also `/auth`).
-   Revoke with `/deny <id>`.
+The Telegram UI is a full-blown button menu. Browse cameras, subscribe to events, pause alerts, set delays, pull a snapshot or clip — almost everything is tappable. Slash commands still work if you prefer typing (`/sub`, `/subs`, `/stop`, `/delay`, `/cams`, `/pics`, `/vid`, …); `/help` lists them.
 
-`/admin <user>` only grants admin commands; it does **not** unlock the bot. Use `/allow` for that.
+**Allowing users**
 
-Set a display name when someone has no Telegram `@username`:
+New chats get no reply until they are allowed:
 
-```text
-/name <chatId> Jane Doe
-```
+1. Self-serve: `/id <password>` (from config), or
+2. Admin: after they message once, `/allow <telegramIdOrUsername>` (also `/auth`). Revoke with `/deny <id>`.
 
-Aliases: `/rename`, `/nick`.
+`/admin <user>` grants admin commands only; it does **not** unlock the bot — use `/allow` for that.
 
-## Example Config File
+Display name when someone has no `@username`: `/name <chatId> Jane Doe` (aliases: `/rename`, `/nick`).
 
-Only Telegram chat IDs listed in `allowed_to` can receive messages from the HTTP API.
+**Per-subscriber configuration**
 
-- Location: `/usr/local/etc/motifini.conf`
-- Example: [examples/motifini.conf.example](examples/motifini.conf.example)
+Every allowed chat has its own settings. One person can watch the driveway for cars, another only humans at the front door, and a third can pause the porch for an hour — without affecting anyone else.
 
-Optional `[motifini]` settings:
+- Subscribe / unsubscribe per camera and classification (motion, human, vehicle, animal), or to named system events
+- Per-subscription repeat delay (how long before another clip for the same trigger)
+- Pause all alerts or a single camera (`/stop` / menu), then resume when ready
+- On-demand snapshot or video from any camera you can see
 
-- `debug` — verbose Telegram/HTTP diagnostics (also written to `log_file` when set)
-- `log_file` — path for a rotating app log (when set, further logs leave stdout/stderr; config and log paths are still printed to stdout first)
-- `event_log` — path for a rotating SecuritySpy event-stream log (omit to disable; must differ from `log_file`)
-- `log_file_mb` — max size per rotated log file in MB (default `5`)
-- `log_files` — number of rotated log files to keep (default `10`)
-- `security_spy_retry` — how often to retry connecting when SecuritySpy is down at startup (Go duration, default `5s`)
+**Per-camera clip settings** (admins — `/camset` or Cams → camera → Clip settings)
 
-Built-in system events (subscribe via Events / `/sub`):
+Clip quality is shared for that camera (motion alerts and `/vid`): scale (full / half / quarter), length (2–15s), and max size (500k–3MB). Half requests slightly under half native height so SecuritySpy recompresses HEVC instead of stream-copying the full frame.
 
-- **Motifini Started** — text notification when Motifini finishes booting (Telegram ready)
-- Event Stream Up / Down, Camera Online / Offline, SecuritySpy Error
+**Built-in system events** (subscribe like any other event)
 
-Admin Telegram commands:
+- Motifini Started
+- Event Stream Up / Down
+- Camera Online / Offline
+- SecuritySpy Error
 
-- `/camset` (aka `/clipset`) — per-camera clip profile used for motion alerts and `/vid` (everyone gets the same clip)
-  - **Scale:** full / half / quarter of native resolution (default half)
-  - **Length:** 2–15 seconds (default 6s)
-  - **Size:** 500k–3MB max file size (default 1.5MB)
-  - Also available from **Cameras → camera → Clip settings** for admins
+## Configuration
 
-## HTTP Endpoints
+All options are documented in the example file:
 
-If you enable the webserver, these are (some) of the endpoints.
+[`https://github.com/davidnewhall/motifini/blob/main/examples/motifini.conf.example`](https://github.com/davidnewhall/motifini/blob/main/examples/motifini.conf.example)
 
-- /api/v1.0/send/telegram/video/{to}/{camera}
-Captures a short live clip from SecuritySpy (no ffmpeg binary).
-  - **`to` (csv), list of message recipients**
-  - **`camera` (string), camera name**
-  - `width` (int), frame size
-  - `height` (int), frame size
-  - `crf` / quality (int)
-  - `time` (duration or seconds), max video length
-  - `rate` (int), output frame rate
-  - `size` (int), max file size
-
-- /api/v1.0/send/telegram/picture/{to}/{camera}
-Snapshot from SecuritySpy.
-  - **`to` (csv), list of message recipients**
-  - **`camera` (string), camera name**
-
-- /api/v1.0/send/telegram/msg/{to}?msg={msg}
-Plain Telegram text.
-  - **`to` (csv), list of message recipients**
-  - **`msg` (string), text to send**
-
-- /api/v1.0/sub/{subscribe|unsubscribe|pause|unpause}/{api}/{contact}/{event}
-Manage a subscriber's event subscription (Telegram `api` + chat id or contact name).
-  - `minutes` (pause only, default `60`)
-
-- /api/v1.0/event/{notify|remove}/{event}
-Notify subscribers of a named event (optional camera snapshot when the name matches a camera),
-or remove an event and all its subscriptions.
-
-- /debug/vars
-expvar stats (HTTP counts, subscribers, cameras, …).
-
-## IndigoDomo
-
-This is an example showing how to trigger this app to send a picture or
-message to someone via Telegram from [Indigo](http://indigodomo.com).
-This works, and also works with Telegram now.
-You can directly trigger "send a picture or video snippet to someone
-via telegram" by hitting an http endpoint as shown here.
-
-Create two variables in Indigo.
-Name one variable `Subscribers` and the other `SendMessage`
-Create a trigger when `SendMessage` changes to run an Action.
-
-Run this Action; replace the variable IDs with your own:
-
-```python
-import urllib
-import urllib2
-import socket
-timeout = 1
-socket.setdefaulttimeout(timeout)
-
-subs = urllib.quote(indigo.variables[1891888064].value, "")
-msg = urllib.quote(indigo.variables[1023892794].value, "")
-url = "http://127.0.0.1:8765/api/v1.0/send/telegram/msg/"+subs+"?msg="+msg
-
-try:
-    urllib2.urlopen(url)
-    indigo.server.log(u"Dropped off message with Motifini!")
-except Exception as err:
-    indigo.server.log(u"Error with Motifini: {}".format(err))
-```
-
-Subscriptions and motion classifications are managed in Telegram (`/sub`, `/subs`, `/stop`, `/delay`).
-Home automation can still fire notifications via the HTTP endpoints above.
+Environment variables can override config values with prefix `MO_` (change with `--prefix`).
