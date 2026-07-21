@@ -384,6 +384,9 @@ func formatDuration(dur time.Duration) string {
 		return "0 seconds"
 	}
 
+	// Whole seconds so pause countdowns stay stable near minute boundaries.
+	dur = dur.Round(time.Second)
+
 	base := time.Now()
 	now := carbon.CreateFromStdTime(base)
 	past := carbon.CreateFromStdTime(base.Add(-dur))
