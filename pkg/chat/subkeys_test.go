@@ -8,6 +8,29 @@ import (
 	"golift.io/subscribe"
 )
 
+func TestFormatDuration(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		d    time.Duration
+		want string
+	}{
+		{0, "0 seconds"},
+		{-3 * time.Second, "0 seconds"},
+		{500 * time.Millisecond, "0 seconds"},
+		{59*time.Second + 700*time.Millisecond, "1 minute"},
+		{time.Minute, "1 minute"},
+		{2 * time.Minute, "2 minutes"},
+		{30 * time.Second, "30 seconds"},
+		{time.Hour, "1 hour"},
+	}
+	for _, tc := range cases {
+		if got := formatDuration(tc.d); got != tc.want {
+			t.Fatalf("%v: got %q want %q", tc.d, got, tc.want)
+		}
+	}
+}
+
 func TestCameraSubKey(t *testing.T) {
 	t.Parallel()
 

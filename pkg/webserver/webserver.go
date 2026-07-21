@@ -48,9 +48,7 @@ type Config struct {
 // Start validates the config and returns any errors.
 // If all goes well, this will not return until the server shuts down.
 func Start(cfg *Config) error {
-	if cfg.SSpy == nil {
-		return fmt.Errorf("%w: securityspy is nil", messenger.ErrNillConfigItem)
-	}
+	// SSpy may be nil when [security_spy] is missing; camera routes return 503 via securitySpyReady.
 
 	if cfg.Subs == nil {
 		return fmt.Errorf("%w: subscribe is nil", messenger.ErrNillConfigItem)
@@ -165,4 +163,18 @@ func (c *Config) handleAll(writer http.ResponseWriter, request *http.Request) {
 // check for a thing in a thing.
 func contains(s []string, e string) bool {
 	return slices.Contains(s, e)
+}
+
+// securitySpyReady is false until the first successful Refresh() loads cameras.
+func (c *Config) securitySpyReady() bool {
+	return c != nil && c.SSpy != nil && c.SSpy.Cameras != nil
+}
+
+// cameraByName looks up a camera, or nil when SecuritySpy has no camera list yet.
+func (c *Config) cameraByName(name string) *securityspy.Camera {
+	if !c.securitySpyReady() {
+		return nil
+	}
+
+	return c.SSpy.Cameras.ByName(name)
 }

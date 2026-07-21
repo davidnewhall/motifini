@@ -16,9 +16,6 @@ const (
 )
 
 const (
-	maxsize    = 1024 * 1024 // 1mb
-	length     = 5 * time.Second
-	height     = 720 // SS RTSP resize; 800 often stalls to ~1fps under load
 	jpegHeight = 1080
 	quality    = 20 // JPEG only; stripped from RTSP by securityspy
 )
@@ -110,7 +107,7 @@ func (c *Chat) cmdEvents(_ *Handler) (*Reply, error) {
 func (c *Chat) cmdPics(handler *Handler) (*Reply, error) {
 	if len(handler.Text) > 1 {
 		name := strings.Join(handler.Text[1:], " ")
-		cam := c.SSpy.Cameras.ByName(name)
+		cam := c.cameraByName(name)
 
 		if cam == nil {
 			return &Reply{Reply: "Unknown Camera: " + name}, ErrBadUsage
@@ -131,19 +128,23 @@ func (c *Chat) cmdPics(handler *Handler) (*Reply, error) {
 	return root, nil
 }
 
-func clipVidOps(cam *securityspy.Camera) *securityspy.VidOps {
-	return &securityspy.VidOps{
-		Height:  height,
-		Quality: quality,
-		ACodec:  "aac",
-		VCodec:  cam.PreferredVCodec(),
+func (c *Chat) clipVidOps(cam *securityspy.Camera) (*securityspy.VidOps, ClipSettings) {
+	name := ""
+	if cam != nil {
+		name = cam.Name
 	}
+
+	settings := GetCameraClipSettings(c.Subs, name)
+	ops := VideoClipOps(cam, settings)
+	ops.Quality = quality // JPEG only; stripped from RTSP by securityspy
+
+	return ops, settings
 }
 
 func (c *Chat) cmdVids(handler *Handler) (*Reply, error) {
 	if len(handler.Text) > 1 {
 		name := strings.Join(handler.Text[1:], " ")
-		cam := c.SSpy.Cameras.ByName(name)
+		cam := c.cameraByName(name)
 
 		if cam == nil {
 			return &Reply{Reply: "Unknown Camera: " + name}, ErrBadUsage
@@ -320,5 +321,6 @@ func (c *Chat) cmdDelay(handler *Handler) (*Reply, error) {
 
 	handler.Sub.Events.RuleSetD(event, "delay", time.Duration(dur)*time.Second)
 
-	return &Reply{Reply: fmt.Sprintf("Set repeat delay for '%s' to %ds", event, dur)}, nil
+	return &Reply{Reply: fmt.Sprintf("Set repeat delay for '%s' to %s",
+		event, formatDuration(time.Duration(dur)*time.Second))}, nil
 }

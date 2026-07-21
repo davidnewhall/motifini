@@ -59,6 +59,20 @@ Optional `[motifini]` settings:
 - `event_log` — path for a rotating SecuritySpy event-stream log (omit to disable; must differ from `log_file`)
 - `log_file_mb` — max size per rotated log file in MB (default `5`)
 - `log_files` — number of rotated log files to keep (default `10`)
+- `security_spy_retry` — how often to retry connecting when SecuritySpy is down at startup (Go duration, default `5s`)
+
+Built-in system events (subscribe via Events / `/sub`):
+
+- **Motifini Started** — text notification when Motifini finishes booting (Telegram ready)
+- Event Stream Up / Down, Camera Online / Offline, SecuritySpy Error
+
+Admin Telegram commands:
+
+- `/camset` (aka `/clipset`) — per-camera clip profile used for motion alerts and `/vid` (everyone gets the same clip)
+  - **Scale:** full / half / quarter of native resolution (default half)
+  - **Length:** 2–15 seconds (default 6s)
+  - **Size:** 500k–3MB max file size (default 1.5MB)
+  - Also available from **Cameras → camera → Clip settings** for admins
 
 ## HTTP Endpoints
 

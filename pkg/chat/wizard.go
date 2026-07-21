@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/dromara/carbon/v2"
 	"golift.io/subscribe"
 )
 
@@ -79,7 +80,7 @@ func (c *Chat) subWizardRoot() *Reply {
 		Edit: true,
 		Keyboard: [][]Button{
 			{{Label: "Camera", Data: cbSubCam}, {Label: "Event", Data: cbSubEvt}},
-			{{Label: "Cancel", Data: cbCancel}},
+			{{Label: "Done", Data: cbCancel}},
 		},
 	}
 }
@@ -99,7 +100,7 @@ func (c *Chat) subWizardClasses() *Reply {
 				{Label: "Vehicle", Data: cbSubClass + classShort(ClassVehicle)},
 				{Label: "Animal", Data: cbSubClass + classShort(ClassAnimal)},
 			},
-			{{Label: "« Back", Data: cbSubRoot}, {Label: "Cancel", Data: cbCancel}},
+			{{Label: "« Back", Data: cbSubRoot}, {Label: "Done", Data: cbCancel}},
 		},
 	}
 }
@@ -110,7 +111,11 @@ func (c *Chat) subWizardCameras(handler *Handler, classShortCode string) *Reply 
 		return c.subWizardClasses()
 	}
 
-	cams := c.SSpy.Cameras.All()
+	cams := c.allCameras()
+	if len(cams) == 0 {
+		return c.noCamerasReply()
+	}
+
 	rows := make([][]Button, 0, len(cams)/2+2)
 
 	var sub *subscribe.Subscriber
@@ -142,7 +147,7 @@ func (c *Chat) subWizardCameras(handler *Handler, classShortCode string) *Reply 
 
 	rows = append(rows, []Button{
 		{Label: "« Back", Data: cbSubCam},
-		{Label: "Cancel", Data: cbCancel},
+		{Label: "Done", Data: cbCancel},
 	})
 
 	return &Reply{
@@ -157,7 +162,7 @@ func (c *Chat) subWizardCameras(handler *Handler, classShortCode string) *Reply 
 }
 
 func (c *Chat) subWizardEvents() *Reply {
-	names := c.Subs.Events.Names()
+	names := CatalogEventNames(c.Subs.Events)
 	rows := make([][]Button, 0, len(names)+1)
 
 	for i, name := range names {
@@ -178,7 +183,7 @@ func (c *Chat) subWizardEvents() *Reply {
 
 	rows = append(rows, []Button{
 		{Label: "« Back", Data: cbSubRoot},
-		{Label: "Cancel", Data: cbCancel},
+		{Label: "Done", Data: cbCancel},
 	})
 
 	return &Reply{
@@ -199,7 +204,7 @@ func (c *Chat) subWizardSubscribeCam(handler *Handler, payload string) (*Reply, 
 		return &Reply{Reply: "Bad camera index.", Edit: true, Toast: "Error"}, false
 	}
 
-	cams := c.SSpy.Cameras.All()
+	cams := c.allCameras()
 	if idx < 0 || idx >= len(cams) {
 		return &Reply{Reply: "Camera gone — try again.", Edit: true, Toast: "Missing"}, false
 	}
@@ -233,7 +238,7 @@ func (c *Chat) subWizardSubscribeEvt(handler *Handler, idxStr string) (*Reply, b
 		return &Reply{Reply: "Bad event index.", Edit: true, Toast: "Error"}, false
 	}
 
-	names := c.Subs.Events.Names()
+	names := CatalogEventNames(c.Subs.Events)
 	if idx < 0 || idx >= len(names) {
 		return &Reply{Reply: "Event gone — try again.", Edit: true, Toast: "Missing"}, false
 	}
@@ -284,7 +289,7 @@ func (c *Chat) unsubWizardRoot(handler *Handler) *Reply {
 
 	rows = append(rows, []Button{
 		{Label: "Unsubscribe all", Data: "u:*"},
-		{Label: "Cancel", Data: cbCancel},
+		{Label: "Done", Data: cbCancel},
 	})
 
 	return &Reply{
@@ -368,6 +373,33 @@ func eventDelay(events *subscribe.Events, event string) time.Duration {
 	return DefaultRepeatDelay
 }
 
+// formatDuration turns a duration into a Telegram-friendly phrase via carbon
+// (e.g. "1 minute" instead of "1m0s").
+func formatDuration(dur time.Duration) string {
+	if dur < 0 {
+		// Countdowns (time.Until) should show "0 seconds" once expired, not abs(dur).
+		return "0 seconds"
+	}
+
+	if dur < time.Second {
+		return "0 seconds"
+	}
+
+	// Whole seconds so pause countdowns stay stable near minute boundaries.
+	dur = dur.Round(time.Second)
+
+	base := time.Now()
+	now := carbon.CreateFromStdTime(base)
+	past := carbon.CreateFromStdTime(base.Add(-dur))
+	phrase := past.DiffInString(now)
+
+	if phrase == "" {
+		return "0 seconds"
+	}
+
+	return strings.TrimPrefix(phrase, "-")
+}
+
 // resolveSubTarget turns /sub args into a subscription key and kind label.
 func (c *Chat) resolveSubTarget(args []string) (string, string, error) {
 	if len(args) == 0 {
@@ -380,11 +412,11 @@ func (c *Chat) resolveSubTarget(args []string) (string, string, error) {
 		return key, kind, err
 	}
 
-	if c.Subs.Events.Exists(joined) {
+	if c.Subs.Events.Exists(joined) && !IsCamSettingsKey(joined) {
 		return joined, "event", nil
 	}
 
-	if cam := c.SSpy.Cameras.ByName(joined); cam != nil {
+	if cam := c.cameraByName(joined); cam != nil {
 		return "", "", fmt.Errorf("%w: specify a class for %s (motion|human|vehicle|animal)", ErrBadUsage, cam.Name)
 	}
 
@@ -399,7 +431,7 @@ func (c *Chat) resolveCameraClassTarget(args []string, joined string) (string, s
 			return "", "", fmt.Errorf("%w: choose motion, human, vehicle, or animal", ErrBadUsage)
 		}
 
-		if cam := c.SSpy.Cameras.ByName(camName); cam != nil {
+		if cam := c.cameraByName(camName); cam != nil {
 			return CameraSubKey(cam.Name, class), "camera", nil
 		}
 	}
@@ -414,7 +446,7 @@ func (c *Chat) resolveCameraClassTarget(args []string, joined string) (string, s
 		return "", "", fmt.Errorf("%w: choose motion, human, vehicle, or animal", ErrBadUsage)
 	}
 
-	if cam := c.SSpy.Cameras.ByName(camName); cam != nil {
+	if cam := c.cameraByName(camName); cam != nil {
 		return CameraSubKey(cam.Name, class), "camera", nil
 	}
 

@@ -15,10 +15,6 @@ import (
 const (
 	eventStreamBuf = 1000
 	eventRetry     = 5 * time.Second
-	defaultLength  = 6 * time.Second
-	defaultSize    = 1.5 * 1024 * 1024
-	defaultCodec   = "aac"
-	defaultHeight  = 720
 )
 
 // ProcessEventStream processes the securityspy event stream.
@@ -47,16 +43,25 @@ func (m *Motifini) dispatchEvent(event *securityspy.Event) {
 	case securityspy.EventKeepAlive, securityspy.EventTriggerMotion:
 		// ignore.
 	case securityspy.EventMotionDetected:
-		// v4 motion event.
-		if strings.HasPrefix(m.SSpy.Info.Version, "4") {
+		// v4 motion. If Info is not loaded yet (Refresh still retrying), treat as motion
+		// rather than dropping early events after the stream connects.
+		if m.SSpy == nil {
+			break
+		}
+
+		if m.SSpy.Info == nil || strings.HasPrefix(m.SSpy.Info.Version, "4") {
 			m.handleCameraMotion(event)
 		}
 	case securityspy.EventTriggerAction:
 		// v5 action event. (motion detected, actions enabled)
 		m.handleCameraMotion(event)
 	case securityspy.EventStreamConnect:
+		m.streamLive = true
 		m.Info.Println("SecuritySpy Event Stream Connected!")
-		m.notifySystemEvent(chat.EventStreamUp, "SecuritySpy event stream is back up.")
+
+		if m.streamSawDown {
+			m.notifySystemEvent(chat.EventStreamUp, "SecuritySpy event stream is back up.")
+		}
 	case securityspy.EventStreamDisconnect:
 		m.handleStreamDisconnect(event)
 	case securityspy.EventOffline:
@@ -91,6 +96,14 @@ func (m *Motifini) logStreamEvent(event *securityspy.Event) {
 }
 
 func (m *Motifini) handleStreamDisconnect(event *securityspy.Event) {
+	if !m.streamLive {
+		// Failed dials before any successful connect are not real disconnects.
+		m.Debug.Printf("SecuritySpy event stream not connected yet: %v", event.Msg)
+		return
+	}
+
+	m.streamLive = false
+	m.streamSawDown = true
 	m.Error.Println("SecuritySpy Event Stream Disconnected")
 
 	msg := "SecuritySpy event stream went down."
@@ -113,11 +126,13 @@ func (m *Motifini) handleConfigChange() {
 	m.saveSubDB() // just because.
 	m.Info.Println("SecuritySpy Configuration Changed! Stopping webserver and messenger to refresh SecuritySpy data.")
 
-	err := m.HTTP.Stop()
-	if err != nil {
-		m.Error.Println("Stopping Webserver:", err)
+	if m.HTTP != nil {
+		err := m.HTTP.Stop()
+		if err != nil {
+			m.Error.Println("Stopping Webserver:", err)
+		}
+		defer m.HTTP.Start()
 	}
-	defer m.HTTP.Start()
 
 	if m.Msgs != nil {
 		m.Msgs.Stop()
@@ -130,9 +145,11 @@ func (m *Motifini) handleConfigChange() {
 		}()
 	}
 
-	err = m.SSpy.Refresh()
-	if err != nil {
-		m.Error.Println("Refreshing SecuritySpy Configuration:", err)
+	if m.SSpy != nil {
+		err := m.SSpy.Refresh()
+		if err != nil {
+			m.Debug.Println("Refreshing SecuritySpy Configuration:", err)
+		}
 	}
 
 	time.Sleep(time.Second)
@@ -154,12 +171,19 @@ func (m *Motifini) handleCameraMotion(event *securityspy.Event) {
 		return // no one to notify of this camera's motion
 	}
 
-	err := event.Camera.SaveVideo(
-		&securityspy.VidOps{
-			ACodec: defaultCodec,
-			Height: defaultHeight,
-			VCodec: event.Camera.PreferredVCodec(),
-		}, defaultLength, defaultSize, path)
+	if m.Msgs == nil {
+		return
+	}
+
+	settings := chat.GetCameraClipSettings(m.Subs, event.Camera.Name)
+	ops := chat.VideoClipOps(event.Camera, settings)
+
+	u, urlErr := event.Camera.RedactedVideoURL(ops)
+	if urlErr == nil {
+		m.Debug.Printf("[%v] SaveVideo %s URL: %s", reqID, event.Camera.Name, u)
+	}
+
+	err := event.Camera.SaveVideo(ops, settings.Length, int64(settings.Size), path)
 	if err != nil {
 		m.Error.Printf("[%v] event.Camera.SaveVideo: %v", reqID, err)
 		return
@@ -193,6 +217,10 @@ func (m *Motifini) handleCameraMotion(event *securityspy.Event) {
 
 // notifySystemEvent texts subscribers of a built-in non-camera event (no video attachment).
 func (m *Motifini) notifySystemEvent(eventName, msg string) {
+	if m.Msgs == nil {
+		return // messenger not up yet (event stream can connect during startup)
+	}
+
 	subs := m.Subs.GetSubscribers(eventName)
 	if len(subs) < 1 {
 		return

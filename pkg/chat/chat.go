@@ -5,6 +5,8 @@ package chat
 import (
 	"errors"
 	"fmt"
+	"io"
+	"log"
 	"strconv"
 	"strings"
 	"time"
@@ -29,6 +31,9 @@ type Chat struct {
 	SSpy    *securityspy.Server
 	TempDir string
 	Cmds    []*Commands
+	Info    *log.Logger
+	Debug   *log.Logger
+	Error   *log.Logger
 }
 
 // ErrBadUsage is a standard error.
@@ -82,6 +87,18 @@ func New(chatCfg *Chat) *Chat {
 		chatCfg.TempDir = "/tmp"
 	}
 
+	if chatCfg.Info == nil {
+		chatCfg.Info = log.New(io.Discard, "", 0)
+	}
+
+	if chatCfg.Debug == nil {
+		chatCfg.Debug = log.New(io.Discard, "", 0)
+	}
+
+	if chatCfg.Error == nil {
+		chatCfg.Error = log.New(io.Discard, "", 0)
+	}
+
 	defaults := make([]*Commands, 0, 2+len(chatCfg.Cmds)) //nolint:mnd // commands below....
 	defaults = append(defaults, chatCfg.nonAdminCommands(), chatCfg.adminCommands())
 	chatCfg.Cmds = append(defaults, chatCfg.Cmds...)
@@ -112,7 +129,8 @@ func (c *Chat) HandleCommand(handler *Handler) *Reply {
 }
 
 func (c *Chat) commandReady(handler *Handler) bool {
-	return c.Subs != nil && c.SSpy != nil && c.TempDir != "" &&
+	// SSpy may be nil when [security_spy] is missing; camera cmds use allCameras()/cameraByName().
+	return c.Subs != nil && c.TempDir != "" &&
 		handler != nil && handler.Sub != nil && !handler.Sub.Ignored && handler.Text != nil
 }
 
@@ -133,7 +151,7 @@ func (c *Chat) applyPendingRename(handler *Handler) *Reply {
 
 // HandleCallback routes inline-keyboard presses (messenger-agnostic callback_data).
 func (c *Chat) HandleCallback(handler *Handler) *Reply {
-	if c.Subs == nil || c.SSpy == nil || handler == nil || handler.Sub == nil || handler.Sub.Ignored {
+	if c.Subs == nil || handler == nil || handler.Sub == nil || handler.Sub.Ignored {
 		return &Reply{}
 	}
 

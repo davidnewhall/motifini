@@ -31,8 +31,15 @@ func (c *Config) sendVideoHandler(writer http.ResponseWriter, request *http.Requ
 	}
 	reqID, code, reply := messenger.ReqID(messenger.IDLength), http.StatusOK, "OK"
 
-	cam := c.SSpy.Cameras.ByName(name)
-	if cam == nil {
+	cam := c.cameraByName(name)
+	switch {
+	case name == "":
+		c.Debug.Printf("[%v] Missing 'cam' provided", reqID)
+		code, reply = http.StatusInternalServerError, "ERROR: Missing 'to' or 'cam'"
+	case !c.securitySpyReady():
+		c.Debug.Printf("[%v] SecuritySpy cameras not loaded yet", reqID)
+		code, reply = http.StatusServiceUnavailable, "ERROR: SecuritySpy not ready (cameras not loaded)"
+	case cam == nil:
 		c.Debug.Printf("[%v] Invalid 'cam' provided: %v", reqID, name)
 		code, reply = http.StatusInternalServerError, "ERROR: Camera not found in configuration!"
 	}
@@ -145,12 +152,15 @@ func (c *Config) sendPictureHandler(writer http.ResponseWriter, request *http.Re
 		}
 	}
 
-	cam := c.SSpy.Cameras.ByName(name)
+	cam := c.cameraByName(name)
 
 	switch {
 	case name == "" || code == http.StatusInternalServerError:
 		code, reply = http.StatusInternalServerError, "ERROR: Missing 'to' or 'cam', name: "+name
 		c.Debug.Printf("[%v] Invalid 'to' provided or 'cam' empty: %v", reqID, name)
+	case !c.securitySpyReady():
+		code, reply = http.StatusServiceUnavailable, "ERROR: SecuritySpy not ready (cameras not loaded)"
+		c.Debug.Printf("[%v] SecuritySpy cameras not loaded yet", reqID)
 	case cam == nil:
 		code, reply = http.StatusInternalServerError, "ERROR: Camera not found: "+name
 		c.Debug.Printf("[%v] Camera not found: %v", reqID, name)

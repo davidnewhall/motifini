@@ -37,8 +37,9 @@ func (c *Config) eventsHandler(writer http.ResponseWriter, request *http.Request
 func (c *Config) notifyHandler(
 	reqID string, vars map[string]string, writer http.ResponseWriter, request *http.Request,
 ) {
+	msg := request.FormValue("msg")
 	code, reply := http.StatusOK, "REQ ID: "+reqID+", msg: got notify\n"
-	cam := c.SSpy.Cameras.ByName(vars["event"])
+	cam := c.cameraByName(vars["event"])
 	subs := c.Subs.GetSubscribers(vars["event"])
 	path := ""
 
@@ -49,13 +50,18 @@ func (c *Config) notifyHandler(
 		if err != nil {
 			c.Error.Printf("[%v] cam.SaveJPEG: %v", reqID, err)
 			code, reply = http.StatusInternalServerError, "ERROR: "+err.Error()
+			path = "" // fall back to text-only; do not attach a missing/partial file
 		}
 	}
 
-	msg := request.FormValue("msg")
-	if msg == "" && cam != nil {
-		msg = cam.Name
+	if msg == "" {
+		if cam != nil {
+			msg = cam.Name
+		} else {
+			msg = vars["event"]
+		}
 	}
+
 	c.Msgs.SendFileOrMsg(reqID, msg, path, subs)
 	c.finishReq(writer, request, reqID, code, reply, msg)
 }
