@@ -276,8 +276,13 @@ func (c *Chat) camsWizardCam(handler *Handler, idx int) *Reply {
 	}
 
 	settings := GetCameraClipSettings(c.Subs, cam.Name)
+	clip := FormatClipSettings(settings)
+	if frame := cameraFrameSize(cam); frame != "" {
+		clip += " (" + frame + ")"
+	}
+
 	msg := fmt.Sprintf("%s (%s)\n\nSnapshot = one still photo.\nVideo = a short live clip.\nClip: %s",
-		cam.Name, status, FormatClipSettings(settings))
+		cam.Name, status, clip)
 
 	rows := [][]Button{
 		{
