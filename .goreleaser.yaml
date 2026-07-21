@@ -51,7 +51,8 @@ notarize:
 archives:
   - id: motifini
     formats: [tar.gz]
-    wrap_in_directory: true
+    # Flat archives so Homebrew casks can find binary/examples without rename.
+    wrap_in_directory: false
     files:
       - LICENSE
       - README.md
@@ -80,24 +81,21 @@ homebrew_casks:
     commit_msg_template: "Brew cask update for {{ .ProjectName }} version {{ .Tag }}"
     directory: Casks
     homepage: https://github.com/davidnewhall/motifini
-    description: SecuritySpy Telegram Bot — motion clips and camera alerts in Telegram
+    description: SecuritySpy Telegram Bot - motion clips and camera alerts in Telegram
     license: MIT
     url:
       template: "https://github.com/davidnewhall/motifini/releases/download/{{ .Tag }}/{{ .ArtifactName }}"
-    service: |
-      run ["#{opt_bin}/motifini", "--config", "#{etc}/motifini.conf"]
-      keep_alive true
-      log_path "#{var}/log/motifini.log"
-      error_log_path "#{var}/log/motifini.log"
+      verified: github.com/davidnewhall/motifini
+    # Do not set `service:` — on Homebrew 6+ cask `service` is a Moved artifact (plist path),
+    # not Formula's `service do` block. GoReleaser's quoted service string also breaks Ruby parse.
     hooks:
       post:
         install: |
-          FileUtils.cp "#{staged_path}/examples/motifini.conf.example", "#{etc}/motifini.conf.example"
-          FileUtils.cp "#{staged_path}/examples/motifini.conf.example", "#{etc}/motifini.conf" unless File.exist?("#{etc}/motifini.conf")
-    caveats: |
-      Edit #{etc}/motifini.conf (example copied on install), then:
-        brew services start motifini
-      State/log paths in the example default to /opt/homebrew/var/... — adjust if brew --prefix differs.
+          conf_dir = HOMEBREW_PREFIX/"etc"
+          conf_dir.mkpath
+          FileUtils.cp "#{staged_path}/examples/motifini.conf.example", conf_dir/"motifini.conf.example"
+          FileUtils.cp "#{staged_path}/examples/motifini.conf.example", conf_dir/"motifini.conf" unless (conf_dir/"motifini.conf").exist?
+    caveats: "Edit #{HOMEBREW_PREFIX}/etc/motifini.conf then run: motifini --config=#{HOMEBREW_PREFIX}/etc/motifini.conf. Example state/log paths use /opt/homebrew/var/...; adjust if brew --prefix differs."
 
 changelog:
   sort: asc

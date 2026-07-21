@@ -13,7 +13,7 @@ macOS (Homebrew tap):
 ```bash
 brew install --cask golift/mugs/motifini
 # edit $(brew --prefix)/etc/motifini.conf (copied from the example on install), then:
-brew services start motifini
+motifini --config="$(brew --prefix)/etc/motifini.conf"
 ```
 
 The example config defaults to Apple Silicon Homebrew paths under `/opt/homebrew`
@@ -21,9 +21,9 @@ The example config defaults to Apple Silicon Homebrew paths under `/opt/homebrew
 or anything else, change those paths to match — e.g. `$(brew --prefix)/var/...` —
 before starting, or Motifini may fail to write state/logs.
 
-`brew services` passes `--config=$(brew --prefix)/etc/motifini.conf` explicitly.
-Running `motifini` by hand without `--config` uses the binary default
-`/opt/homebrew/etc/motifini.conf`.
+Homebrew casks do not support Formula-style `brew services`; run Motifini in the
+foreground (or under your own launchd unit). Running without `--config` uses the
+binary default `/opt/homebrew/etc/motifini.conf`.
 
 Or download binaries for macOS (universal), Linux, FreeBSD, and Windows from
 [GitHub Releases](https://github.com/davidnewhall/motifini/releases).
@@ -37,8 +37,8 @@ Or download binaries for macOS (universal), Linux, FreeBSD, and Windows from
    [`https://github.com/davidnewhall/motifini/blob/main/examples/motifini.conf.example`](https://github.com/davidnewhall/motifini/blob/main/examples/motifini.conf.example)
 
    Default config path (no flags): `/opt/homebrew/etc/motifini.conf`. Override with
-   `--config=/path/to/file`. After `brew install`, prefer
-   `$(brew --prefix)/etc/motifini.conf` (what `brew services` uses).
+   `--config=/path/to/file`. After `brew install --cask`, prefer
+   `$(brew --prefix)/etc/motifini.conf`.
 
 4. Run Motifini, then message the bot:
 
@@ -49,7 +49,8 @@ Or download binaries for macOS (universal), Linux, FreeBSD, and Windows from
 
 ## Using the bot
 
-The Telegram UI is a full-blown button menu. Browse cameras, subscribe to events, pause alerts, set delays, pull a snapshot or clip — almost everything is tappable. Slash commands still work if you prefer typing (`/sub`, `/subs`, `/stop`, `/delay`, `/cams`, `/pics`, `/vid`, …); `/help` lists them.
+The Telegram UI is a full-blown button menu. Browse cameras, subscribe to events, pause alerts, set delays, pull a snapshot or clip — almost everything is tappable.
+Slash commands still work if you prefer typing (`/sub`, `/subs`, `/stop`, `/delay`, `/cams`, `/pics`, `/vid`, …); `/help` lists them.
 
 **Allowing users**
 
