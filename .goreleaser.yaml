@@ -51,7 +51,8 @@ notarize:
 archives:
   - id: motifini
     formats: [tar.gz]
-    wrap_in_directory: true
+    # Flat archives so Homebrew casks can find binary/examples without rename.
+    wrap_in_directory: false
     files:
       - LICENSE
       - README.md
@@ -80,24 +81,58 @@ homebrew_casks:
     commit_msg_template: "Brew cask update for {{ .ProjectName }} version {{ .Tag }}"
     directory: Casks
     homepage: https://github.com/davidnewhall/motifini
-    description: SecuritySpy Telegram Bot — motion clips and camera alerts in Telegram
+    description: SecuritySpy Telegram Bot - motion clips and camera alerts in Telegram
     license: MIT
     url:
       template: "https://github.com/davidnewhall/motifini/releases/download/{{ .Tag }}/{{ .ArtifactName }}"
-    service: |
-      run ["#{opt_bin}/motifini", "--config", "#{etc}/motifini.conf"]
-      keep_alive true
-      log_path "#{var}/log/motifini.log"
-      error_log_path "#{var}/log/motifini.log"
+      verified: github.com/davidnewhall/motifini
+    # Do not set `service:` — cask `service` is ~/Library/Services (Automator), not LaunchAgents.
+    # Install a LaunchAgent in postflight; manage with launchctl (brew services is formula-only).
     hooks:
       post:
         install: |
-          FileUtils.cp "#{staged_path}/examples/motifini.conf.example", "#{etc}/motifini.conf.example"
-          FileUtils.cp "#{staged_path}/examples/motifini.conf.example", "#{etc}/motifini.conf" unless File.exist?("#{etc}/motifini.conf")
+          conf_dir = HOMEBREW_PREFIX/"etc"
+          conf_dir.mkpath
+          FileUtils.cp "#{staged_path}/examples/motifini.conf.example", conf_dir/"motifini.conf.example"
+          FileUtils.cp "#{staged_path}/examples/motifini.conf.example", conf_dir/"motifini.conf" unless (conf_dir/"motifini.conf").exist?
+          (HOMEBREW_PREFIX/"var/log").mkpath
+          label = "io.golift.motifini"
+          agent = Pathname.new(Dir.home)/"Library/LaunchAgents/#{label}.plist"
+          agent.dirname.mkpath
+          binary = HOMEBREW_PREFIX/"bin/motifini"
+          conf = conf_dir/"motifini.conf"
+          log = HOMEBREW_PREFIX/"var/log/motifini.log"
+          agent.write <<~XML
+            <?xml version="1.0" encoding="UTF-8"?>
+            <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+            <plist version="1.0">
+            <dict>
+              <key>Label</key><string>#{label}</string>
+              <key>ProgramArguments</key>
+              <array>
+                <string>#{binary}</string>
+                <string>--config</string>
+                <string>#{conf}</string>
+              </array>
+              <key>RunAtLoad</key><true/>
+              <key>KeepAlive</key><true/>
+              <key>WorkingDirectory</key><string>#{HOMEBREW_PREFIX}</string>
+              <key>StandardOutPath</key><string>#{log}</string>
+              <key>StandardErrorPath</key><string>#{log}</string>
+            </dict>
+            </plist>
+          XML
+        uninstall: |
+          label = "io.golift.motifini"
+          agent = Pathname.new(Dir.home)/"Library/LaunchAgents/#{label}.plist"
+          system "/bin/launchctl", "bootout", "gui/#{Process.uid}/#{label}"
+          agent.delete if agent.exist?
     caveats: |
-      Edit #{etc}/motifini.conf (example copied on install), then:
-        brew services start motifini
-      State/log paths in the example default to /opt/homebrew/var/... — adjust if brew --prefix differs.
+      Edit #{HOMEBREW_PREFIX}/etc/motifini.conf then:
+        launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/io.golift.motifini.plist
+      Restart: launchctl kickstart -k gui/$(id -u)/io.golift.motifini
+      Stop:    launchctl bootout gui/$(id -u)/io.golift.motifini
+      (brew services does not manage casks.)
 
 changelog:
   sort: asc
