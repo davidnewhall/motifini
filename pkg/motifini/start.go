@@ -303,7 +303,7 @@ func (m *Motifini) Run() error {
 	m.notifySystemEvent(chat.EventStarted, fmt.Sprintf(
 		"Motifini %s-%s started at %s (PID %d).",
 		version.Version, version.Revision,
-		time.Now().Local().Format("2006-01-02 15:04:05 MST"),
+		time.Now().Format("2006-01-02 15:04:05 MST"),
 		os.Getpid()))
 
 	return m.waitForSignal()
