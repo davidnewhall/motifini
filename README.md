@@ -1,8 +1,8 @@
 # Motifini — SecuritySpy Telegram Bot
 
-Motifini is a small daemon that connects [SecuritySpy](https://www.bensoftware.com/securityspy/) to a Telegram bot.
+Motifini is a small daemon that connects [SecuritySpy](https://www.bensoftware.com/securityspy/) to a Telegram bot — with a full interactive menu, not just slash commands.
 
-When a camera triggers motion (or human / vehicle / animal classification), Motifini captures a short live clip and sends it to whoever subscribed to that camera in Telegram. You can also pull a snapshot or clip on demand, pause alerts, set repeat delays, and get text pings for system events (app started, event stream up/down, cameras online/offline).
+When a camera triggers motion (or human / vehicle / animal classification), Motifini captures a short live clip and sends it to whoever subscribed to that camera. Each person configures their own subscriptions, pauses, and repeat delays. Admins tune per-camera clip quality for everyone. Snapshots, on-demand video, and system events (app started, event stream up/down, cameras online/offline) are all a tap away in Telegram.
 
 It starts even if SecuritySpy is temporarily down, retries in the background, and keeps the Telegram bot usable meanwhile. Video capture is pure Go (no ffmpeg binary).
 
@@ -25,6 +25,8 @@ It starts even if SecuritySpy is temporarily down, retries in the background, an
 
 ## Using the bot
 
+The Telegram UI is a full-blown button menu. Browse cameras, subscribe to events, pause alerts, set delays, pull a snapshot or clip — almost everything is tappable. Slash commands still work if you prefer typing (`/sub`, `/subs`, `/stop`, `/delay`, `/cams`, `/pics`, `/vid`, …); `/help` lists them.
+
 **Allowing users**
 
 New chats get no reply until they are allowed:
@@ -36,9 +38,18 @@ New chats get no reply until they are allowed:
 
 Display name when someone has no `@username`: `/name <chatId> Jane Doe` (aliases: `/rename`, `/nick`).
 
-**Subscriptions**
+**Per-subscriber configuration**
 
-Use the Telegram menus or commands (`/sub`, `/subs`, `/stop`, `/delay`, Events) to subscribe to cameras and classification filters, pause alerts, and set how often repeat clips are sent for the same subscription.
+Every allowed chat has its own settings. One person can watch the driveway for cars, another only humans at the front door, and a third can pause the porch for an hour — without affecting anyone else.
+
+- Subscribe / unsubscribe per camera and classification (motion, human, vehicle, animal), or to named system events
+- Per-subscription repeat delay (how long before another clip for the same trigger)
+- Pause all alerts or a single camera (`/stop` / menu), then resume when ready
+- On-demand snapshot or video from any camera you can see
+
+**Per-camera clip settings** (admins — `/camset` or Cams → camera → Clip settings)
+
+Clip quality is shared for that camera (motion alerts and `/vid`): scale (full / half / quarter), length (2–15s), and max size (500k–3MB). Half requests slightly under half native height so SecuritySpy recompresses HEVC instead of stream-copying the full frame.
 
 **Built-in system events** (subscribe like any other event)
 
@@ -46,10 +57,6 @@ Use the Telegram menus or commands (`/sub`, `/subs`, `/stop`, `/delay`, Events) 
 - Event Stream Up / Down
 - Camera Online / Offline
 - SecuritySpy Error
-
-**Admin: per-camera clip settings** (`/camset` or Cams → Clip settings)
-
-Everyone gets the same clip for a camera. Admins set scale (full / half / quarter), length (2–15s), and max size (500k–3MB). Half requests slightly under half native height so SecuritySpy recompresses HEVC instead of stream-copying the full frame.
 
 ## Configuration
 
