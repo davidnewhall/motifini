@@ -40,7 +40,7 @@ func (c *Config) notifyHandler(
 	msg := request.FormValue("msg")
 	if !c.securitySpyReady() && msg == "" {
 		c.finishReq(writer, request, reqID, http.StatusServiceUnavailable,
-			"ERROR: SecuritySpy not connected yet\n", vars["event"])
+			"ERROR: SecuritySpy not ready (cameras not loaded)\n", vars["event"])
 
 		return
 	}

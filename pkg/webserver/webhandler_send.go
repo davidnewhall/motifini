@@ -34,7 +34,7 @@ func (c *Config) sendVideoHandler(writer http.ResponseWriter, request *http.Requ
 	cam := c.cameraByName(name)
 	if !c.securitySpyReady() {
 		c.Debug.Printf("[%v] SecuritySpy cameras not loaded yet", reqID)
-		code, reply = http.StatusServiceUnavailable, "ERROR: SecuritySpy not connected yet"
+		code, reply = http.StatusServiceUnavailable, "ERROR: SecuritySpy not ready (cameras not loaded)"
 	} else if cam == nil {
 		c.Debug.Printf("[%v] Invalid 'cam' provided: %v", reqID, name)
 		code, reply = http.StatusInternalServerError, "ERROR: Camera not found in configuration!"
@@ -152,7 +152,7 @@ func (c *Config) sendPictureHandler(writer http.ResponseWriter, request *http.Re
 
 	switch {
 	case !c.securitySpyReady():
-		code, reply = http.StatusServiceUnavailable, "ERROR: SecuritySpy not connected yet"
+		code, reply = http.StatusServiceUnavailable, "ERROR: SecuritySpy not ready (cameras not loaded)"
 		c.Debug.Printf("[%v] SecuritySpy cameras not loaded yet", reqID)
 	case name == "" || code == http.StatusInternalServerError:
 		code, reply = http.StatusInternalServerError, "ERROR: Missing 'to' or 'cam', name: "+name

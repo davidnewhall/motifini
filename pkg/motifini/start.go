@@ -310,7 +310,7 @@ func (m *Motifini) Run() error {
 func (m *Motifini) connectSecuritySpy() bool {
 	if m.Conf.SecuritySpy == nil || m.Conf.SecuritySpy.URL == "" {
 		m.Error.Println("SecuritySpy config missing — camera features disabled")
-		m.SSpy = securityspy.NewMust(&server.Config{URL: "http://127.0.0.1/"})
+		m.SSpy = nil
 
 		return false
 	}

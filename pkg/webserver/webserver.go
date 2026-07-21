@@ -48,9 +48,7 @@ type Config struct {
 // Start validates the config and returns any errors.
 // If all goes well, this will not return until the server shuts down.
 func Start(cfg *Config) error {
-	if cfg.SSpy == nil {
-		return fmt.Errorf("%w: securityspy is nil", messenger.ErrNillConfigItem)
-	}
+	// SSpy may be nil when [security_spy] is missing; camera routes return 503 via securitySpyReady.
 
 	if cfg.Subs == nil {
 		return fmt.Errorf("%w: subscribe is nil", messenger.ErrNillConfigItem)

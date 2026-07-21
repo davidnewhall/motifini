@@ -25,7 +25,7 @@ func (c *Chat) cameraByName(name string) *securityspy.Camera {
 // noCamerasReply is shown when SecuritySpy has not loaded any cameras yet.
 func (c *Chat) noCamerasReply() *Reply {
 	return &Reply{
-		Reply: "SecuritySpy isn't connected yet (no cameras loaded).\n\nTry again in a moment.",
+		Reply: "SecuritySpy isn't ready (no cameras loaded).\n\nCheck the [security_spy] config and connection, then try again.",
 		Edit:  true,
 		Toast: "Offline",
 		Keyboard: [][]Button{
