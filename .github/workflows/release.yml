@@ -19,7 +19,8 @@ jobs:
           go-version-file: go.mod
           cache: true
       - name: Set revision
-        run: echo "REVISION=$(git rev-list --count --all || echo 0)" >> "$GITHUB_ENV"
+        # Count commits reachable from the tagged HEAD (stable across checkouts).
+        run: echo "REVISION=$(git rev-list --count HEAD || echo 0)" >> "$GITHUB_ENV"
       - uses: goreleaser/goreleaser-action@v7
         with:
           distribution: goreleaser

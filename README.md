@@ -13,12 +13,21 @@ macOS (Homebrew tap):
 ```bash
 brew install golift/mugs/motifini
 cp "$(brew --prefix)/etc/motifini.conf.example" "$(brew --prefix)/etc/motifini.conf"
-# edit the config, then:
+# edit the config (token, SecuritySpy URL, etc.), then:
 brew services start motifini
 ```
 
+The example config defaults to Apple Silicon Homebrew paths under `/opt/homebrew`
+(`state_file`, `log_file`, `event_log`). If `brew --prefix` is `/usr/local` (Intel)
+or anything else, change those paths to match — e.g. `$(brew --prefix)/var/...` —
+before starting, or Motifini may fail to write state/logs.
+
+`brew services` passes `--config=$(brew --prefix)/etc/motifini.conf` explicitly.
+Running `motifini` by hand without `--config` uses the binary default
+`/opt/homebrew/etc/motifini.conf`.
+
 Or download binaries for macOS (universal), Linux, FreeBSD, and Windows from
-[GitHub Releases](https://github.com/davidnewhall/motifini/releases) after tagging `v*`.
+[GitHub Releases](https://github.com/davidnewhall/motifini/releases).
 
 ## Quick start
 
@@ -28,7 +37,9 @@ Or download binaries for macOS (universal), Linux, FreeBSD, and Windows from
 
    [`https://github.com/davidnewhall/motifini/blob/main/examples/motifini.conf.example`](https://github.com/davidnewhall/motifini/blob/main/examples/motifini.conf.example)
 
-   Default path: `/usr/local/etc/motifini.conf` (or `--config=/path/to/file`). Homebrew uses `$(brew --prefix)/etc/motifini.conf`.
+   Default config path (no flags): `/opt/homebrew/etc/motifini.conf`. Override with
+   `--config=/path/to/file`. After `brew install`, prefer
+   `$(brew --prefix)/etc/motifini.conf` (what `brew services` uses).
 
 4. Run Motifini, then message the bot:
 

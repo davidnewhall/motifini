@@ -1,5 +1,7 @@
 # Motifini — SecuritySpy Telegram Bot
-# Copy to /usr/local/etc/motifini.conf (or pass --config=...) and fill in secrets.
+# Copy to /opt/homebrew/etc/motifini.conf (or pass --config=...) and fill in secrets.
+# Apple Silicon Homebrew prefix is /opt/homebrew; Intel may still use /usr/local —
+# or substitute $(brew --prefix) for etc/var paths below.
 # Environment overrides use prefix MO_ by default (e.g. MO_TELEGRAM_TOKEN).
 
 ##############################################################################
@@ -10,15 +12,15 @@
   temp_dir = "/tmp"
 
   # Subscriber DB (who is allowed, subscriptions, per-camera clip settings, etc.).
-  state_file = "/usr/local/var/lib/motifini-subscribers.json"
+  state_file = "/opt/homebrew/var/lib/motifini-subscribers.json"
 
   # Optional rotating app log (info/error/debug). Empty = stdout/stderr only.
   # When set, further logs leave the console (config/log paths still print first).
-  log_file = "/usr/local/var/log/motifini/motifini.log"
+  log_file = "/opt/homebrew/var/log/motifini/motifini.log"
 
   # Optional rotating SecuritySpy event-stream log. Empty = disabled.
   # Must be a different path from log_file.
-  event_log = "/usr/local/var/log/motifini/events.log"
+  event_log = "/opt/homebrew/var/log/motifini/events.log"
 
   # Rotated log size / retention (also used for event_log when set).
   log_file_mb = 5   # max size per file in megabytes (default 5)

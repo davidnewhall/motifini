@@ -99,7 +99,7 @@ func (flag *Flags) ParseArgs(args []string) {
 	}
 
 	flag.StringVarP(&flag.EnvPrefix, "prefix", "p", DefaultEnvPrefix, "Environment Variable Configuration Prefix")
-	flag.StringVarP(&flag.ConfigFile, "config", "c", "/usr/local/etc/"+Binary+".conf", "Config File")
+	flag.StringVarP(&flag.ConfigFile, "config", "c", "/opt/homebrew/etc/"+Binary+".conf", "Config File")
 	flag.BoolVarP(&flag.VersionReq, "version", "v", false, "Print the version and exit")
 	_ = flag.Parse(args) // flag.ExitOnError means this will never return != nil
 }
