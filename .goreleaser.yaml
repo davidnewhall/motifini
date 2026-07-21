@@ -1,0 +1,87 @@
+# yaml-language-server: $schema=https://goreleaser.com/static/schema.json
+version: 2
+
+project_name: motifini
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: motifini
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - windows
+      - freebsd
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w
+      - -X "golift.io/version.Version={{.Version}}"
+      - -X "golift.io/version.BuildDate={{.Date}}"
+      - -X "golift.io/version.BuildUser={{.Env.USER}}"
+      - -X "golift.io/version.Revision={{.Env.REVISION}}"
+      - -X "golift.io/version.Branch={{.ShortCommit}} [{{.Branch}}]"
+
+universal_binaries:
+  - id: motifini
+    replace: true
+
+archives:
+  - id: motifini
+    formats: [tar.gz]
+    wrap_in_directory: true
+    files:
+      - LICENSE
+      - README.md
+      - examples/motifini.conf.example
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+
+checksum:
+  name_template: checksums.txt
+
+brews:
+  - name: motifini
+    repository:
+      owner: golift
+      name: homebrew-mugs
+      branch: master
+      token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
+    commit_author:
+      name: goreleaserbot
+      email: bot@goreleaser.com
+    commit_msg_template: "Brew formula update for {{ .ProjectName }} version {{ .Tag }}"
+    directory: Formula
+    homepage: https://github.com/davidnewhall/motifini
+    description: SecuritySpy Telegram Bot — motion clips and camera alerts in Telegram
+    license: MIT
+    url_template: "https://github.com/davidnewhall/motifini/releases/download/{{ .Tag }}/{{ .ArtifactName }}"
+    install: |
+      bin.install "motifini"
+      etc.install "examples/motifini.conf.example" => "motifini.conf.example"
+    service: |
+      run [opt_bin/"motifini", "--config", etc/"motifini.conf"]
+      keep_alive true
+      log_path var/"log/motifini.log"
+      error_log_path var/"log/motifini.log"
+    caveats: |
+      Copy the example config, then edit it:
+        cp #{etc}/motifini.conf.example #{etc}/motifini.conf
+      Start with brew services:
+        brew services start motifini
+    test: |
+      assert_match "motifini, version #{version}", shell_output("#{bin}/motifini -v 2>&1")
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^ci:"

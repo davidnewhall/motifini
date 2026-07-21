@@ -6,6 +6,20 @@ When a camera triggers motion (or human / vehicle / animal classification), Moti
 
 It starts even if SecuritySpy is temporarily down, retries in the background, and keeps the Telegram bot usable meanwhile. Video capture is pure Go (no ffmpeg binary).
 
+## Install
+
+macOS (Homebrew tap):
+
+```bash
+brew install golift/mugs/motifini
+cp "$(brew --prefix)/etc/motifini.conf.example" "$(brew --prefix)/etc/motifini.conf"
+# edit the config, then:
+brew services start motifini
+```
+
+Or download binaries for macOS (universal), Linux, FreeBSD, and Windows from
+[GitHub Releases](https://github.com/davidnewhall/motifini/releases) after tagging `v*`.
+
 ## Quick start
 
 1. Create a SecuritySpy web account with access to your cameras.
@@ -14,7 +28,7 @@ It starts even if SecuritySpy is temporarily down, retries in the background, an
 
    [`https://github.com/davidnewhall/motifini/blob/main/examples/motifini.conf.example`](https://github.com/davidnewhall/motifini/blob/main/examples/motifini.conf.example)
 
-   Default path: `/usr/local/etc/motifini.conf` (or `--config=/path/to/file`).
+   Default path: `/usr/local/etc/motifini.conf` (or `--config=/path/to/file`). Homebrew uses `$(brew --prefix)/etc/motifini.conf`.
 
 4. Run Motifini, then message the bot:
 
