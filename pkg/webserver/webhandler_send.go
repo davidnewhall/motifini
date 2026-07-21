@@ -151,12 +151,12 @@ func (c *Config) sendPictureHandler(writer http.ResponseWriter, request *http.Re
 	cam := c.cameraByName(name)
 
 	switch {
-	case !c.securitySpyReady():
-		code, reply = http.StatusServiceUnavailable, "ERROR: SecuritySpy not ready (cameras not loaded)"
-		c.Debug.Printf("[%v] SecuritySpy cameras not loaded yet", reqID)
 	case name == "" || code == http.StatusInternalServerError:
 		code, reply = http.StatusInternalServerError, "ERROR: Missing 'to' or 'cam', name: "+name
 		c.Debug.Printf("[%v] Invalid 'to' provided or 'cam' empty: %v", reqID, name)
+	case !c.securitySpyReady():
+		code, reply = http.StatusServiceUnavailable, "ERROR: SecuritySpy not ready (cameras not loaded)"
+		c.Debug.Printf("[%v] SecuritySpy cameras not loaded yet", reqID)
 	case cam == nil:
 		code, reply = http.StatusInternalServerError, "ERROR: Camera not found: "+name
 		c.Debug.Printf("[%v] Camera not found: %v", reqID, name)

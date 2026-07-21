@@ -121,11 +121,13 @@ func (m *Motifini) handleConfigChange() {
 	m.saveSubDB() // just because.
 	m.Info.Println("SecuritySpy Configuration Changed! Stopping webserver and messenger to refresh SecuritySpy data.")
 
-	err := m.HTTP.Stop()
-	if err != nil {
-		m.Error.Println("Stopping Webserver:", err)
+	if m.HTTP != nil {
+		err := m.HTTP.Stop()
+		if err != nil {
+			m.Error.Println("Stopping Webserver:", err)
+		}
+		defer m.HTTP.Start()
 	}
-	defer m.HTTP.Start()
 
 	if m.Msgs != nil {
 		m.Msgs.Stop()
@@ -138,9 +140,11 @@ func (m *Motifini) handleConfigChange() {
 		}()
 	}
 
-	err = m.SSpy.Refresh()
-	if err != nil {
-		m.Error.Println("Refreshing SecuritySpy Configuration:", err)
+	if m.SSpy != nil {
+		err := m.SSpy.Refresh()
+		if err != nil {
+			m.Error.Println("Refreshing SecuritySpy Configuration:", err)
+		}
 	}
 
 	time.Sleep(time.Second)
