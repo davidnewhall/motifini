@@ -255,15 +255,24 @@ func (c *Chat) camSetWizardApply(payload string) (*Reply, bool) {
 		c.Subs.Events.RuleSetS(key, ruleScale, value)
 	case "l":
 		secs, err := strconv.Atoi(value)
-		if err != nil || secs < 1 {
-			return &Reply{Reply: "Bad length.", Edit: true, Toast: "Error"}, false
+		if err != nil || !allowedClipLengthSecs(secs) {
+			return &Reply{
+				Reply: fmt.Sprintf("Length must be %d–%ds.", MinClipLengthSecs, MaxClipLengthSecs),
+				Edit:  true,
+				Toast: "Error",
+			}, false
 		}
 
 		c.Subs.Events.RuleSetD(key, ruleLength, time.Duration(secs)*time.Second)
 	case "z":
 		size, err := strconv.Atoi(value)
-		if err != nil || size < 1 {
-			return &Reply{Reply: "Bad size.", Edit: true, Toast: "Error"}, false
+		if err != nil || !allowedClipSizeBytes(size) {
+			return &Reply{
+				Reply: fmt.Sprintf("Size must be %s–%s.",
+					formatByteSize(MinClipSizeBytes), formatByteSize(MaxClipSizeBytes)),
+				Edit:  true,
+				Toast: "Error",
+			}, false
 		}
 
 		c.Subs.Events.RuleSetI(key, ruleSize, size)

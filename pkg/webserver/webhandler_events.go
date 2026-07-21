@@ -38,7 +38,7 @@ func (c *Config) notifyHandler(
 	reqID string, vars map[string]string, writer http.ResponseWriter, request *http.Request,
 ) {
 	code, reply := http.StatusOK, "REQ ID: "+reqID+", msg: got notify\n"
-	cam := c.SSpy.Cameras.ByName(vars["event"])
+	cam := c.cameraByName(vars["event"])
 	subs := c.Subs.GetSubscribers(vars["event"])
 	path := ""
 

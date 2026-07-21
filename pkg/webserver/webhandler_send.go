@@ -31,8 +31,11 @@ func (c *Config) sendVideoHandler(writer http.ResponseWriter, request *http.Requ
 	}
 	reqID, code, reply := messenger.ReqID(messenger.IDLength), http.StatusOK, "OK"
 
-	cam := c.SSpy.Cameras.ByName(name)
-	if cam == nil {
+	cam := c.cameraByName(name)
+	if !c.securitySpyReady() {
+		c.Debug.Printf("[%v] SecuritySpy cameras not loaded yet", reqID)
+		code, reply = http.StatusServiceUnavailable, "ERROR: SecuritySpy not connected yet"
+	} else if cam == nil {
 		c.Debug.Printf("[%v] Invalid 'cam' provided: %v", reqID, name)
 		code, reply = http.StatusInternalServerError, "ERROR: Camera not found in configuration!"
 	}
@@ -145,9 +148,12 @@ func (c *Config) sendPictureHandler(writer http.ResponseWriter, request *http.Re
 		}
 	}
 
-	cam := c.SSpy.Cameras.ByName(name)
+	cam := c.cameraByName(name)
 
 	switch {
+	case !c.securitySpyReady():
+		code, reply = http.StatusServiceUnavailable, "ERROR: SecuritySpy not connected yet"
+		c.Debug.Printf("[%v] SecuritySpy cameras not loaded yet", reqID)
 	case name == "" || code == http.StatusInternalServerError:
 		code, reply = http.StatusInternalServerError, "ERROR: Missing 'to' or 'cam', name: "+name
 		c.Debug.Printf("[%v] Invalid 'to' provided or 'cam' empty: %v", reqID, name)

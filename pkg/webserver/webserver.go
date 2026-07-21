@@ -166,3 +166,17 @@ func (c *Config) handleAll(writer http.ResponseWriter, request *http.Request) {
 func contains(s []string, e string) bool {
 	return slices.Contains(s, e)
 }
+
+// securitySpyReady is false until the first successful Refresh() loads cameras.
+func (c *Config) securitySpyReady() bool {
+	return c != nil && c.SSpy != nil && c.SSpy.Cameras != nil
+}
+
+// cameraByName looks up a camera, or nil when SecuritySpy has no camera list yet.
+func (c *Config) cameraByName(name string) *securityspy.Camera {
+	if !c.securitySpyReady() {
+		return nil
+	}
+
+	return c.SSpy.Cameras.ByName(name)
+}

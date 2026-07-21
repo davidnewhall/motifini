@@ -24,6 +24,11 @@ const (
 	DefaultClipScale  = ScaleHalf
 	DefaultClipLength = 6 * time.Second
 	DefaultClipSize   = 1572864 // 1.5 MiB
+
+	MinClipLengthSecs = 2
+	MaxClipLengthSecs = 15
+	MinClipSizeBytes  = 500 * 1024
+	MaxClipSizeBytes  = 3 * 1024 * 1024
 )
 
 // ClipSettings is the admin-global capture profile for one camera.
@@ -116,6 +121,14 @@ func validScale(scale string) bool {
 	default:
 		return false
 	}
+}
+
+func allowedClipLengthSecs(secs int) bool {
+	return secs >= MinClipLengthSecs && secs <= MaxClipLengthSecs
+}
+
+func allowedClipSizeBytes(size int) bool {
+	return size >= MinClipSizeBytes && size <= MaxClipSizeBytes
 }
 
 // heightForScale maps full/half/quarter to a request height.
