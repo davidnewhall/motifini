@@ -13,14 +13,15 @@ import (
 
 // Extra callback prefixes for command wizards (pics/vid/stop/delay/cams/subs/help).
 const (
-	cbPicsRoot  = "p"
-	cbVidsRoot  = "v"
-	cbCamsRoot  = "c"
-	cbStopRoot  = "t"
-	cbDelayRoot = "d"
-	cbSubsRoot  = "l"
-	cbHelpRoot  = "h"
-	cbEvtsRoot  = "e"
+	cbPicsRoot   = "p"
+	cbVidsRoot   = "v"
+	cbCamsRoot   = "c"
+	cbStopRoot   = "t"
+	cbDelayRoot  = "d"
+	cbSubsRoot   = "l"
+	cbHelpRoot   = "h"
+	cbEvtsRoot   = "e"
+	cbCamSetRoot = "k"
 )
 
 func (c *Chat) handleCommandWizardCallback(handler *Handler, data string) (*Reply, bool, bool) {
@@ -29,6 +30,10 @@ func (c *Chat) handleCommandWizardCallback(handler *Handler, data string) (*Repl
 	}
 
 	if reply, save, ok := c.handlePauseDelayWizardCallback(handler, data); ok {
+		return reply, save, true
+	}
+
+	if reply, save, ok := c.handleCamSetWizardCallback(handler, data); ok {
 		return reply, save, true
 	}
 
@@ -68,7 +73,7 @@ func (c *Chat) handleMediaWizardCallback(handler *Handler, data string) (*Reply,
 	case data == cbCamsRoot:
 		return c.camsWizardRoot(), false, true
 	case strings.HasPrefix(data, "c:") && strings.Count(data, ":") == 1:
-		return c.camsWizardCam(atoiDefault(strings.TrimPrefix(data, "c:"), -1)), false, true
+		return c.camsWizardCam(handler, atoiDefault(strings.TrimPrefix(data, "c:"), -1)), false, true
 	case strings.HasPrefix(data, "c:p:"):
 		reply, save := c.picsWizardSnap(handler, atoiDefault(strings.TrimPrefix(data, "c:p:"), -2))
 
@@ -172,7 +177,7 @@ func atoiDefault(s string, def int) int {
 }
 
 func (c *Chat) cameraButtonRows(dataPrefix string, includeAll bool) [][]Button {
-	cams := c.SSpy.Cameras.All()
+	cams := c.allCameras()
 	rows := make([][]Button, 0, len(cams)/2+3)
 
 	if includeAll {
@@ -199,7 +204,11 @@ func (c *Chat) cameraButtonRows(dataPrefix string, includeAll bool) [][]Button {
 }
 
 func (c *Chat) picsWizardRoot() *Reply {
-	_ = c.SSpy.Refresh()
+	c.refreshCameras()
+	if len(c.allCameras()) == 0 {
+		return c.noCamerasReply()
+	}
+
 	rows := c.cameraButtonRows("p:", true)
 	rows = append(rows, []Button{{Label: "Done", Data: cbCancel}})
 
@@ -213,6 +222,10 @@ func (c *Chat) picsWizardRoot() *Reply {
 }
 
 func (c *Chat) vidsWizardRoot() *Reply {
+	if len(c.allCameras()) == 0 {
+		return c.noCamerasReply()
+	}
+
 	rows := c.cameraButtonRows("v:", true)
 	rows = append(rows, []Button{{Label: "Done", Data: cbCancel}})
 
@@ -225,11 +238,15 @@ func (c *Chat) vidsWizardRoot() *Reply {
 }
 
 func (c *Chat) camsWizardRoot() *Reply {
-	_ = c.SSpy.Refresh()
+	c.refreshCameras()
+	cams := c.allCameras()
+	if len(cams) == 0 {
+		return c.noCamerasReply()
+	}
+
 	rows := c.cameraButtonRows("c:", false)
 	rows = append(rows, []Button{{Label: "Done", Data: cbCancel}})
 
-	cams := c.SSpy.Cameras.All()
 	online := 0
 	for _, cam := range cams {
 		if cam.Connected.Val {
@@ -246,8 +263,8 @@ func (c *Chat) camsWizardRoot() *Reply {
 	}
 }
 
-func (c *Chat) camsWizardCam(idx int) *Reply {
-	cams := c.SSpy.Cameras.All()
+func (c *Chat) camsWizardCam(handler *Handler, idx int) *Reply {
+	cams := c.allCameras()
 	if idx < 0 || idx >= len(cams) {
 		return &Reply{Reply: "Camera gone — try again.", Edit: true, Toast: "Missing"}
 	}
@@ -258,21 +275,27 @@ func (c *Chat) camsWizardCam(idx int) *Reply {
 		status = "down"
 	}
 
-	return &Reply{
-		Reply: fmt.Sprintf("%s (%s)\n\nSnapshot = one still photo.\nVideo = a short live clip.", cam.Name, status),
-		Edit:  true,
-		Keyboard: [][]Button{
-			{
-				{Label: "Snapshot", Data: fmt.Sprintf("c:p:%d", idx)},
-				{Label: "Video", Data: fmt.Sprintf("c:v:%d", idx)},
-			},
-			{{Label: "« Cameras", Data: cbCamsRoot}, {Label: "Done", Data: cbCancel}},
+	settings := GetCameraClipSettings(c.Subs, cam.Name)
+	msg := fmt.Sprintf("%s (%s)\n\nSnapshot = one still photo.\nVideo = a short live clip.\nClip: %s",
+		cam.Name, status, FormatClipSettings(settings))
+
+	rows := [][]Button{
+		{
+			{Label: "Snapshot", Data: fmt.Sprintf("c:p:%d", idx)},
+			{Label: "Video", Data: fmt.Sprintf("c:v:%d", idx)},
 		},
 	}
+	if handler != nil && handler.Sub != nil && handler.Sub.Admin {
+		rows = append(rows, []Button{{Label: "Clip settings", Data: fmt.Sprintf("k:%d", idx)}})
+	}
+
+	rows = append(rows, []Button{{Label: "« Cameras", Data: cbCamsRoot}, {Label: "Done", Data: cbCancel}})
+
+	return &Reply{Reply: msg, Edit: true, Keyboard: rows}
 }
 
 func (c *Chat) eventsWizardRoot() *Reply {
-	names := c.Subs.Events.Names()
+	names := CatalogEventNames(c.Subs.Events)
 	if len(names) == 0 {
 		return &Reply{
 			Reply: "No custom events are configured on this Motifini.\n\n" +
@@ -349,7 +372,7 @@ func (c *Chat) mediaWizardSnap(handler *Handler, idx int, video bool) (*Reply, b
 		}, false
 	}
 
-	cams := c.SSpy.Cameras.All()
+	cams := c.allCameras()
 	if idx < 0 || idx >= len(cams) {
 		return &Reply{Reply: "Camera gone — try again.", Edit: true, Toast: "Missing"}, false
 	}
@@ -415,7 +438,7 @@ func (c *Chat) snapOne(handler *Handler, cam *securityspy.Camera, video bool) (s
 func (c *Chat) captureCam(handler *Handler, cam *securityspy.Camera, video bool) (string, string) {
 	if video {
 		path := filepath.Join(c.TempDir, fmt.Sprintf("chat_command_%v_%v.mp4", handler.ID, cam.Name))
-		ops := clipVidOps(cam)
+		ops, settings := c.clipVidOps(cam)
 
 		u, urlErr := cam.RedactedVideoURL(ops)
 		if urlErr == nil {
@@ -424,7 +447,7 @@ func (c *Chat) captureCam(handler *Handler, cam *securityspy.Camera, video bool)
 			c.Info.Printf("[%v] SaveVideo starting for %s", handler.ID, cam.Name)
 		}
 
-		err := cam.SaveVideo(ops, length, maxsize, path)
+		err := cam.SaveVideo(ops, settings.Length, int64(settings.Size), path)
 		if err != nil {
 			c.Error.Printf("[%v] cam.SaveVideo: capturing for %s: %v", handler.ID, cam.Name, err)
 
@@ -451,16 +474,18 @@ func (c *Chat) snapAll(handler *Handler, video bool) ([]string, string) {
 	// Sequential on purpose: SecuritySpy encodes stills slowly, and Telegram
 	// gets each file as it finishes (via handler.SendFile) so the UI doesn't freeze.
 	// Refresh first so Connected is current — skip dead cams instead of waiting on them.
-	err := c.SSpy.Refresh()
-	if err != nil {
-		c.Error.Printf("[%v] snapAll Refresh: %v", handler.ID, err)
+	if c.SSpy != nil {
+		err := c.SSpy.Refresh()
+		if err != nil {
+			c.Error.Printf("[%v] snapAll Refresh: %v", handler.ID, err)
+		}
 	}
 
 	var (
 		paths []string
 		errs  []string
 		okN   int
-		cams  = c.SSpy.Cameras.All()
+		cams  = c.allCameras()
 		total int
 	)
 
@@ -808,17 +833,21 @@ Tap a button below:`,
 func (c *Chat) helpWizardRootFor(handler *Handler) *Reply {
 	root := c.helpWizardRoot()
 	if handler != nil && handler.Sub != nil && handler.Sub.Admin {
-		// Insert Users before Done on the last row.
+		// Insert Users / Clip settings before Done on the last row.
 		rows := root.Keyboard
 		if len(rows) > 0 {
 			last := rows[len(rows)-1]
 			if len(last) > 0 && last[len(last)-1].Data == cbCancel {
-				last = append([]Button{{Label: "Users", Data: cbUsersRoot}}, last...)
+				last = append([]Button{
+					{Label: "Users", Data: cbUsersRoot},
+					{Label: "Clip set", Data: cbCamSetRoot},
+				}, last...)
 				rows[len(rows)-1] = last
 				root.Keyboard = rows
 			}
 		}
-		root.Reply += "\n• Users (admin) — allow/deny/ignore/admin/delete subscribers"
+		root.Reply += "\n• Users (admin) — allow/deny/ignore/admin/delete subscribers" +
+			"\n• Clip set (admin) — per-camera scale / length / size for everyone"
 	}
 
 	return root

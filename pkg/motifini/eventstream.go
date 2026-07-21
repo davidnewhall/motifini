@@ -15,9 +15,6 @@ import (
 const (
 	eventStreamBuf = 1000
 	eventRetry     = 5 * time.Second
-	defaultLength  = 6 * time.Second
-	defaultSize    = 1.5 * 1024 * 1024
-	defaultHeight  = 720
 )
 
 // ProcessEventStream processes the securityspy event stream.
@@ -165,14 +162,15 @@ func (m *Motifini) handleCameraMotion(event *securityspy.Event) {
 		return // no one to notify of this camera's motion
 	}
 
-	ops := chat.VideoClipOps(event.Camera, defaultHeight)
+	settings := chat.GetCameraClipSettings(m.Subs, event.Camera.Name)
+	ops := chat.VideoClipOps(event.Camera, settings)
 
 	u, urlErr := event.Camera.RedactedVideoURL(ops)
 	if urlErr == nil {
 		m.Debug.Printf("[%v] SaveVideo %s URL: %s", reqID, event.Camera.Name, u)
 	}
 
-	err := event.Camera.SaveVideo(ops, defaultLength, defaultSize, path)
+	err := event.Camera.SaveVideo(ops, settings.Length, int64(settings.Size), path)
 	if err != nil {
 		m.Error.Printf("[%v] event.Camera.SaveVideo: %v", reqID, err)
 		return

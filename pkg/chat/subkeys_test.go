@@ -8,20 +8,6 @@ import (
 	"golift.io/subscribe"
 )
 
-func TestScaledStreamHeight(t *testing.T) {
-	t.Parallel()
-
-	// Mailbox 1440: 720 is exactly half → SS passthrough; stay at 718.
-	if got := scaledStreamHeight(1440, 720); got != 718 {
-		t.Fatalf("mailbox: got %d want 718", got)
-	}
-
-	// Pool 1728: 720 is below half (864) → keep 720.
-	if got := scaledStreamHeight(1728, 720); got != 720 {
-		t.Fatalf("pool: got %d want 720", got)
-	}
-}
-
 func TestFormatDuration(t *testing.T) {
 	t.Parallel()
 

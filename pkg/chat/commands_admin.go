@@ -32,6 +32,12 @@ func (c *Chat) adminCommands() *Commands { //nolint:funlen // it's not that bad.
 				Desc: "Saves subscriber data to a file.",
 			},
 			{
+				Run:  c.cmdCamSet,
+				AKA:  []string{"camset", "clipset", "camsettings"},
+				Desc: "Per-camera clip settings (scale, length, size) for everyone.",
+				Save: false,
+			},
+			{
 				Run:  c.cmdAdminUsers,
 				AKA:  []string{"users", "manage", "people"},
 				Desc: "Manage subscribers — allow, deny, ignore, admin, delete.",

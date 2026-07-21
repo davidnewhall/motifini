@@ -61,6 +61,14 @@ Optional `[motifini]` settings:
 - `log_files` — number of rotated log files to keep (default `10`)
 - `security_spy_retry` — how often to retry connecting when SecuritySpy is down at startup (Go duration, default `5s`)
 
+Admin Telegram commands:
+
+- `/camset` (aka `/clipset`) — per-camera clip profile used for motion alerts and `/vid` (everyone gets the same clip)
+  - **Scale:** full / half / quarter of native resolution (default half)
+  - **Length:** 2–15 seconds (default 6s)
+  - **Size:** 500k–3MB max file size (default 1.5MB)
+  - Also available from **Cameras → camera → Clip settings** for admins
+
 ## HTTP Endpoints
 
 If you enable the webserver, these are (some) of the endpoints.

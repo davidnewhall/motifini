@@ -111,7 +111,11 @@ func (c *Chat) subWizardCameras(handler *Handler, classShortCode string) *Reply 
 		return c.subWizardClasses()
 	}
 
-	cams := c.SSpy.Cameras.All()
+	cams := c.allCameras()
+	if len(cams) == 0 {
+		return c.noCamerasReply()
+	}
+
 	rows := make([][]Button, 0, len(cams)/2+2)
 
 	var sub *subscribe.Subscriber
@@ -158,7 +162,7 @@ func (c *Chat) subWizardCameras(handler *Handler, classShortCode string) *Reply 
 }
 
 func (c *Chat) subWizardEvents() *Reply {
-	names := c.Subs.Events.Names()
+	names := CatalogEventNames(c.Subs.Events)
 	rows := make([][]Button, 0, len(names)+1)
 
 	for i, name := range names {
@@ -200,7 +204,7 @@ func (c *Chat) subWizardSubscribeCam(handler *Handler, payload string) (*Reply, 
 		return &Reply{Reply: "Bad camera index.", Edit: true, Toast: "Error"}, false
 	}
 
-	cams := c.SSpy.Cameras.All()
+	cams := c.allCameras()
 	if idx < 0 || idx >= len(cams) {
 		return &Reply{Reply: "Camera gone — try again.", Edit: true, Toast: "Missing"}, false
 	}
@@ -234,7 +238,7 @@ func (c *Chat) subWizardSubscribeEvt(handler *Handler, idxStr string) (*Reply, b
 		return &Reply{Reply: "Bad event index.", Edit: true, Toast: "Error"}, false
 	}
 
-	names := c.Subs.Events.Names()
+	names := CatalogEventNames(c.Subs.Events)
 	if idx < 0 || idx >= len(names) {
 		return &Reply{Reply: "Event gone — try again.", Edit: true, Toast: "Missing"}, false
 	}
@@ -380,8 +384,9 @@ func formatDuration(dur time.Duration) string {
 		return "just now"
 	}
 
-	now := carbon.Now()
-	past := carbon.CreateFromStdTime(time.Now().Add(-dur))
+	base := time.Now()
+	now := carbon.CreateFromStdTime(base)
+	past := carbon.CreateFromStdTime(base.Add(-dur))
 	phrase := past.DiffInString(now)
 
 	if phrase == "" {
@@ -403,11 +408,11 @@ func (c *Chat) resolveSubTarget(args []string) (string, string, error) {
 		return key, kind, err
 	}
 
-	if c.Subs.Events.Exists(joined) {
+	if c.Subs.Events.Exists(joined) && !IsCamSettingsKey(joined) {
 		return joined, "event", nil
 	}
 
-	if cam := c.SSpy.Cameras.ByName(joined); cam != nil {
+	if cam := c.cameraByName(joined); cam != nil {
 		return "", "", fmt.Errorf("%w: specify a class for %s (motion|human|vehicle|animal)", ErrBadUsage, cam.Name)
 	}
 
@@ -422,7 +427,7 @@ func (c *Chat) resolveCameraClassTarget(args []string, joined string) (string, s
 			return "", "", fmt.Errorf("%w: choose motion, human, vehicle, or animal", ErrBadUsage)
 		}
 
-		if cam := c.SSpy.Cameras.ByName(camName); cam != nil {
+		if cam := c.cameraByName(camName); cam != nil {
 			return CameraSubKey(cam.Name, class), "camera", nil
 		}
 	}
@@ -437,7 +442,7 @@ func (c *Chat) resolveCameraClassTarget(args []string, joined string) (string, s
 		return "", "", fmt.Errorf("%w: choose motion, human, vehicle, or animal", ErrBadUsage)
 	}
 
-	if cam := c.SSpy.Cameras.ByName(camName); cam != nil {
+	if cam := c.cameraByName(camName); cam != nil {
 		return CameraSubKey(cam.Name, class), "camera", nil
 	}
 
