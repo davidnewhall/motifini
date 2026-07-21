@@ -1,0 +1,74 @@
+# Motifini — SecuritySpy Telegram Bot
+# Copy to /usr/local/etc/motifini.conf (or pass --config=...) and fill in secrets.
+# Environment overrides use prefix MO_ by default (e.g. MO_TELEGRAM_TOKEN).
+
+##############################################################################
+# App paths, logging, and SecuritySpy reconnect
+##############################################################################
+[motifini]
+  # Where short video/photo temps are written before Telegram upload.
+  temp_dir = "/tmp"
+
+  # Subscriber DB (who is allowed, subscriptions, per-camera clip settings, etc.).
+  state_file = "/usr/local/var/lib/motifini-subscribers.json"
+
+  # Optional rotating app log (info/error/debug). Empty = stdout/stderr only.
+  # When set, further logs leave the console (config/log paths still print first).
+  log_file = "/usr/local/var/log/motifini/motifini.log"
+
+  # Optional rotating SecuritySpy event-stream log. Empty = disabled.
+  # Must be a different path from log_file.
+  event_log = "/usr/local/var/log/motifini/events.log"
+
+  # Rotated log size / retention (also used for event_log when set).
+  log_file_mb = 5   # max size per file in megabytes (default 5)
+  log_files   = 10  # number of rotated files to keep (default 10)
+
+  # How often to retry Refresh when SecuritySpy is down at startup (Go duration).
+  # Motifini still boots and Telegram stays available while retrying.
+  security_spy_retry = "5s"
+
+  # Verbose Telegram/HTTP diagnostics (also written to log_file when set).
+  debug = false
+
+##############################################################################
+# Optional localhost HTTP API (disabled by default)
+# Kept for local automation; not required for normal Telegram bot use.
+##############################################################################
+[webserver]
+  enable = false
+  # Listens on 127.0.0.1 only.
+  port = 8765
+  # Telegram chat IDs (as strings) allowed as HTTP "to" recipients.
+  allowed_to = [
+    # "123456789",
+  ]
+
+##############################################################################
+# Telegram bot (required for notifications / commands)
+# Create a bot with @BotFather, then put the token here.
+##############################################################################
+[telegram]
+  token = "123456:ABC-DEF..."
+  # Shared password for /id <password> so new users can unlock the bot.
+  password = "change-me"
+  # Extra Telegram API debug (noisy).
+  debug = false
+
+##############################################################################
+# SecuritySpy (required for cameras / motion clips)
+# Create a SecuritySpy web-server user with access to the cameras you want.
+# Motifini starts even if SecuritySpy is temporarily unreachable.
+##############################################################################
+[security_spy]
+  url      = "https://192.168.1.10:8001/"
+  username = "motifini"
+  password = "change-me"
+  # Require a valid TLS certificate for the SecuritySpy URL (default false = skip verify).
+  # Note: this library field has no snake_case tag — use "verifyssl", not "verify_ssl".
+  verifyssl = false
+  # HTTP client timeout for API calls (Go duration; default 10s if omitted).
+  timeout = "10s"
+  # Retries for still-image fetches (default 3 if omitted or <= 0).
+  # Note: use "jpegretries", not "jpeg_retries".
+  jpegretries = 3
