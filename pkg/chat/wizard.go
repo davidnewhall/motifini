@@ -377,7 +377,8 @@ func eventDelay(events *subscribe.Events, event string) time.Duration {
 // (e.g. "1 minute" instead of "1m0s").
 func formatDuration(dur time.Duration) string {
 	if dur < 0 {
-		dur = -dur
+		// Countdowns (time.Until) should show "0 seconds" once expired, not abs(dur).
+		return "0 seconds"
 	}
 
 	if dur < time.Second {

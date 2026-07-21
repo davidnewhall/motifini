@@ -16,6 +16,7 @@ func TestFormatDuration(t *testing.T) {
 		want string
 	}{
 		{0, "0 seconds"},
+		{-3 * time.Second, "0 seconds"},
 		{500 * time.Millisecond, "0 seconds"},
 		{59*time.Second + 700*time.Millisecond, "1 minute"},
 		{time.Minute, "1 minute"},
