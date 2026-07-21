@@ -37,6 +37,14 @@ func (c *Config) eventsHandler(writer http.ResponseWriter, request *http.Request
 func (c *Config) notifyHandler(
 	reqID string, vars map[string]string, writer http.ResponseWriter, request *http.Request,
 ) {
+	msg := request.FormValue("msg")
+	if !c.securitySpyReady() && msg == "" {
+		c.finishReq(writer, request, reqID, http.StatusServiceUnavailable,
+			"ERROR: SecuritySpy not connected yet\n", vars["event"])
+
+		return
+	}
+
 	code, reply := http.StatusOK, "REQ ID: "+reqID+", msg: got notify\n"
 	cam := c.cameraByName(vars["event"])
 	subs := c.Subs.GetSubscribers(vars["event"])
@@ -52,10 +60,14 @@ func (c *Config) notifyHandler(
 		}
 	}
 
-	msg := request.FormValue("msg")
-	if msg == "" && cam != nil {
-		msg = cam.Name
+	if msg == "" {
+		if cam != nil {
+			msg = cam.Name
+		} else {
+			msg = vars["event"]
+		}
 	}
+
 	c.Msgs.SendFileOrMsg(reqID, msg, path, subs)
 	c.finishReq(writer, request, reqID, code, reply, msg)
 }
