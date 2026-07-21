@@ -4,7 +4,7 @@ import (
 	"golift.io/securityspy/v2"
 )
 
-// allCameras returns SecuritySpy cameras or an empty slice when SS is unavailable.
+// allCameras returns SecuritySpy cameras, or nil when SS is unavailable.
 func (c *Chat) allCameras() []*securityspy.Camera {
 	if c == nil || c.SSpy == nil || c.SSpy.Cameras == nil {
 		return nil

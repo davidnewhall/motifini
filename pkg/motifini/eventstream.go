@@ -162,6 +162,10 @@ func (m *Motifini) handleCameraMotion(event *securityspy.Event) {
 		return // no one to notify of this camera's motion
 	}
 
+	if m.Msgs == nil {
+		return
+	}
+
 	settings := chat.GetCameraClipSettings(m.Subs, event.Camera.Name)
 	ops := chat.VideoClipOps(event.Camera, settings)
 
@@ -204,6 +208,10 @@ func (m *Motifini) handleCameraMotion(event *securityspy.Event) {
 
 // notifySystemEvent texts subscribers of a built-in non-camera event (no video attachment).
 func (m *Motifini) notifySystemEvent(eventName, msg string) {
+	if m.Msgs == nil {
+		return // messenger not up yet (event stream can connect during startup)
+	}
+
 	subs := m.Subs.GetSubscribers(eventName)
 	if len(subs) < 1 {
 		return
