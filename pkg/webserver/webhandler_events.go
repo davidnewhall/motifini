@@ -38,13 +38,6 @@ func (c *Config) notifyHandler(
 	reqID string, vars map[string]string, writer http.ResponseWriter, request *http.Request,
 ) {
 	msg := request.FormValue("msg")
-	if !c.securitySpyReady() && msg == "" {
-		c.finishReq(writer, request, reqID, http.StatusServiceUnavailable,
-			"ERROR: SecuritySpy not ready (cameras not loaded)\n", vars["event"])
-
-		return
-	}
-
 	code, reply := http.StatusOK, "REQ ID: "+reqID+", msg: got notify\n"
 	cam := c.cameraByName(vars["event"])
 	subs := c.Subs.GetSubscribers(vars["event"])
