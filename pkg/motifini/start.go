@@ -1,6 +1,7 @@
 package motifini
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -14,6 +15,7 @@ import (
 	"github.com/davidnewhall/motifini/pkg/chat"
 	"github.com/davidnewhall/motifini/pkg/export"
 	"github.com/davidnewhall/motifini/pkg/messenger"
+	"github.com/davidnewhall/motifini/pkg/service"
 	"github.com/davidnewhall/motifini/pkg/webserver"
 	"github.com/spf13/pflag"
 	"golift.io/cnfg"
@@ -25,6 +27,9 @@ import (
 	"golift.io/subscribe"
 	"golift.io/version"
 )
+
+// ErrMultipleServiceFlags is returned when more than one of --start/--stop/--restart is set.
+var ErrMultipleServiceFlags = errors.New("use only one of --start, --stop, or --restart")
 
 // Application identity and default timing values.
 const (
@@ -66,6 +71,9 @@ type Flags struct {
 	EnvPrefix  string
 	ConfigFile string
 	VersionReq bool
+	StartReq   bool
+	StopReq    bool
+	RestartReq bool
 }
 
 // Config is the configuration for Motifini.
@@ -94,14 +102,49 @@ func (flag *Flags) ParseArgs(args []string) {
 	*flag = Flags{FlagSet: pflag.NewFlagSet(Binary, pflag.ExitOnError)}
 
 	flag.Usage = func() {
-		fmt.Printf("Usage: %s [--config=filepath] [--version] [--debug]", Binary) //nolint:forbidigo // cli usage
+		fmt.Printf("Usage: %s [--config=filepath] [--version] "+ //nolint:forbidigo // cli usage
+			"[--start|--stop|--restart]\n", Binary)
 		flag.PrintDefaults()
 	}
 
 	flag.StringVarP(&flag.EnvPrefix, "prefix", "p", DefaultEnvPrefix, "Environment Variable Configuration Prefix")
 	flag.StringVarP(&flag.ConfigFile, "config", "c", "/opt/homebrew/etc/"+Binary+".conf", "Config File")
 	flag.BoolVarP(&flag.VersionReq, "version", "v", false, "Print the version and exit")
+	flag.BoolVar(&flag.StartReq, "start", false, "Start the LaunchAgent (macOS)")
+	flag.BoolVar(&flag.StopReq, "stop", false, "Stop the LaunchAgent (macOS)")
+	flag.BoolVar(&flag.RestartReq, "restart", false, "Restart the LaunchAgent (macOS)")
 	_ = flag.Parse(args) // flag.ExitOnError means this will never return != nil
+}
+
+// serviceAction returns the requested LaunchAgent action, if any.
+func (flag *Flags) serviceAction() (service.Action, error) {
+	count := 0
+	var action service.Action
+
+	if flag.StartReq {
+		count++
+		action = service.Start
+	}
+
+	if flag.StopReq {
+		count++
+		action = service.Stop
+	}
+
+	if flag.RestartReq {
+		count++
+		action = service.Restart
+	}
+
+	if count == 0 {
+		return "", nil
+	}
+
+	if count > 1 {
+		return "", ErrMultipleServiceFlags
+	}
+
+	return action, nil
 }
 
 // Start the daemon.
@@ -114,7 +157,21 @@ func Start() error {
 		return nil                         // don't run anything else w/ version request.
 	}
 
-	err := app.ParseConfigFile()
+	action, err := app.Flag.serviceAction()
+	if err != nil {
+		return err
+	}
+
+	if action != "" {
+		err := service.Run(action)
+		if err != nil {
+			return fmt.Errorf("service %s: %w", action, err)
+		}
+
+		return nil
+	}
+
+	err = app.ParseConfigFile()
 	if err != nil {
 		app.Flag.Usage()
 		return err
