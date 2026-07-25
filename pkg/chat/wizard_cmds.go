@@ -200,6 +200,15 @@ func (c *Chat) handleUsersWizardCallback(handler *Handler, data string) (*Reply,
 }
 
 func (c *Chat) handleAdminSubsWizardCallback(handler *Handler, data string) (*Reply, bool, bool) {
+	if !isAdminSubsCallback(data) {
+		return nil, false, false
+	}
+
+	// Cancel any in-progress rename prompt (same as m:i: / m: root).
+	if handler != nil {
+		clearPendingRename(handler.Sub)
+	}
+
 	switch {
 	case strings.HasPrefix(data, "m:sda:"):
 		reply, save := c.adminSubsWizardDelayApply(handler, strings.TrimPrefix(data, "m:sda:"))
@@ -233,6 +242,18 @@ func (c *Chat) handleAdminSubsWizardCallback(handler *Handler, data string) (*Re
 	default:
 		return nil, false, false
 	}
+}
+
+func isAdminSubsCallback(data string) bool {
+	for _, prefix := range []string{
+		"m:sda:", "m:sd:", "m:sp:", "m:su:", "m:ssa:", "m:ss:", "m:si:", "m:subs:",
+	} {
+		if strings.HasPrefix(data, prefix) {
+			return true
+		}
+	}
+
+	return false
 }
 
 func atoiDefault(s string, def int) int {

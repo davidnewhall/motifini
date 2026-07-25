@@ -2,6 +2,7 @@ package chat
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -135,7 +136,15 @@ func (c *Chat) adminSubsWizardPause(handler *Handler, payload string) (*Reply, b
 		return c.adminTargetGone(), false
 	}
 
-	mins := atoiDefault(minsStr, 10)
+	mins, err := strconv.Atoi(minsStr)
+	if err != nil || mins < 0 || mins > MaxPauseMinutes {
+		return &Reply{
+			Reply: fmt.Sprintf("Pause must be 0–%d minutes (24 hours).", MaxPauseMinutes),
+			Edit:  true,
+			Toast: "Error",
+		}, false
+	}
+
 	idx := atoiDefault(idxStr, -1)
 	names := targetEventNames(target)
 	if idx < 0 || idx >= len(names) {
@@ -143,7 +152,10 @@ func (c *Chat) adminSubsWizardPause(handler *Handler, payload string) (*Reply, b
 	}
 
 	event := names[idx]
-	_ = target.Events.Pause(event, time.Duration(mins)*time.Minute)
+	err = target.Events.Pause(event, time.Duration(mins)*time.Minute)
+	if err != nil {
+		return &Reply{Reply: "Subscription gone.", Edit: true, Toast: "Missing"}, false
+	}
 
 	msg := fmt.Sprintf("Paused %s for %s (%d min).",
 		formatSubLabel(event), subscriberDisplayName(target), mins)
