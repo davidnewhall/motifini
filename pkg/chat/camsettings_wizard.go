@@ -10,13 +10,15 @@ import (
 // Admin per-camera clip settings wizard (Telegram ≤64-byte callbacks).
 //
 // k              → camera list
-// k:{idx}        → camera menu (scale / length / size)
+// k:{idx}        → camera menu (scale / length / size / codec)
 // k:{idx}:s      → scale presets
 // k:{idx}:l      → length presets
 // k:{idx}:z      → size presets
+// k:{idx}:c      → codec presets
 // k:{idx}:s:half → apply scale
 // k:{idx}:l:6    → apply length (seconds)
 // k:{idx}:z:N    → apply size (bytes)
+// k:{idx}:c:h265 → apply codec
 
 func (c *Chat) handleCamSetWizardCallback(handler *Handler, data string) (*Reply, bool, bool) {
 	if data != cbCamSetRoot && !strings.HasPrefix(data, "k:") {
@@ -56,6 +58,8 @@ func (c *Chat) camSetWizardKind(idxStr, kind string) *Reply {
 		return c.camSetWizardLength(idxStr)
 	case "z":
 		return c.camSetWizardSize(idxStr)
+	case "c":
+		return c.camSetWizardCodec(idxStr)
 	default:
 		return &Reply{Reply: "Bad clip-settings pick.", Edit: true, Toast: "Error"}
 	}
@@ -120,7 +124,10 @@ func (c *Chat) camSetWizardCam(idxStr string) *Reply {
 			{
 				{Label: "Scale", Data: fmt.Sprintf("k:%d:s", idx)},
 				{Label: "Length", Data: fmt.Sprintf("k:%d:l", idx)},
+			},
+			{
 				{Label: "Size", Data: fmt.Sprintf("k:%d:z", idx)},
+				{Label: "Codec", Data: fmt.Sprintf("k:%d:c", idx)},
 			},
 			{{Label: "« Cameras", Data: cbCamSetRoot}, {Label: "Done", Data: cbCancel}},
 		},
@@ -138,12 +145,16 @@ func (c *Chat) camSetWizardScale(idxStr string) *Reply {
 		Reply: "Video scale relative to the camera's native resolution.\n\n" +
 			"Full = native (may stream-copy HEVC).\n" +
 			"Half = ½ height.\n" +
+			"Third = ⅓ height.\n" +
 			"Quarter = ¼ height (smaller files, usually recompressed).",
 		Edit: true,
 		Keyboard: [][]Button{
 			{
 				{Label: "Full", Data: fmt.Sprintf("k:%d:s:%s", idx, ScaleFull)},
 				{Label: "Half", Data: fmt.Sprintf("k:%d:s:%s", idx, ScaleHalf)},
+			},
+			{
+				{Label: "Third", Data: fmt.Sprintf("k:%d:s:%s", idx, ScaleThird)},
 				{Label: "Quarter", Data: fmt.Sprintf("k:%d:s:%s", idx, ScaleQuarter)},
 			},
 			{{Label: "« Back", Data: fmt.Sprintf("k:%d", idx)}, {Label: "Done", Data: cbCancel}},
@@ -235,6 +246,30 @@ func (c *Chat) camSetWizardSize(idxStr string) *Reply {
 	}
 }
 
+func (c *Chat) camSetWizardCodec(idxStr string) *Reply {
+	idx := atoiDefault(idxStr, -1)
+	cams := c.allCameras()
+	if idx < 0 || idx >= len(cams) {
+		return &Reply{Reply: "Camera gone — try again.", Edit: true, Toast: "Missing"}
+	}
+
+	return &Reply{
+		Reply: "Output video codec for SecuritySpy remux.\n\n" +
+			"H.265 (default) — smaller files; SS recompresses when needed.\n" +
+			"H.264 — wider Telegram compatibility.\n" +
+			"Auto — match the camera's native codec.",
+		Edit: true,
+		Keyboard: [][]Button{
+			{
+				{Label: "H.265", Data: fmt.Sprintf("k:%d:c:%s", idx, CodecH265)},
+				{Label: "H.264", Data: fmt.Sprintf("k:%d:c:%s", idx, CodecH264)},
+				{Label: "Auto", Data: fmt.Sprintf("k:%d:c:%s", idx, CodecAuto)},
+			},
+			{{Label: "« Back", Data: fmt.Sprintf("k:%d", idx)}, {Label: "Done", Data: cbCancel}},
+		},
+	}
+}
+
 func (c *Chat) camSetWizardApply(payload string) (*Reply, bool) {
 	parts := strings.Split(payload, ":")
 	if len(parts) != 3 {
@@ -254,10 +289,25 @@ func (c *Chat) camSetWizardApply(payload string) (*Reply, bool) {
 	EnsureCameraSettings(c.Subs, cam.Name)
 	key := CamSettingsKey(cam.Name)
 
+	if errReply := c.camSetWizardApplyKind(key, kind, value); errReply != nil {
+		return errReply, false
+	}
+
+	settings := GetCameraClipSettings(c.Subs, cam.Name)
+	next := c.camSetWizardCam(strconv.Itoa(idx))
+	next.Reply = fmt.Sprintf("Updated %s → %s\n\n", cam.Name, FormatClipSettings(settings)) +
+		fmt.Sprintf("%s clip settings\n\nCurrent: %s\n\nChoose what to change:",
+			cam.Name, FormatClipSettings(settings))
+	next.Toast = "Saved"
+
+	return next, true
+}
+
+func (c *Chat) camSetWizardApplyKind(key, kind, value string) *Reply {
 	switch kind {
 	case "s":
 		if !validScale(value) {
-			return &Reply{Reply: "Bad scale.", Edit: true, Toast: "Error"}, false
+			return &Reply{Reply: "Bad scale.", Edit: true, Toast: "Error"}
 		}
 
 		c.Subs.Events.RuleSetS(key, ruleScale, value)
@@ -268,7 +318,7 @@ func (c *Chat) camSetWizardApply(payload string) (*Reply, bool) {
 				Reply: fmt.Sprintf("Length must be %d–%ds.", MinClipLengthSecs, MaxClipLengthSecs),
 				Edit:  true,
 				Toast: "Error",
-			}, false
+			}
 		}
 
 		c.Subs.Events.RuleSetD(key, ruleLength, time.Duration(secs)*time.Second)
@@ -280,20 +330,19 @@ func (c *Chat) camSetWizardApply(payload string) (*Reply, bool) {
 					formatByteSize(MinClipSizeBytes), formatByteSize(MaxClipSizeBytes)),
 				Edit:  true,
 				Toast: "Error",
-			}, false
+			}
 		}
 
 		c.Subs.Events.RuleSetI(key, ruleSize, size)
+	case "c":
+		if !validCodec(value) {
+			return &Reply{Reply: "Bad codec.", Edit: true, Toast: "Error"}
+		}
+
+		c.Subs.Events.RuleSetS(key, ruleCodec, value)
 	default:
-		return &Reply{Reply: "Bad clip-settings pick.", Edit: true, Toast: "Error"}, false
+		return &Reply{Reply: "Bad clip-settings pick.", Edit: true, Toast: "Error"}
 	}
 
-	settings := GetCameraClipSettings(c.Subs, cam.Name)
-	next := c.camSetWizardCam(strconv.Itoa(idx))
-	next.Reply = fmt.Sprintf("Updated %s → %s\n\n", cam.Name, FormatClipSettings(settings)) +
-		fmt.Sprintf("%s clip settings\n\nCurrent: %s\n\nChoose what to change:",
-			cam.Name, FormatClipSettings(settings))
-	next.Toast = "Saved"
-
-	return next, true
+	return nil
 }

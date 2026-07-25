@@ -55,7 +55,7 @@ func (c *Chat) nonAdminCommands() *Commands { //nolint:funlen // it's not that b
 				Run:  c.cmdUnsub,
 				AKA:  []string{"unsub", "unsung", "unsubscribe", "unsure", "unseen"},
 				Use:  "[cam|event|*]",
-				Desc: "Unsubscribe via menu, or text: /unsub Office · /unsub * clears all",
+				Desc: "Unsubscribe via menu, or text: /unsub Office · /unsub Office human",
 				Save: true,
 			},
 			{
@@ -90,8 +90,8 @@ func (c *Chat) nonAdminCommands() *Commands { //nolint:funlen // it's not that b
 	}
 }
 
-func (c *Chat) cmdCams(_ *Handler) (*Reply, error) {
-	root := c.camsWizardRoot()
+func (c *Chat) cmdCams(handler *Handler) (*Reply, error) {
+	root := c.camsWizardRoot(handler)
 	root.Edit = false
 
 	return root, nil
@@ -211,14 +211,6 @@ func (c *Chat) cmdUnsub(handler *Handler) (*Reply, error) {
 	}
 
 	event := strings.Join(handler.Text[1:], " ")
-
-	if event == "*" {
-		for _, e := range handler.Sub.Events.Names() {
-			handler.Sub.Events.Remove(e)
-		}
-
-		return &Reply{Reply: "You've been unsubscribed from all events."}, nil
-	}
 
 	// Allow "Office human" / "Office:human" forms.
 	key, _, err := c.resolveSubTarget(handler.Text[1:])

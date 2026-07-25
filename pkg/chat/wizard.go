@@ -287,35 +287,16 @@ func (c *Chat) unsubWizardRoot(handler *Handler) *Reply {
 		}})
 	}
 
-	rows = append(rows, []Button{
-		{Label: "Unsubscribe all", Data: "u:*"},
-		{Label: "Done", Data: cbCancel},
-	})
+	rows = append(rows, []Button{{Label: "Done", Data: cbCancel}})
 
 	return &Reply{
-		Reply: "Tap a subscription to stop getting those alerts.\n\n" +
-			"Unsubscribe all removes every camera/event at once.",
+		Reply:    "Tap a subscription to stop getting those alerts.",
 		Edit:     true,
 		Keyboard: rows,
 	}
 }
 
 func (c *Chat) unsubWizardPick(handler *Handler, pick string) (*Reply, bool) {
-	if pick == "*" {
-		for _, e := range handler.Sub.Events.Names() {
-			handler.Sub.Events.Remove(e)
-		}
-
-		return &Reply{
-			Reply: "Unsubscribed from everything.",
-			Edit:  true,
-			Toast: "Cleared",
-			Keyboard: [][]Button{
-				{{Label: "Subscribe", Data: cbSubRoot}},
-			},
-		}, true
-	}
-
 	idx, err := strconv.Atoi(pick)
 	if err != nil {
 		return &Reply{Reply: "Bad pick.", Edit: true, Toast: "Error"}, false

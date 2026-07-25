@@ -20,6 +20,10 @@ func TestHeightForScale(t *testing.T) {
 		t.Fatalf("half 1440: got %d want 718", got)
 	}
 
+	if got := heightForScale(1440, ScaleThird); got != 480 {
+		t.Fatalf("third 1440: got %d want 480", got)
+	}
+
 	if got := heightForScale(1440, ScaleQuarter); got != 360 {
 		t.Fatalf("quarter 1440: got %d want 360", got)
 	}
@@ -27,6 +31,10 @@ func TestHeightForScale(t *testing.T) {
 	// Pool 1728: half−1 → 862 (below 864 cliff).
 	if got := heightForScale(1728, ScaleHalf); got != 862 {
 		t.Fatalf("half 1728: got %d want 862", got)
+	}
+
+	if got := heightForScale(1728, ScaleThird); got != 576 {
+		t.Fatalf("third 1728: got %d want 576", got)
 	}
 
 	if got := heightForScale(1081, ScaleHalf); got%2 != 0 {
@@ -38,7 +46,8 @@ func TestGetCameraClipSettingsDefaults(t *testing.T) {
 	t.Parallel()
 
 	got := GetCameraClipSettings(nil, "Office")
-	if got.Scale != DefaultClipScale || got.Length != DefaultClipLength || got.Size != DefaultClipSize {
+	if got.Scale != DefaultClipScale || got.Length != DefaultClipLength ||
+		got.Size != DefaultClipSize || got.VCodec != DefaultClipCodec {
 		t.Fatalf("defaults: %+v", got)
 	}
 }
@@ -83,9 +92,11 @@ func TestCameraClipSettingsRoundTrip(t *testing.T) {
 	events.RuleSetS(key, ruleScale, ScaleQuarter)
 	events.RuleSetD(key, ruleLength, 10*time.Second)
 	events.RuleSetI(key, ruleSize, 800*1024)
+	events.RuleSetS(key, ruleCodec, CodecH264)
 
 	got := GetCameraClipSettings(data, "Mailbox")
-	if got.Scale != ScaleQuarter || got.Length != 10*time.Second || got.Size != 800*1024 {
+	if got.Scale != ScaleQuarter || got.Length != 10*time.Second ||
+		got.Size != 800*1024 || got.VCodec != CodecH264 {
 		t.Fatalf("got %+v", got)
 	}
 
@@ -110,7 +121,7 @@ func TestVideoClipOpsScale(t *testing.T) {
 	t.Parallel()
 
 	cam := &securityspy.Camera{Name: "Office", Width: 2560, Height: 1440, VideoFormat: "H.265"}
-	ops := VideoClipOps(cam, ClipSettings{Scale: ScaleQuarter})
+	ops := VideoClipOps(cam, ClipSettings{Scale: ScaleQuarter, VCodec: CodecH265})
 	if ops.Height != 360 {
 		t.Fatalf("height: got %d want 360", ops.Height)
 	}
@@ -121,7 +132,7 @@ func TestVideoClipOpsScale(t *testing.T) {
 		t.Fatalf("vcodec: got %q", ops.VCodec)
 	}
 
-	half := VideoClipOps(cam, ClipSettings{Scale: ScaleHalf})
+	half := VideoClipOps(cam, ClipSettings{Scale: ScaleHalf, VCodec: CodecH265})
 	if half.Height != 718 {
 		t.Fatalf("half height: got %d want 718", half.Height)
 	}
@@ -129,8 +140,35 @@ func TestVideoClipOpsScale(t *testing.T) {
 		t.Fatalf("half width: got %d want 1276", half.Width)
 	}
 
-	full := VideoClipOps(cam, ClipSettings{Scale: ScaleFull})
+	full := VideoClipOps(cam, ClipSettings{Scale: ScaleFull, VCodec: CodecH265})
 	if full.Height != 0 || full.Width != 0 {
 		t.Fatalf("full should omit size: %+v", full)
+	}
+}
+
+func TestVideoClipOpsCodec(t *testing.T) {
+	t.Parallel()
+
+	h264cam := &securityspy.Camera{Name: "Driveway", Width: 1920, Height: 1080, VideoFormat: "H.264"}
+
+	// Default (empty) and explicit h265 force recompress even on h264 cameras.
+	if got := VideoClipOps(h264cam, ClipSettings{Scale: ScaleHalf}).VCodec; got != CodecH265 {
+		t.Fatalf("default codec: got %q want %s", got, CodecH265)
+	}
+	if got := VideoClipOps(h264cam, ClipSettings{Scale: ScaleHalf, VCodec: CodecH265}).VCodec; got != CodecH265 {
+		t.Fatalf("forced h265: got %q", got)
+	}
+	if got := VideoClipOps(h264cam, ClipSettings{Scale: ScaleHalf, VCodec: CodecAuto}).VCodec; got != CodecH264 {
+		t.Fatalf("auto: got %q want %s", got, CodecH264)
+	}
+	if got := VideoClipOps(h264cam, ClipSettings{Scale: ScaleHalf, VCodec: CodecH264}).VCodec; got != CodecH264 {
+		t.Fatalf("forced h264: got %q", got)
+	}
+
+	// Zero dimensions must not invent a height (SS5 mis-parse regression).
+	broken := &securityspy.Camera{Name: "Mailbox", Width: 0, Height: 0, VideoFormat: "H.265"}
+	ops := VideoClipOps(broken, ClipSettings{Scale: ScaleHalf, VCodec: CodecH265})
+	if ops.Height != 0 || ops.Width != 0 {
+		t.Fatalf("zero native: got %+v", ops)
 	}
 }
