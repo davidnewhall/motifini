@@ -149,6 +149,10 @@ func (c *Chat) handlePauseDelayWizardCallback(handler *Handler, data string) (*R
 }
 
 func (c *Chat) handleUsersWizardCallback(handler *Handler, data string) (*Reply, bool, bool) {
+	if reply, save, ok := c.handleAdminSubsWizardCallback(handler, data); ok {
+		return reply, save, true
+	}
+
 	switch {
 	case strings.HasPrefix(data, "m:rename:"):
 		return c.usersWizardRenamePrompt(handler, strings.TrimPrefix(data, "m:rename:")), true, true
@@ -193,6 +197,63 @@ func (c *Chat) handleUsersWizardCallback(handler *Handler, data string) (*Reply,
 	default:
 		return nil, false, false
 	}
+}
+
+func (c *Chat) handleAdminSubsWizardCallback(handler *Handler, data string) (*Reply, bool, bool) {
+	if !isAdminSubsCallback(data) {
+		return nil, false, false
+	}
+
+	// Cancel any in-progress rename prompt (same as m:i: / m: root).
+	if handler != nil {
+		clearPendingRename(handler.Sub)
+	}
+
+	switch {
+	case strings.HasPrefix(data, "m:sda:"):
+		reply, save := c.adminSubsWizardDelayApply(handler, strings.TrimPrefix(data, "m:sda:"))
+
+		return reply, save, true
+	case strings.HasPrefix(data, "m:sd:"):
+		return c.adminSubsWizardDelayPick(handler, strings.TrimPrefix(data, "m:sd:")), false, true
+	case strings.HasPrefix(data, "m:sp:"):
+		reply, save := c.adminSubsWizardPause(handler, strings.TrimPrefix(data, "m:sp:"))
+
+		return reply, save, true
+	case strings.HasPrefix(data, "m:su:"):
+		reply, save := c.adminSubsWizardUnsub(handler, strings.TrimPrefix(data, "m:su:"))
+
+		return reply, save, true
+	case strings.HasPrefix(data, "m:ssa:"):
+		reply, save := c.adminSubsWizardSubApply(handler, strings.TrimPrefix(data, "m:ssa:"))
+
+		return reply, save, true
+	case strings.HasPrefix(data, "m:ss:"):
+		payload := strings.TrimPrefix(data, "m:ss:")
+		if strings.Contains(payload, ":") {
+			return c.adminSubsWizardSubCameras(handler, payload), false, true
+		}
+
+		return c.adminSubsWizardSubClass(handler, payload), false, true
+	case strings.HasPrefix(data, "m:si:"):
+		return c.adminSubsWizardItem(handler, strings.TrimPrefix(data, "m:si:")), false, true
+	case strings.HasPrefix(data, "m:subs:"):
+		return c.adminSubsWizardRoot(handler, strings.TrimPrefix(data, "m:subs:")), false, true
+	default:
+		return nil, false, false
+	}
+}
+
+func isAdminSubsCallback(data string) bool {
+	for _, prefix := range []string{
+		"m:sda:", "m:sd:", "m:sp:", "m:su:", "m:ssa:", "m:ss:", "m:si:", "m:subs:",
+	} {
+		if strings.HasPrefix(data, prefix) {
+			return true
+		}
+	}
+
+	return false
 }
 
 func atoiDefault(s string, def int) int {
@@ -946,6 +1007,9 @@ func (c *Chat) subsWizardRoot(handler *Handler) *Reply {
 	var msg strings.Builder
 	msg.WriteString("Your alert subscriptions.\n\n")
 	msg.WriteString("Tap a subscription below to pause it, change how often clips arrive, or remove it.\n")
+	if handler.Sub != nil && handler.Sub.Admin {
+		msg.WriteString("\nAdmin tip: use /users → person → Manage subscriptions to edit someone else's.\n")
+	}
 
 	if len(names) == 0 {
 		msg.WriteString("\n(none yet — use Subscribe to start)")
@@ -1052,7 +1116,7 @@ func (c *Chat) helpWizardRootFor(handler *Handler) *Reply {
 				root.Keyboard = rows
 			}
 		}
-		root.Reply += "\n• Users (admin) — allow/deny/ignore/admin/delete subscribers" +
+		root.Reply += "\n• Users (admin) — allow/deny/ignore/admin/delete subscribers; manage their subscriptions" +
 			"\n• Clip set (admin) — per-camera scale / length / size for everyone"
 	}
 

@@ -88,6 +88,7 @@ func (c *Chat) usersWizardItem(handler *Handler, idStr string) *Reply {
 	}
 
 	rows = append(rows,
+		[]Button{{Label: "Manage subscriptions", Data: fmt.Sprintf("m:subs:%d", target.ID)}},
 		[]Button{{Label: "Rename…", Data: fmt.Sprintf("m:rename:%d", target.ID)}},
 		[]Button{{Label: "Delete…", Data: fmt.Sprintf("m:del:%d", target.ID)}},
 		[]Button{
