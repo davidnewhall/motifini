@@ -24,8 +24,13 @@ motifini --restart  # restart the running agent
 motifini --stop     # unload / stop
 ```
 
-These wrap the same `launchctl` calls (`bootstrap` / `kickstart -k` / `bootout` for
-`gui/$(id -u)/io.golift.motifini`). `brew services` only manages formulae, not casks.
+These wrap:
+
+- `--start` → `launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/io.golift.motifini.plist`
+- `--restart` → `launchctl kickstart -k gui/$(id -u)/io.golift.motifini`
+- `--stop` → `launchctl bootout gui/$(id -u)/io.golift.motifini`
+
+`brew services` only manages formulae, not casks.
 
 The example config defaults to Apple Silicon Homebrew paths under `/opt/homebrew`
 (`state_file`, `log_file`, `event_log`). If `brew --prefix` is `/usr/local` (Intel)
@@ -84,7 +89,7 @@ Every allowed chat has its own settings. One person can watch the driveway for c
 
 **Per-camera clip settings** (admins — `/camset` or Cams → camera → Clip settings)
 
-Clip quality is shared for that camera (motion alerts and `/vid`): scale (full / half / third / quarter), length (2–15s), and max size (500k–3MB). Half requests slightly under half native height so SecuritySpy recompresses HEVC instead of stream-copying the full frame.
+Clip quality is shared for that camera (motion alerts and `/vid`): scale (full / half / third / quarter), length (2–15s), max size (500k–3MB), and output codec (h265 default / h264 / auto). Half requests slightly under half native height so SecuritySpy recompresses HEVC instead of stream-copying the full frame.
 
 **Built-in system events** (subscribe like any other event)
 

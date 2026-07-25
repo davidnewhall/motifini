@@ -54,7 +54,7 @@ func (c *Chat) nonAdminCommands() *Commands { //nolint:funlen // it's not that b
 			{
 				Run:  c.cmdUnsub,
 				AKA:  []string{"unsub", "unsung", "unsubscribe", "unsure", "unseen"},
-				Use:  "[cam|event|*]",
+				Use:  "[camera class|event|camera:class]",
 				Desc: "Unsubscribe via menu, or text: /unsub Office · /unsub Office human",
 				Save: true,
 			},
