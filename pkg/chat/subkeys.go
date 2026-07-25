@@ -102,24 +102,40 @@ func classLabel(class string) string {
 	}
 }
 
-// cameraSubBadges returns compact [M][H][V][A] markers for a camera's active class subs.
-// Legacy bare-camera subscriptions show as [*].
-func cameraSubBadges(sub *subscribe.Subscriber, camName string) string {
-	if sub == nil || sub.Events == nil {
-		return ""
+// cameraSubscribedClasses returns active subscription classes for a camera
+// (motion/human/vehicle/animal, plus ClassAny for legacy bare-camera keys).
+func cameraSubscribedClasses(sub *subscribe.Subscriber, camName string) []string {
+	if sub == nil || sub.Events == nil || camName == "" {
+		return nil
 	}
 
-	var badge strings.Builder
+	var out []string
 	for _, class := range []string{ClassMotion, ClassHuman, ClassVehicle, ClassAnimal} {
 		if sub.Events.Name(CameraSubKey(camName, class)) != "" {
-			badge.WriteByte('[')
-			badge.WriteString(strings.ToUpper(classShort(class)))
-			badge.WriteByte(']')
+			out = append(out, class)
 		}
 	}
 
 	if sub.Events.Name(camName) != "" {
-		badge.WriteString("[*]")
+		out = append(out, ClassAny)
+	}
+
+	return out
+}
+
+// cameraSubBadges returns compact [M][H][V][A] markers for a camera's active class subs.
+// Legacy bare-camera subscriptions show as [*].
+func cameraSubBadges(sub *subscribe.Subscriber, camName string) string {
+	classes := cameraSubscribedClasses(sub, camName)
+	if len(classes) == 0 {
+		return ""
+	}
+
+	var badge strings.Builder
+	for _, class := range classes {
+		badge.WriteByte('[')
+		badge.WriteString(strings.ToUpper(classShort(class)))
+		badge.WriteByte(']')
 	}
 
 	return badge.String()

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"golift.io/securityspy/v2"
+	"golift.io/subscribe"
 )
 
 // Extra callback prefixes for command wizards (pics/vid/stop/delay/cams/subs/help).
@@ -49,6 +50,18 @@ func (c *Chat) handleCommandWizardCallback(handler *Handler, data string) (*Repl
 }
 
 func (c *Chat) handleMediaWizardCallback(handler *Handler, data string) (*Reply, bool, bool) {
+	if reply, save, ok := c.handlePicsVidsWizardCallback(handler, data); ok {
+		return reply, save, true
+	}
+
+	if reply, save, ok := c.handleCamsEventsWizardCallback(handler, data); ok {
+		return reply, save, true
+	}
+
+	return nil, false, false
+}
+
+func (c *Chat) handlePicsVidsWizardCallback(handler *Handler, data string) (*Reply, bool, bool) {
 	switch {
 	case data == cbPicsRoot:
 		return c.picsWizardRoot(), false, true
@@ -70,10 +83,23 @@ func (c *Chat) handleMediaWizardCallback(handler *Handler, data string) (*Reply,
 		reply, save := c.vidsWizardSnap(handler, atoiDefault(strings.TrimPrefix(data, "v:"), -2))
 
 		return reply, save, true
+	default:
+		return nil, false, false
+	}
+}
+
+func (c *Chat) handleCamsEventsWizardCallback(handler *Handler, data string) (*Reply, bool, bool) {
+	switch {
 	case data == cbCamsRoot:
-		return c.camsWizardRoot(), false, true
-	case strings.HasPrefix(data, "c:") && strings.Count(data, ":") == 1:
-		return c.camsWizardCam(handler, atoiDefault(strings.TrimPrefix(data, "c:"), -1)), false, true
+		return c.camsWizardRoot(handler), false, true
+	case strings.HasPrefix(data, "c:s:"):
+		reply, save := c.camsWizardSubscribe(handler, strings.TrimPrefix(data, "c:s:"))
+
+		return reply, save, true
+	case strings.HasPrefix(data, "c:u:"):
+		reply, save := c.camsWizardUnsubscribe(handler, strings.TrimPrefix(data, "c:u:"))
+
+		return reply, save, true
 	case strings.HasPrefix(data, "c:p:"):
 		reply, save := c.picsWizardSnap(handler, atoiDefault(strings.TrimPrefix(data, "c:p:"), -2))
 
@@ -82,6 +108,8 @@ func (c *Chat) handleMediaWizardCallback(handler *Handler, data string) (*Reply,
 		reply, save := c.vidsWizardSnap(handler, atoiDefault(strings.TrimPrefix(data, "c:v:"), -2))
 
 		return reply, save, true
+	case strings.HasPrefix(data, "c:") && strings.Count(data, ":") == 1:
+		return c.camsWizardCam(handler, atoiDefault(strings.TrimPrefix(data, "c:"), -1)), false, true
 	case data == cbEvtsRoot:
 		return c.eventsWizardRoot(), false, true
 	case strings.HasPrefix(data, "e:s:"):
@@ -177,6 +205,10 @@ func atoiDefault(s string, def int) int {
 }
 
 func (c *Chat) cameraButtonRows(dataPrefix string, includeAll bool) [][]Button {
+	return c.cameraButtonRowsWithSubs(dataPrefix, includeAll, nil)
+}
+
+func (c *Chat) cameraButtonRowsWithSubs(dataPrefix string, includeAll bool, sub *subscribe.Subscriber) [][]Button {
 	cams := c.allCameras()
 	rows := make([][]Button, 0, len(cams)/2+3)
 
@@ -185,12 +217,15 @@ func (c *Chat) cameraButtonRows(dataPrefix string, includeAll bool) [][]Button {
 	}
 
 	row := make([]Button, 0, len(cams))
-	for i, cam := range cams {
+	for camIdx, cam := range cams {
 		label := cam.Name
+		if badges := cameraSubBadges(sub, cam.Name); badges != "" {
+			label += " " + badges
+		}
 		if !cam.Connected.Val {
 			label += " ⚠"
 		}
-		row = append(row, Button{Label: label, Data: fmt.Sprintf("%s%d", dataPrefix, i)})
+		row = append(row, Button{Label: label, Data: fmt.Sprintf("%s%d", dataPrefix, camIdx)})
 		if len(row) == 2 {
 			rows = append(rows, row)
 			row = nil
@@ -237,14 +272,19 @@ func (c *Chat) vidsWizardRoot() *Reply {
 	}
 }
 
-func (c *Chat) camsWizardRoot() *Reply {
+func (c *Chat) camsWizardRoot(handler *Handler) *Reply {
 	c.refreshCameras()
 	cams := c.allCameras()
 	if len(cams) == 0 {
 		return c.noCamerasReply()
 	}
 
-	rows := c.cameraButtonRows("c:", false)
+	var sub *subscribe.Subscriber
+	if handler != nil {
+		sub = handler.Sub
+	}
+
+	rows := c.cameraButtonRowsWithSubs("c:", false, sub)
 	rows = append(rows, []Button{{Label: "Done", Data: cbCancel}})
 
 	online := 0
@@ -256,7 +296,9 @@ func (c *Chat) camsWizardRoot() *Reply {
 
 	return &Reply{
 		Reply: fmt.Sprintf(
-			"%d cameras (%d online).\n\nTap a camera to take a snapshot or pull a live video clip.",
+			"%d cameras (%d online).\n\n"+
+				"Tap a camera for snapshot, video, or subscribe/unsubscribe.\n"+
+				"[M] motion · [H] human · [V] vehicle · [A] animal",
 			len(cams), online),
 		Edit:     true,
 		Keyboard: rows,
@@ -281,8 +323,20 @@ func (c *Chat) camsWizardCam(handler *Handler, idx int) *Reply {
 		clip += " (" + frame + ")"
 	}
 
+	var sub *subscribe.Subscriber
+	if handler != nil {
+		sub = handler.Sub
+	}
+	classes := cameraSubscribedClasses(sub, cam.Name)
+	badges := cameraSubBadges(sub, cam.Name)
+
 	msg := fmt.Sprintf("%s (%s)\n\nSnapshot = one still photo.\nVideo = a short live clip.\nClip: %s",
 		cam.Name, status, clip)
+	if badges != "" {
+		msg += "\nSubscribed: " + badges
+	} else {
+		msg += "\nNot subscribed."
+	}
 
 	rows := [][]Button{
 		{
@@ -290,6 +344,11 @@ func (c *Chat) camsWizardCam(handler *Handler, idx int) *Reply {
 			{Label: "Video", Data: fmt.Sprintf("c:v:%d", idx)},
 		},
 	}
+	subRow := []Button{{Label: "Subscribe", Data: fmt.Sprintf("c:s:%d", idx)}}
+	if len(classes) > 0 {
+		subRow = append(subRow, Button{Label: "Unsubscribe", Data: fmt.Sprintf("c:u:%d", idx)})
+	}
+	rows = append(rows, subRow)
 	if handler != nil && handler.Sub != nil && handler.Sub.Admin {
 		rows = append(rows, []Button{{Label: "Clip settings", Data: fmt.Sprintf("k:%d", idx)}})
 	}
@@ -297,6 +356,148 @@ func (c *Chat) camsWizardCam(handler *Handler, idx int) *Reply {
 	rows = append(rows, []Button{{Label: "« Cameras", Data: cbCamsRoot}, {Label: "Done", Data: cbCancel}})
 
 	return &Reply{Reply: msg, Edit: true, Keyboard: rows}
+}
+
+// camsWizardSubscribe handles c:s:{idx} (pick trigger) and c:s:{idx}:{class} (apply).
+func (c *Chat) camsWizardSubscribe(handler *Handler, payload string) (*Reply, bool) {
+	parts := strings.Split(payload, ":")
+	if len(parts) == 0 || parts[0] == "" {
+		return &Reply{Reply: "Bad camera pick.", Edit: true, Toast: "Error"}, false
+	}
+
+	idx := atoiDefault(parts[0], -1)
+	cams := c.allCameras()
+	if idx < 0 || idx >= len(cams) {
+		return &Reply{Reply: "Camera gone — try again.", Edit: true, Toast: "Missing"}, false
+	}
+
+	cam := cams[idx]
+	if len(parts) == 1 {
+		return &Reply{
+			Reply: fmt.Sprintf("Subscribe to %s — which trigger?\n\n"+
+				"Motion = any motion.\n"+
+				"Human / Vehicle / Animal = only when SecuritySpy classifies that type.",
+				cam.Name),
+			Edit: true,
+			Keyboard: [][]Button{
+				{
+					{Label: "Motion", Data: fmt.Sprintf("c:s:%d:%s", idx, classShort(ClassMotion))},
+					{Label: "Human", Data: fmt.Sprintf("c:s:%d:%s", idx, classShort(ClassHuman))},
+				},
+				{
+					{Label: "Vehicle", Data: fmt.Sprintf("c:s:%d:%s", idx, classShort(ClassVehicle))},
+					{Label: "Animal", Data: fmt.Sprintf("c:s:%d:%s", idx, classShort(ClassAnimal))},
+				},
+				{{Label: "« Back", Data: fmt.Sprintf("c:%d", idx)}, {Label: "Done", Data: cbCancel}},
+			},
+		}, false
+	}
+
+	class := classFromShort(parts[1])
+	if class == ClassAny {
+		return &Reply{Reply: "Bad trigger.", Edit: true, Toast: "Error"}, false
+	}
+
+	key := CameraSubKey(cam.Name, class)
+	toast := "Subscribed ✓"
+	msg := fmt.Sprintf("Subscribed to %s (%s).", cam.Name, classLabel(class))
+
+	err := handler.Sub.Subscribe(key)
+	if err != nil {
+		msg = fmt.Sprintf("Already subscribed to %s (%s).", cam.Name, classLabel(class))
+		toast = "Already on"
+	}
+
+	next := c.camsWizardCam(handler, idx)
+	next.Reply = msg + "\n\n" + next.Reply
+	next.Toast = toast
+
+	return next, true
+}
+
+// camsWizardUnsubscribe handles c:u:{idx} (pick/auto) and c:u:{idx}:{class} (apply).
+func (c *Chat) camsWizardUnsubscribe(handler *Handler, payload string) (*Reply, bool) {
+	parts := strings.Split(payload, ":")
+	if len(parts) == 0 || parts[0] == "" {
+		return &Reply{Reply: "Bad camera pick.", Edit: true, Toast: "Error"}, false
+	}
+
+	idx := atoiDefault(parts[0], -1)
+	cams := c.allCameras()
+	if idx < 0 || idx >= len(cams) {
+		return &Reply{Reply: "Camera gone — try again.", Edit: true, Toast: "Missing"}, false
+	}
+
+	cam := cams[idx]
+	classes := cameraSubscribedClasses(handler.Sub, cam.Name)
+	if len(classes) == 0 {
+		next := c.camsWizardCam(handler, idx)
+		next.Reply = "You're not subscribed to " + cam.Name + ".\n\n" + next.Reply
+		next.Toast = "Empty"
+
+		return next, false
+	}
+
+	// Pick which trigger when more than one; single sub unsubscribes immediately.
+	if len(parts) == 1 {
+		if len(classes) == 1 {
+			return c.camsWizardUnsubscribe(handler, fmt.Sprintf("%d:%s", idx, classShort(classes[0])))
+		}
+
+		return c.camsWizardUnsubscribePick(cam.Name, idx, classes), false
+	}
+
+	return c.camsWizardUnsubscribeApply(handler, idx, cam.Name, classFromShort(parts[1]))
+}
+
+func (c *Chat) camsWizardUnsubscribePick(camName string, idx int, classes []string) *Reply {
+	rows := make([][]Button, 0, 3)
+	row := make([]Button, 0, 2)
+
+	for _, class := range classes {
+		row = append(row, Button{
+			Label: classLabel(class),
+			Data:  fmt.Sprintf("c:u:%d:%s", idx, classShort(class)),
+		})
+		if len(row) == 2 {
+			rows = append(rows, row)
+			row = nil
+		}
+	}
+	if len(row) > 0 {
+		rows = append(rows, row)
+	}
+
+	rows = append(rows, []Button{
+		{Label: "« Back", Data: fmt.Sprintf("c:%d", idx)},
+		{Label: "Done", Data: cbCancel},
+	})
+
+	return &Reply{
+		Reply:    fmt.Sprintf("Unsubscribe from %s — which trigger?", camName),
+		Edit:     true,
+		Keyboard: rows,
+	}
+}
+
+func (c *Chat) camsWizardUnsubscribeApply(
+	handler *Handler, idx int, camName, class string,
+) (*Reply, bool) {
+	key := CameraSubKey(camName, class)
+	if handler.Sub.Events.Name(key) == "" {
+		next := c.camsWizardCam(handler, idx)
+		next.Reply = fmt.Sprintf("You're not subscribed to %s (%s).\n\n", camName, classLabel(class)) + next.Reply
+		next.Toast = "Missing"
+
+		return next, false
+	}
+
+	handler.Sub.Events.Remove(key)
+	next := c.camsWizardCam(handler, idx)
+	next.Reply = fmt.Sprintf("Unsubscribed from %s (%s).\n\n", camName, classLabel(class)) + next.Reply
+	next.Toast = "Removed"
+
+	return next, true
 }
 
 func (c *Chat) eventsWizardRoot() *Reply {
@@ -818,7 +1019,7 @@ Here's what each button opens:
 • Pause — temporarily mute alerts (no clips for N minutes) without unsubscribing
 • Snapshot — grab a still photo from a camera right now
 • Video — grab a short live clip from a camera right now
-• Cameras — browse cameras, then choose snapshot or video
+• Cameras — browse cameras (shows your [M]/[H]/[V]/[A] subs); tap for snapshot, video, or subscribe/unsubscribe
 • Events — system alerts (stream up/down, camera offline/online, SecuritySpy errors) and any custom events
 • Delay — after a clip is sent for a subscription, wait this long before sending another
   for the same one (so you aren't flooded)

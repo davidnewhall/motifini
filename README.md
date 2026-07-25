@@ -84,7 +84,7 @@ Every allowed chat has its own settings. One person can watch the driveway for c
 
 **Per-camera clip settings** (admins — `/camset` or Cams → camera → Clip settings)
 
-Clip quality is shared for that camera (motion alerts and `/vid`): scale (full / half / quarter), length (2–15s), and max size (500k–3MB). Half requests slightly under half native height so SecuritySpy recompresses HEVC instead of stream-copying the full frame.
+Clip quality is shared for that camera (motion alerts and `/vid`): scale (full / half / third / quarter), length (2–15s), and max size (500k–3MB). Half requests slightly under half native height so SecuritySpy recompresses HEVC instead of stream-copying the full frame.
 
 **Built-in system events** (subscribe like any other event)
 

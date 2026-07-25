@@ -88,6 +88,26 @@ func TestCommandName(t *testing.T) {
 	}
 }
 
+func TestCameraSubBadges(t *testing.T) {
+	t.Parallel()
+
+	sub := &subscribe.Subscriber{Events: &subscribe.Events{Map: make(map[string]*subscribe.Rules)}}
+	_ = sub.Subscribe("Mailbox:human")
+	_ = sub.Subscribe("Mailbox:vehicle")
+
+	if got := cameraSubBadges(sub, "Mailbox"); got != "[H][V]" {
+		t.Fatalf("got %q want [H][V]", got)
+	}
+	if got := cameraSubBadges(sub, "Driveway"); got != "" {
+		t.Fatalf("unsubscribed: got %q", got)
+	}
+
+	_ = sub.Subscribe("Driveway")
+	if got := cameraSubBadges(sub, "Driveway"); got != "[*]" {
+		t.Fatalf("legacy: got %q want [*]", got)
+	}
+}
+
 func TestActiveKeysAmong(t *testing.T) {
 	t.Parallel()
 

@@ -16,14 +16,21 @@ const (
 	ruleScale  = "scale"
 	ruleLength = "length"
 	ruleSize   = "size"
+	ruleCodec  = "codec"
 
 	ScaleFull    = "full"
 	ScaleHalf    = "half"
+	ScaleThird   = "third"
 	ScaleQuarter = "quarter"
+
+	CodecAuto = "auto" // match camera native (PreferredVCodec)
+	CodecH264 = "h264"
+	CodecH265 = "h265"
 
 	DefaultClipScale  = ScaleHalf
 	DefaultClipLength = 6 * time.Second
 	DefaultClipSize   = 1572864 // 1.5 MiB
+	DefaultClipCodec  = CodecH265
 
 	MinClipLengthSecs = 2
 	MaxClipLengthSecs = 15
@@ -36,6 +43,7 @@ type ClipSettings struct {
 	Scale  string
 	Length time.Duration
 	Size   int // max file size in bytes
+	VCodec string
 }
 
 // CamSettingsKey returns the reserved catalog event name for a camera.
@@ -80,7 +88,10 @@ func EnsureCameraSettings(data *subscribe.Subscribe, camName string) {
 	}
 
 	_ = data.Events.New(key, &subscribe.Rules{
-		S: map[string]string{ruleScale: DefaultClipScale},
+		S: map[string]string{
+			ruleScale: DefaultClipScale,
+			ruleCodec: DefaultClipCodec,
+		},
 		D: map[string]time.Duration{ruleLength: DefaultClipLength},
 		I: map[string]int{ruleSize: DefaultClipSize},
 	})
@@ -92,6 +103,7 @@ func GetCameraClipSettings(data *subscribe.Subscribe, camName string) ClipSettin
 		Scale:  DefaultClipScale,
 		Length: DefaultClipLength,
 		Size:   DefaultClipSize,
+		VCodec: DefaultClipCodec,
 	}
 
 	if data == nil || data.Events == nil || camName == "" {
@@ -111,12 +123,25 @@ func GetCameraClipSettings(data *subscribe.Subscribe, camName string) ClipSettin
 		settings.Size = clampClipSize(size)
 	}
 
+	if codec, ok := data.Events.RuleGetS(key, ruleCodec); ok && validCodec(codec) {
+		settings.VCodec = codec
+	}
+
 	return settings
 }
 
 func validScale(scale string) bool {
 	switch scale {
-	case ScaleFull, ScaleHalf, ScaleQuarter:
+	case ScaleFull, ScaleHalf, ScaleThird, ScaleQuarter:
+		return true
+	default:
+		return false
+	}
+}
+
+func validCodec(codec string) bool {
+	switch codec {
+	case CodecAuto, CodecH264, CodecH265:
 		return true
 	default:
 		return false
@@ -142,7 +167,7 @@ func allowedClipSizeBytes(size int) bool {
 	return size >= MinClipSizeBytes && size <= MaxClipSizeBytes
 }
 
-// heightForScale maps full/half/quarter to a request height.
+// heightForScale maps full/half/third/quarter to a request height.
 // Zero means omit height/width (native / full-size stream).
 //
 // SecuritySpy stream-copies native HEVC when requested height is >= half the
@@ -158,6 +183,10 @@ func heightForScale(nativeHeight int, scale string) int {
 		return 0
 	case ScaleQuarter:
 		return evenPixels(nativeHeight / 4)
+	case ScaleThird:
+		return evenPixels(nativeHeight / 3)
+	case ScaleHalf:
+		return evenPixels(nativeHeight/2 - 1)
 	default:
 		return evenPixels(nativeHeight/2 - 1)
 	}
@@ -184,11 +213,10 @@ func evenPixels(value int) int {
 // Half / quarter request even dimensions derived from the camera aspect ratio.
 func VideoClipOps(cam *securityspy.Camera, settings ClipSettings) *securityspy.VidOps {
 	ops := &securityspy.VidOps{ACodec: "aac"}
+	ops.VCodec = resolveVCodec(cam, settings)
 	if cam == nil {
 		return ops
 	}
-
-	ops.VCodec = cam.PreferredVCodec()
 
 	height := heightForScale(cam.Height, settings.Scale)
 	ops.Height = height
@@ -201,12 +229,28 @@ func VideoClipOps(cam *securityspy.Camera, settings ClipSettings) *securityspy.V
 	return ops
 }
 
+// resolveVCodec picks the RTSP vcodec from admin settings (default h265).
+// "auto" follows the camera's native PreferredVCodec.
+func resolveVCodec(cam *securityspy.Camera, settings ClipSettings) string {
+	switch settings.VCodec {
+	case CodecH264, CodecH265:
+		return settings.VCodec
+	case CodecAuto:
+		if cam != nil {
+			return cam.PreferredVCodec()
+		}
+	}
+
+	return DefaultClipCodec
+}
+
 // FormatClipSettings summarizes settings for Telegram button labels.
 func FormatClipSettings(settings ClipSettings) string {
-	return fmt.Sprintf("%s · %s · %s",
+	return fmt.Sprintf("%s · %s · %s · %s",
 		scaleLabel(settings.Scale),
 		formatClipSecs(settings.Length),
-		formatByteSize(settings.Size))
+		formatByteSize(settings.Size),
+		codecLabel(settings.VCodec))
 }
 
 // cameraFrameSize returns "WIDTHxHEIGHT" or empty when unknown.
@@ -224,8 +268,21 @@ func scaleLabel(scale string) string {
 		return "full"
 	case ScaleQuarter:
 		return "¼"
+	case ScaleThird:
+		return "⅓"
 	default:
 		return "½"
+	}
+}
+
+func codecLabel(codec string) string {
+	switch codec {
+	case CodecAuto:
+		return "auto"
+	case CodecH264:
+		return "h264"
+	default:
+		return "h265"
 	}
 }
 
