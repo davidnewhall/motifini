@@ -52,6 +52,9 @@
   allowed_to = [
     # "123456789",
   ]
+  # Also allow any authenticated Telegram subscriber as a "to" recipient
+  # (anyone who used /id or was Allowed by an admin, and is not ignored).
+  # allow_subscribers = false
 
 ##############################################################################
 # Telegram bot (required for notifications / commands)

@@ -41,18 +41,19 @@ var ErrAPIKeyRequired = errors.New("api_key is required when listen_addr is not 
 
 // Config holds HTTP server dependencies and listen settings.
 type Config struct {
-	http       *http.Server
-	SSpy       *securityspy.Server
-	Subs       *subscribe.Subscribe
-	Msgs       *messenger.Messenger
-	Info       *log.Logger
-	Debug      *log.Logger
-	Error      *log.Logger
-	TempDir    string
-	AllowedTo  []string
-	ListenAddr string
-	APIKey     string
-	Port       uint
+	http             *http.Server
+	SSpy             *securityspy.Server
+	Subs             *subscribe.Subscribe
+	Msgs             *messenger.Messenger
+	Info             *log.Logger
+	Debug            *log.Logger
+	Error            *log.Logger
+	TempDir          string
+	AllowedTo        []string
+	ListenAddr       string
+	APIKey           string
+	Port             uint
+	AllowSubscribers bool
 }
 
 // Start validates the config and returns any errors.
@@ -206,6 +207,34 @@ func (c *Config) handleAll(writer http.ResponseWriter, request *http.Request) {
 // check for a thing in a thing.
 func contains(s []string, e string) bool {
 	return slices.Contains(s, e)
+}
+
+// recipientAllowed reports whether a Telegram chat id may be a "to" recipient:
+// either listed in allowed_to, or — when allow_subscribers is set — any
+// authenticated, non-ignored Telegram subscriber in the state DB.
+func (c *Config) recipientAllowed(idStr string) bool {
+	if contains(c.AllowedTo, idStr) {
+		return true
+	}
+
+	if !c.AllowSubscribers || c.Subs == nil {
+		return false
+	}
+
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		return false
+	}
+
+	sub, err := c.Subs.GetSubscriberByID(id, messenger.APITelegram)
+	if err != nil || sub == nil {
+		return false
+	}
+
+	// Same auth marker the Telegram message path checks (set by /id or admin Allow).
+	authed, _ := sub.Meta["hasAuth"].(bool)
+
+	return authed && !sub.Ignored
 }
 
 // securitySpyReady is false until the first successful Refresh() loads cameras.

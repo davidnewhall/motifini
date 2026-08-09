@@ -45,7 +45,7 @@ func (c *Config) sendVideoHandler(writer http.ResponseWriter, request *http.Requ
 	}
 
 	for t := range strings.SplitSeq(recipients, ",") {
-		if t == "" || !contains(c.AllowedTo, t) {
+		if t == "" || !c.recipientAllowed(t) {
 			c.Debug.Printf("[%v] Invalid 'to' provided: %v", reqID, t)
 			code, reply = http.StatusInternalServerError, "ERROR: Missing 'to' or 'cam'"
 		}
@@ -143,7 +143,7 @@ func (c *Config) sendPictureHandler(writer http.ResponseWriter, request *http.Re
 
 	// Check input data.
 	for _, t := range recipients {
-		if t == "" || !contains(c.AllowedTo, t) {
+		if t == "" || !c.recipientAllowed(t) {
 			c.Debug.Printf("[%v] Invalid 'to' provided: %v", reqID, t)
 
 			code = http.StatusInternalServerError
@@ -202,7 +202,7 @@ func (c *Config) sendMessageHandler(writer http.ResponseWriter, request *http.Re
 
 	// Check input data.
 	for _, t := range recipients {
-		if t == "" || !contains(c.AllowedTo, t) {
+		if t == "" || !c.recipientAllowed(t) {
 			c.Debug.Printf("[%v] Invalid 'to' provided: %v", reqID, t)
 
 			code = http.StatusInternalServerError

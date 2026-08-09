@@ -89,11 +89,12 @@ type Config struct {
 		Debug            bool          `toml:"debug"`
 	} `toml:"motifini"`
 	Webserver struct {
-		Port       uint     `toml:"port"`
-		ListenAddr string   `toml:"listen_addr"`
-		APIKey     string   `toml:"api_key"`
-		AllowedTo  []string `toml:"allowed_to"`
-		Enable     bool     `toml:"enable"`
+		Port             uint     `toml:"port"`
+		ListenAddr       string   `toml:"listen_addr"`
+		APIKey           string   `toml:"api_key"`
+		AllowedTo        []string `toml:"allowed_to"`
+		AllowSubscribers bool     `toml:"allow_subscribers"`
+		Enable           bool     `toml:"enable"`
 	} `toml:"webserver"`
 	Telegram    *messenger.TelegramConfig `toml:"telegram"`
 	SecuritySpy *server.Config            `toml:"security_spy"`
@@ -449,11 +450,12 @@ func (m *Motifini) startWebserver() error {
 		Info:       log.New(m.logWriter, "[HTTP] ", m.Info.Flags()),
 		Debug:      m.Debug,
 		Error:      m.Error,
-		TempDir:    m.Conf.Global.TempDir,
-		AllowedTo:  m.Conf.Webserver.AllowedTo,
-		ListenAddr: m.Conf.Webserver.ListenAddr,
-		APIKey:     m.Conf.Webserver.APIKey,
-		Port:       m.Conf.Webserver.Port,
+		TempDir:          m.Conf.Global.TempDir,
+		AllowedTo:        m.Conf.Webserver.AllowedTo,
+		ListenAddr:       m.Conf.Webserver.ListenAddr,
+		APIKey:           m.Conf.Webserver.APIKey,
+		Port:             m.Conf.Webserver.Port,
+		AllowSubscribers: m.Conf.Webserver.AllowSubscribers,
 	}
 
 	err := webserver.Start(m.HTTP)
