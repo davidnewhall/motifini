@@ -1,0 +1,11 @@
+{
+  "domain": "motifini",
+  "name": "Motifini",
+  "codeowners": ["@davidnewhall"],
+  "config_flow": true,
+  "documentation": "https://github.com/davidnewhall/motifini",
+  "integration_type": "service",
+  "iot_class": "local_push",
+  "issue_tracker": "https://github.com/davidnewhall/motifini/issues",
+  "version": "0.1.0"
+}

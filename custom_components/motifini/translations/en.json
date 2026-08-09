@@ -1,0 +1,27 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Connect to Motifini",
+        "description": "Enter the address of the Motifini webserver. Enable it in motifini.conf under [webserver] first.",
+        "data": {
+          "host": "Host",
+          "port": "Port",
+          "path_prefix": "Path prefix"
+        },
+        "data_description": {
+          "host": "Hostname or IP of the machine running Motifini.",
+          "port": "Motifini webserver port (default 8765).",
+          "path_prefix": "Only when behind a reverse proxy path, e.g. motifini. Usually blank."
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Failed to connect",
+      "unknown": "Unexpected error"
+    },
+    "abort": {
+      "already_configured": "Device is already configured"
+    }
+  }
+}

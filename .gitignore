@@ -23,6 +23,8 @@
 /*.app
 *.sha256
 /vendor
+__pycache__/
+*.pyc
 .DS_Store
 *~
 /package_build_*
