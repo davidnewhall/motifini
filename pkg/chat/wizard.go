@@ -162,15 +162,7 @@ func (c *Chat) subWizardCameras(handler *Handler, classShortCode string) *Reply 
 }
 
 func (c *Chat) subWizardEvents() *Reply {
-	names := CatalogEventNames(c.Subs.Events)
-	rows := make([][]Button, 0, len(names)+1)
-
-	for i, name := range names {
-		rows = append(rows, []Button{{
-			Label: name,
-			Data:  fmt.Sprintf("s:e:%d", i),
-		}})
-	}
+	names := EventMenuNames(c.Subs.Events)
 	if len(names) == 0 {
 		return &Reply{
 			Reply: "No custom events configured.\nUse Camera subscriptions instead.",
@@ -181,6 +173,7 @@ func (c *Chat) subWizardEvents() *Reply {
 		}
 	}
 
+	rows := c.eventSectionRows("s:e:")
 	rows = append(rows, []Button{
 		{Label: "« Back", Data: cbSubRoot},
 		{Label: "Done", Data: cbCancel},
@@ -238,7 +231,7 @@ func (c *Chat) subWizardSubscribeEvt(handler *Handler, idxStr string) (*Reply, b
 		return &Reply{Reply: "Bad event index.", Edit: true, Toast: "Error"}, false
 	}
 
-	names := CatalogEventNames(c.Subs.Events)
+	names := EventMenuNames(c.Subs.Events)
 	if idx < 0 || idx >= len(names) {
 		return &Reply{Reply: "Event gone — try again.", Edit: true, Toast: "Missing"}, false
 	}

@@ -22,6 +22,7 @@ const (
 	cbSubsRoot   = "l"
 	cbHelpRoot   = "h"
 	cbEvtsRoot   = "e"
+	cbEvtsHdr    = "e:hdr"
 	cbCamSetRoot = "k"
 )
 
@@ -112,6 +113,9 @@ func (c *Chat) handleCamsEventsWizardCallback(handler *Handler, data string) (*R
 		return c.camsWizardCam(handler, atoiDefault(strings.TrimPrefix(data, "c:"), -1)), false, true
 	case data == cbEvtsRoot:
 		return c.eventsWizardRoot(), false, true
+	case data == cbEvtsHdr:
+		// Section header tap — answer the callback, leave the menu alone.
+		return &Reply{}, false, true
 	case strings.HasPrefix(data, "e:s:"):
 		reply, save := c.subWizardSubscribeEvt(handler, strings.TrimPrefix(data, "e:s:"))
 
@@ -562,7 +566,7 @@ func (c *Chat) camsWizardUnsubscribeApply(
 }
 
 func (c *Chat) eventsWizardRoot() *Reply {
-	names := CatalogEventNames(c.Subs.Events)
+	names := EventMenuNames(c.Subs.Events)
 	if len(names) == 0 {
 		return &Reply{
 			Reply: "No custom events are configured on this Motifini.\n\n" +
@@ -575,27 +579,13 @@ func (c *Chat) eventsWizardRoot() *Reply {
 		}
 	}
 
-	rows := make([][]Button, 0, len(names)+1)
-	for idx, name := range names {
-		desc, _ := c.Subs.Events.RuleGetS(name, "description")
-		label := name
-		if desc != "" {
-			label = name + " — " + desc
-			if len(label) > 64 {
-				label = label[:61] + "…"
-			}
-		}
-		rows = append(rows, []Button{{
-			Label: label,
-			Data:  fmt.Sprintf("e:s:%d", idx),
-		}})
-	}
+	rows := c.eventSectionRows("e:s:")
 	rows = append(rows, []Button{{Label: "Done", Data: cbCancel}})
 
 	return &Reply{
-		Reply: "System and custom events (not camera motion clips).\n\n" +
-			"These send a text alert — no video.\n" +
-			"Built-ins cover stream up/down, cameras going offline/online, and SecuritySpy errors.\n\n" +
+		Reply: "Events (not camera motion clips).\n\n" +
+			"Home Assistant = registered by your HA automations; these may carry a photo or video clip.\n" +
+			"System = text alerts for stream up/down, cameras going offline/online, and SecuritySpy errors.\n\n" +
 			"Tap one to subscribe:",
 		Edit:     true,
 		Keyboard: rows,
