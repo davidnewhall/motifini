@@ -14,6 +14,7 @@ import (
 	"html"
 	"io"
 	"log"
+	"net"
 	"net/http"
 	"slices"
 	"strconv"
@@ -29,21 +30,23 @@ import (
 // HTTP server defaults.
 const (
 	DefaultListenPort = 8765
+	DefaultListenAddr = "127.0.0.1"
 	Timeout           = 30 * time.Second
 )
 
 // Config holds HTTP server dependencies and listen settings.
 type Config struct {
-	http      *http.Server
-	SSpy      *securityspy.Server
-	Subs      *subscribe.Subscribe
-	Msgs      *messenger.Messenger
-	Info      *log.Logger
-	Debug     *log.Logger
-	Error     *log.Logger
-	TempDir   string
-	AllowedTo []string
-	Port      uint
+	http       *http.Server
+	SSpy       *securityspy.Server
+	Subs       *subscribe.Subscribe
+	Msgs       *messenger.Messenger
+	Info       *log.Logger
+	Debug      *log.Logger
+	Error      *log.Logger
+	TempDir    string
+	AllowedTo  []string
+	ListenAddr string
+	Port       uint
 }
 
 // Start validates the config and returns any errors.
@@ -75,6 +78,10 @@ func Start(cfg *Config) error {
 		cfg.TempDir = "/tmp/"
 	}
 
+	if cfg.ListenAddr == "" {
+		cfg.ListenAddr = DefaultListenAddr
+	}
+
 	if cfg.Port == 0 {
 		cfg.Port = DefaultListenPort
 	}
@@ -101,7 +108,7 @@ func (c *Config) Start() {
 	router.PathPrefix("/").HandlerFunc(c.handleAll)
 
 	c.http = &http.Server{
-		Addr:         fmt.Sprintf("127.0.0.1:%d", c.Port),
+		Addr:         net.JoinHostPort(c.ListenAddr, strconv.Itoa(int(c.Port))),
 		WriteTimeout: Timeout,
 		ReadTimeout:  Timeout,
 		IdleTimeout:  time.Minute,
