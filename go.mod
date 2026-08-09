@@ -12,7 +12,7 @@ require (
 	golift.io/cnfgfile v0.0.0-20240713024420-a5436d84eb48
 	golift.io/rotatorr v0.0.0-20260217050959-f6ac6fc7b38e
 	golift.io/securityspy/v2 v2.2.0
-	golift.io/subscribe v0.0.0-20260720203740-de586e9886b0
+	golift.io/subscribe v0.0.0-20260809233138-211958d47128
 	golift.io/version v0.0.2
 )
 

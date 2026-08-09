@@ -98,7 +98,7 @@ func TestSubStateConcurrentAccess(t *testing.T) {
 		person := subs.CreateSubWithID(int64(num+1), "sub"+strconv.Itoa(num), "telegram", false, false)
 
 		wait.Go(func() { writeSubState(person) })
-		wait.Go(func() { readSubState(person) })
+		wait.Go(func() { readSubState(subs, person) })
 		wait.Go(func() { saveSubState(t, subs) })
 	}
 
@@ -115,18 +115,28 @@ func writeSubState(person *subscribe.Subscriber) {
 		SetSubUser(person, map[string]any{"username": "u" + strconv.Itoa(round)})
 		SetSubMeta(person, pendingRenameMetaKey, int64(round))
 		DeleteSubMeta(person, pendingRenameMetaKey)
+		SetSubContact(person, "contact"+strconv.Itoa(round))
+		EnsureSubContact(person, "ensured")
 	}
 }
 
 // readSubState is the HTTP API deciding whether an id may receive messages,
-// plus the admin listings that render the same record.
-func readSubState(person *subscribe.Subscriber) {
+// plus the admin listings that render the same record. The subscribe library
+// reads the same fields while filtering subscribers, so those calls belong in
+// here too: they are the other half of the pairing that used to race.
+func readSubState(subs *subscribe.Subscribe, person *subscribe.Subscriber) {
 	for range subStateRounds {
 		_ = SubAuthed(person) && !SubIgnored(person)
 		_ = SubAdmin(person)
 		_ = SubContact(person)
 		_ = subscriberDisplayName(person)
 		_ = adminSubSummary(person)
+
+		subs.GetSubscribers("event")
+		subs.GetAdmins()
+		subs.GetIgnored()
+		_, _ = subs.GetSubscriberByID(person.ID, person.API)
+		_, _ = subs.GetSubscriber(SubContact(person), person.API)
 	}
 }
 

@@ -280,22 +280,7 @@ func clearPendingRename(sub *subscribe.Subscriber) {
 }
 
 func pendingRenameID(sub *subscribe.Subscriber) (int64, bool) {
-	if sub == nil {
-		return 0, false
-	}
-
-	subMu.RLock()
-	defer subMu.RUnlock()
-
-	if sub.Meta == nil {
-		return 0, false
-	}
-
-	return metaInt64(sub.Meta, pendingRenameMetaKey)
-}
-
-func metaInt64(meta map[string]any, key string) (int64, bool) {
-	val, exists := meta[key]
+	val, exists := sub.GetMeta(pendingRenameMetaKey)
 	if !exists || val == nil {
 		return 0, false
 	}
@@ -398,23 +383,19 @@ func (c *Chat) adminTargetByID(api, idStr string) (*subscribe.Subscriber, error)
 	return sub, nil
 }
 
-// subscriberDisplayName takes the write lock because recovering a name from
-// Meta also persists it onto Contact.
 func subscriberDisplayName(sub *subscribe.Subscriber) string {
 	if sub == nil {
 		return "?"
 	}
 
-	subMu.Lock()
-	defer subMu.Unlock()
-
-	if name := strings.TrimSpace(sub.Contact); name != "" {
+	if name := strings.TrimSpace(sub.GetContact()); name != "" {
 		return name
 	}
 
-	// Recover a name from Meta and persist it onto Contact.
-	if name := metaDisplayName(sub.Meta); name != "" {
-		sub.Contact = name
+	// Recover a name from Meta and persist it onto Contact. SetContactIfEmpty
+	// rather than SetContact: an admin rename may have landed since the read.
+	if name := metaDisplayName(sub.GetAllMeta()); name != "" {
+		sub.SetContactIfEmpty(name)
 
 		return name
 	}
