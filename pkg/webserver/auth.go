@@ -52,6 +52,19 @@ func apiKeyValid(got, want string) bool {
 	return subtle.ConstantTimeCompare(gotSum[:], wantSum[:]) == 1
 }
 
+// redactAPIKey returns the request URL with any apikey query value replaced,
+// so query-string credentials never land in the application log.
+func redactAPIKey(request *http.Request) string {
+	query := request.URL.Query()
+	if query.Get("apikey") == "" {
+		return request.URL.String()
+	}
+
+	query.Set("apikey", "REDACTED")
+
+	return request.URL.Path + "?" + query.Encode()
+}
+
 // isLoopbackAddr reports whether the listen address is localhost-only.
 // Anything unparsable is treated as non-loopback (warns loudly at startup).
 func isLoopbackAddr(addr string) bool {

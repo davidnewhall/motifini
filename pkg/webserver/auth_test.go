@@ -61,6 +61,27 @@ func TestExtractAPIKey(t *testing.T) {
 	}
 }
 
+func TestRedactAPIKey(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		target string
+		want   string
+	}{
+		{"/api/v1.0/events?apikey=s3cret", "/api/v1.0/events?apikey=REDACTED"},
+		{"/api/v1.0/events?apikey=s3cret&x=1", "/api/v1.0/events?apikey=REDACTED&x=1"},
+		{"/api/v1.0/events?x=1", "/api/v1.0/events?x=1"},
+		{"/api/v1.0/events", "/api/v1.0/events"},
+	}
+
+	for _, test := range tests {
+		req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, test.target, http.NoBody)
+		if got := redactAPIKey(req); got != test.want {
+			t.Fatalf("redactAPIKey(%q): got %q want %q", test.target, got, test.want)
+		}
+	}
+}
+
 func TestIsLoopbackAddr(t *testing.T) {
 	t.Parallel()
 

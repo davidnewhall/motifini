@@ -165,7 +165,7 @@ func (c *Config) finishReq(
 ) {
 	export.Map.HTTPVisits.Add(1)
 	c.Info.Printf(`[%v] %v %v "%v %v" %d %d "%v" "%v"`,
-		reqID, request.RemoteAddr, request.Host, request.Method, request.URL.String(),
+		reqID, request.RemoteAddr, request.Host, request.Method, redactAPIKey(request),
 		code, len(reply), request.UserAgent(), cmd)
 	// Force plain-text rendering and escape the body so a browser can never
 	// interpret the reply (which may echo back request input) as HTML/script.
@@ -184,7 +184,7 @@ func (c *Config) finishReqJSON(
 ) {
 	export.Map.HTTPVisits.Add(1)
 	c.Info.Printf(`[%v] %v %v "%v %v" %d %d "%v" "%v"`,
-		reqID, request.RemoteAddr, request.Host, request.Method, request.URL.String(),
+		reqID, request.RemoteAddr, request.Host, request.Method, redactAPIKey(request),
 		code, len(reply), request.UserAgent(), cmd)
 	writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 	writer.WriteHeader(code)
