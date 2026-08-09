@@ -108,11 +108,14 @@ Home Assistant can fire Motifini event notifications — text, a camera photo, o
 [webserver]
   enable = true
   port = 8765
-  # HA on another host? Bind a LAN address (no auth — trusted networks only):
+  # HA on another host? Bind a LAN address and set an API key:
   # listen_addr = "0.0.0.0"
+  # api_key = "output-of: openssl rand -hex 24"
 ```
 
-**2. Install the integration** from this repo with HACS (*Custom repositories* → *Integration*), or copy [`custom_components/motifini`](custom_components/motifini/) into your HA `config/custom_components/`. Then add **Motifini** under *Settings → Integrations* (host + port; it checks connectivity against the events API).
+When `api_key` is set, every API request needs it (`Authorization: Bearer <key>` header, `X-API-Key` header, or `?apikey=` query param). Keep the default localhost bind and it stays optional; expose the port to your LAN and the key is strongly recommended (Motifini logs a warning at startup if you don't).
+
+**2. Install the integration** from this repo with HACS (*Custom repositories* → *Integration*), or copy [`custom_components/motifini`](custom_components/motifini/) into your HA `config/custom_components/`. Then add **Motifini** under *Settings → Integrations* (host + port + the same API key; it checks connectivity against the events API).
 
 **3. Call the services** from automations:
 

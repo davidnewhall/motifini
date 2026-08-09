@@ -39,9 +39,11 @@ class MotifiniClient:
         host: str,
         port: int,
         path_prefix: str = "",
+        api_key: str | None = None,
     ) -> None:
-        """Initialize the client with a base URL."""
+        """Initialize the client with a base URL and optional API key."""
         self._session = session
+        self._headers = {"Authorization": f"Bearer {api_key}"} if api_key else None
         prefix = path_prefix.strip("/")
         self._base_url = f"http://{host.strip()}:{port}"
         if prefix:
@@ -106,7 +108,7 @@ class MotifiniClient:
         try:
             async with asyncio.timeout(REQUEST_TIMEOUT):
                 resp = await self._session.request(
-                    method, self._base_url + path, data=data
+                    method, self._base_url + path, data=data, headers=self._headers
                 )
                 body = await resp.text()
         except (aiohttp.ClientError, TimeoutError) as err:

@@ -25,6 +25,7 @@ from .const import (
     ATTR_EVENT,
     ATTR_MEDIA,
     ATTR_MESSAGE,
+    CONF_API_KEY,
     CONF_PATH_PREFIX,
     DOMAIN,
     MEDIA_NONE,
@@ -51,6 +52,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: MotifiniConfigEntry) -> 
         entry.data[CONF_HOST],
         entry.data[CONF_PORT],
         entry.data.get(CONF_PATH_PREFIX, ""),
+        entry.data.get(CONF_API_KEY) or None,
     )
 
     try:

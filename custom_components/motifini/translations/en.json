@@ -7,17 +7,20 @@
         "data": {
           "host": "Host",
           "port": "Port",
+          "api_key": "API key",
           "path_prefix": "Path prefix"
         },
         "data_description": {
           "host": "Hostname or IP of the machine running Motifini.",
           "port": "Motifini webserver port (default 8765).",
+          "api_key": "Must match api_key in motifini.conf when one is set there. Usually required when Motifini listens on a non-localhost address.",
           "path_prefix": "Only when behind a reverse proxy path, e.g. motifini. Usually blank."
         }
       }
     },
     "error": {
       "cannot_connect": "Failed to connect",
+      "invalid_auth": "Invalid API key",
       "unknown": "Unexpected error"
     },
     "abort": {

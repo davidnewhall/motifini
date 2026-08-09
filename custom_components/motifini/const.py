@@ -3,6 +3,7 @@
 DOMAIN = "motifini"
 
 CONF_PATH_PREFIX = "path_prefix"
+CONF_API_KEY = "api_key"
 
 DEFAULT_PORT = 8765
 
