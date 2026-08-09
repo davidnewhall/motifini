@@ -19,8 +19,10 @@ import (
 	"net/http"
 	"slices"
 	"strconv"
+	"sync"
 	"time"
 
+	"github.com/davidnewhall/motifini/pkg/chat"
 	"github.com/davidnewhall/motifini/pkg/export"
 	"github.com/davidnewhall/motifini/pkg/messenger"
 	"github.com/gorilla/mux"
@@ -41,6 +43,11 @@ var ErrAPIKeyRequired = errors.New("api_key is required when listen_addr is not 
 
 // Config holds HTTP server dependencies and listen settings.
 type Config struct {
+	// catalog serializes the read-modify-save transactions the event API runs
+	// against the subscriber database. Each library call locks itself, but a
+	// sequence like "does this event exist? then create it and save" needs to
+	// exclude a concurrent request running the same sequence.
+	catalog          sync.Mutex
 	http             *http.Server
 	SSpy             *securityspy.Server
 	Subs             *subscribe.Subscribe
@@ -232,9 +239,7 @@ func (c *Config) recipientAllowed(idStr string) bool {
 	}
 
 	// Same auth marker the Telegram message path checks (set by /id or admin Allow).
-	authed, _ := sub.Meta["hasAuth"].(bool)
-
-	return authed && !sub.Ignored
+	return chat.SubAuthed(sub) && !chat.SubIgnored(sub)
 }
 
 // securitySpyReady is false until the first successful Refresh() loads cameras.

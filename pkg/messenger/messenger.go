@@ -104,9 +104,10 @@ func (m *Messenger) SendFileOrMsg(reqID, msg, path string, subs []*subscribe.Sub
 	for _, sub := range subs {
 		switch sub.API {
 		case APITelegram:
-			m.SendTelegram(reqID, msg, path, sub.ID, sub.Contact)
+			m.SendTelegram(reqID, msg, path, sub.ID, chat.SubContact(sub))
 		default:
-			m.Error.Printf("[%v] Unknown Notification API '%v' for contact: %v", reqID, sub.API, sub.Contact)
+			m.Error.Printf("[%v] Unknown Notification API '%v' for contact: %v",
+				reqID, sub.API, chat.SubContact(sub))
 		}
 	}
 }

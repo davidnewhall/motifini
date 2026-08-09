@@ -414,7 +414,7 @@ func (c *Chat) camsWizardCam(handler *Handler, idx int) *Reply {
 		subRow = append(subRow, Button{Label: "Unsubscribe", Data: fmt.Sprintf("c:u:%d", idx)})
 	}
 	rows = append(rows, subRow)
-	if handler != nil && handler.Sub != nil && handler.Sub.Admin {
+	if handler != nil && handler.Sub != nil && SubAdmin(handler.Sub) {
 		rows = append(rows, []Button{{Label: "Clip settings", Data: fmt.Sprintf("k:%d", idx)}})
 	}
 
@@ -997,7 +997,7 @@ func (c *Chat) subsWizardRoot(handler *Handler) *Reply {
 	var msg strings.Builder
 	msg.WriteString("Your alert subscriptions.\n\n")
 	msg.WriteString("Tap a subscription below to pause it, change how often clips arrive, or remove it.\n")
-	if handler.Sub != nil && handler.Sub.Admin {
+	if handler.Sub != nil && SubAdmin(handler.Sub) {
 		msg.WriteString("\nAdmin tip: use /users → person → Manage subscriptions to edit someone else's.\n")
 	}
 
@@ -1092,7 +1092,7 @@ Tap a button below:`,
 
 func (c *Chat) helpWizardRootFor(handler *Handler) *Reply {
 	root := c.helpWizardRoot()
-	if handler != nil && handler.Sub != nil && handler.Sub.Admin {
+	if handler != nil && handler.Sub != nil && SubAdmin(handler.Sub) {
 		// Insert Users / Clip settings before Done on the last row.
 		rows := root.Keyboard
 		if len(rows) > 0 {

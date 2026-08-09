@@ -27,8 +27,11 @@ func (c *Config) eventsHandler(writer http.ResponseWriter, request *http.Request
 
 	switch cmd := strings.ToLower(vars["cmd"]); cmd {
 	case "remove":
+		c.catalog.Lock()
 		c.Subs.EventRemove(vars["event"])
-		err := c.Subs.StateFileSave()
+		err := chat.SaveState(c.Subs)
+		c.catalog.Unlock()
+
 		if err != nil {
 			c.finishReq(writer, request, reqID, http.StatusInternalServerError,
 				"ERROR: "+err.Error()+"\n", cmd)
@@ -66,12 +69,15 @@ func (c *Config) eventUpsertHandler(writer http.ResponseWriter, request *http.Re
 		return
 	}
 
+	c.catalog.Lock()
 	created := !c.Subs.Events.Exists(event)
 	c.upsertCatalogEvent(event, description)
 
 	// Save on every accepted PUT: if a previous save failed, a retry carrying
 	// the same payload would otherwise skip the save and stay stale on disk.
-	err = c.Subs.StateFileSave()
+	err = chat.SaveState(c.Subs)
+	c.catalog.Unlock()
+
 	if err != nil {
 		c.finishReq(writer, request, reqID, http.StatusInternalServerError,
 			"ERROR: "+err.Error()+"\n", "register")
@@ -201,16 +207,11 @@ func (c *Config) notifyHandler(
 	}
 
 	// Register unknown events so they appear in the Telegram subscribe menus.
-	if !chat.IsCamSettingsKey(req.event) && !c.Subs.Events.Exists(req.event) {
-		c.upsertCatalogEvent(req.event, request.FormValue("description"))
-
-		err := c.Subs.StateFileSave()
+	if !chat.IsCamSettingsKey(req.event) {
+		err := c.registerNotifyEvent(req.event, request.FormValue("description"))
 		if err != nil {
-			// Roll back so a later notify retries the registration instead of
-			// the event living in memory only and disappearing on restart.
-			c.Subs.Events.Remove(req.event)
 			c.finishReq(writer, request, reqID, http.StatusInternalServerError,
-				"ERROR: saving new event: "+err.Error()+"\n", "notify")
+				"ERROR: "+err.Error()+"\n", "notify")
 
 			return
 		}
@@ -221,6 +222,32 @@ func (c *Config) notifyHandler(
 
 	c.Msgs.SendFileOrMsg(reqID, msg, path, subs)
 	c.finishReq(writer, request, reqID, code, reply, msg)
+}
+
+// registerNotifyEvent adds an event the catalog has never seen, so the Telegram
+// subscribe menus pick it up. The check, create, save and rollback all run under
+// one lock: a save failure rolls the new event back, and without the lock that
+// rollback could delete an event another request just created and saved.
+func (c *Config) registerNotifyEvent(event, description string) error {
+	c.catalog.Lock()
+	defer c.catalog.Unlock()
+
+	if c.Subs.Events.Exists(event) {
+		return nil
+	}
+
+	c.upsertCatalogEvent(event, description)
+
+	err := chat.SaveState(c.Subs)
+	if err != nil {
+		// Roll back so a later notify retries the registration instead of the
+		// event living in memory only and disappearing on restart.
+		c.Subs.Events.Remove(event)
+
+		return fmt.Errorf("saving new event: %w", err)
+	}
+
+	return nil
 }
 
 // parseNotifyRequest validates the msg / media / camera combination and

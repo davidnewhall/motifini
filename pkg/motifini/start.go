@@ -527,7 +527,7 @@ func (m *Motifini) waitForSignal() error {
 // saveSubDB just saves the state file/db and logs any error.
 // called from a few places. SaveStateFile() provides the file lock.
 func (m *Motifini) saveSubDB() {
-	err := m.Subs.StateFileSave()
+	err := chat.SaveState(m.Subs)
 	if err != nil {
 		m.Error.Printf("saving subscribers state file: %v", err)
 		return

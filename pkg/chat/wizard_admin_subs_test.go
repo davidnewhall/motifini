@@ -12,7 +12,7 @@ func TestHandleAdminSubsClearsPendingRename(t *testing.T) {
 	t.Parallel()
 
 	admin, target, chat := adminSubsTestFixture(t)
-	ensureSubMeta(admin)[pendingRenameMetaKey] = target.ID
+	SetSubMeta(admin, pendingRenameMetaKey, target.ID)
 
 	handler := &Handler{API: "telegram", Sub: admin}
 	reply, save, ok := chat.handleAdminSubsWizardCallback(handler, fmt.Sprintf("m:subs:%d", target.ID))

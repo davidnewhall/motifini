@@ -239,5 +239,5 @@ func (c *Config) telegramContact(id int64) string {
 		return ""
 	}
 
-	return sub.Contact
+	return chat.SubContact(sub)
 }

@@ -424,7 +424,7 @@ func (c *Chat) adminSubsWizardSubApply(handler *Handler, payload string) (*Reply
 }
 
 func (c *Chat) requireAdmin(handler *Handler) *Reply {
-	if handler == nil || handler.Sub == nil || !handler.Sub.Admin {
+	if handler == nil || handler.Sub == nil || !SubAdmin(handler.Sub) {
 		return &Reply{Reply: "Admins only.", Edit: true, Toast: "Nope"}
 	}
 

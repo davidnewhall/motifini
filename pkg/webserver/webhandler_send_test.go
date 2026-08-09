@@ -3,6 +3,7 @@ package webserver
 import (
 	"testing"
 
+	"github.com/davidnewhall/motifini/pkg/chat"
 	"github.com/davidnewhall/motifini/pkg/messenger"
 )
 
@@ -11,14 +12,9 @@ func TestRecipientAllowed(t *testing.T) {
 
 	cfg, _ := testConfig(t)
 
-	authed := cfg.Subs.CreateSubWithID(1234, "authed", messenger.APITelegram, false, false)
-	authed.Meta = map[string]any{"hasAuth": true}
-
-	unauthed := cfg.Subs.CreateSubWithID(5678, "unauthed", messenger.APITelegram, false, false)
-	unauthed.Meta = map[string]any{"hasAuth": false}
-
-	ignored := cfg.Subs.CreateSubWithID(4321, "ignored", messenger.APITelegram, false, true)
-	ignored.Meta = map[string]any{"hasAuth": true}
+	chat.SetSubAuthed(cfg.Subs.CreateSubWithID(1234, "authed", messenger.APITelegram, false, false), true)
+	chat.SetSubAuthed(cfg.Subs.CreateSubWithID(5678, "unauthed", messenger.APITelegram, false, false), false)
+	chat.SetSubAuthed(cfg.Subs.CreateSubWithID(4321, "ignored", messenger.APITelegram, false, true), true)
 
 	tests := []struct {
 		name             string

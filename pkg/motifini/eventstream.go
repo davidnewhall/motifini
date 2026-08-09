@@ -204,7 +204,7 @@ func (m *Motifini) handleCameraMotion(event *securityspy.Event) {
 
 	names := make([]string, 0, subCount)
 	for _, sub := range subs {
-		name := sub.Contact
+		name := chat.SubContact(sub)
 		if name == "" {
 			name = "?"
 		}
@@ -240,7 +240,7 @@ func (m *Motifini) notifySystemEvent(eventName, msg string) {
 
 	names := make([]string, 0, len(subs))
 	for _, sub := range subs {
-		name := sub.Contact
+		name := chat.SubContact(sub)
 		if name == "" {
 			name = "?"
 		}
