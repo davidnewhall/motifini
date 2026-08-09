@@ -10,7 +10,6 @@ func TestRecipientAllowed(t *testing.T) {
 	t.Parallel()
 
 	cfg, _ := testConfig(t)
-	cfg.AllowedTo = []string{"999"}
 
 	authed := cfg.Subs.CreateSubWithID(1234, "authed", messenger.APITelegram, false, false)
 	authed.Meta = map[string]any{"hasAuth": true}
@@ -42,8 +41,14 @@ func TestRecipientAllowed(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
-			cfg.AllowSubscribers = test.allowSubscribers
-			if got := cfg.recipientAllowed(test.id); got != test.want {
+			// Fresh Config per subtest: AllowSubscribers must not be shared mutable state.
+			subCfg := &Config{
+				Subs:             cfg.Subs,
+				AllowedTo:        []string{"999"},
+				AllowSubscribers: test.allowSubscribers,
+			}
+
+			if got := subCfg.recipientAllowed(test.id); got != test.want {
 				t.Fatalf("recipientAllowed(%q, flag=%v): got %v want %v",
 					test.id, test.allowSubscribers, got, test.want)
 			}
