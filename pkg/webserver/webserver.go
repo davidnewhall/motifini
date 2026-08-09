@@ -10,6 +10,7 @@ package webserver
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"html"
 	"io"
@@ -33,6 +34,10 @@ const (
 	DefaultListenAddr = "127.0.0.1"
 	Timeout           = 30 * time.Second
 )
+
+// ErrAPIKeyRequired is returned when the web server is configured to listen on
+// a non-localhost address without an api_key.
+var ErrAPIKeyRequired = errors.New("api_key is required when listen_addr is not localhost")
 
 // Config holds HTTP server dependencies and listen settings.
 type Config struct {
@@ -88,8 +93,7 @@ func Start(cfg *Config) error {
 	}
 
 	if cfg.APIKey == "" && !isLoopbackAddr(cfg.ListenAddr) {
-		cfg.Error.Print("Web server listening on a non-localhost address with no api_key — " +
-			"anyone who can reach this port can send notifications. Set [webserver] api_key!")
+		return fmt.Errorf("%w (listen_addr=%s)", ErrAPIKeyRequired, cfg.ListenAddr)
 	}
 
 	cfg.Start()

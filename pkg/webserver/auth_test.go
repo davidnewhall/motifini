@@ -2,6 +2,8 @@ package webserver
 
 import (
 	"context"
+	"errors"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -117,6 +119,66 @@ func TestRequireAPIKey(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestStartRequiresAPIKey proves a non-loopback listen_addr without an api_key
+// is rejected at startup, while loopback binds and keyed configs pass the check.
+func TestStartRequiresAPIKey(t *testing.T) {
+	t.Parallel()
+
+	for _, addr := range []string{"0.0.0.0", "::", "192.168.1.5", "myhost.local"} {
+		cfg, _ := testConfig(t)
+		cfg.ListenAddr = addr
+
+		err := Start(cfg)
+		if !errors.Is(err, ErrAPIKeyRequired) {
+			t.Fatalf("listen_addr %s: got %v, want ErrAPIKeyRequired", addr, err)
+		}
+	}
+
+	// Loopback without a key passes the check (and binds a real port).
+	cfg, _ := testConfig(t)
+	cfg.ListenAddr = "127.0.0.1"
+	cfg.Port = reservePort(t)
+
+	err := Start(cfg)
+	if err != nil {
+		t.Fatalf("loopback without key: %v", err)
+	}
+
+	_ = cfg.Stop()
+
+	// Non-loopback with a key passes the check too.
+	cfg, _ = testConfig(t)
+	cfg.ListenAddr = "0.0.0.0"
+	cfg.APIKey = "k"
+	cfg.Port = reservePort(t)
+
+	err = Start(cfg)
+	if err != nil {
+		t.Fatalf("non-loopback with key: %v", err)
+	}
+
+	_ = cfg.Stop()
+}
+
+// reservePort grabs a free localhost port and releases it.
+func reservePort(t *testing.T) uint {
+	t.Helper()
+
+	listener, err := new(net.ListenConfig).Listen(context.Background(), "tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("reserve port: %v", err)
+	}
+
+	tcpAddr, ok := listener.Addr().(*net.TCPAddr)
+	if !ok {
+		t.Fatalf("unexpected listener addr type %T", listener.Addr())
+	}
+
+	_ = listener.Close()
+
+	return uint(tcpAddr.Port)
 }
 
 // TestAPIKeyEndToEnd serves the real handler stack with a key configured and
