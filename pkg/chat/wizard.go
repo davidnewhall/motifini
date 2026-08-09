@@ -173,14 +173,14 @@ func (c *Chat) subWizardEvents() *Reply {
 		}
 	}
 
-	rows := c.eventSectionRows("s:e:")
+	rows, skipped := c.eventSectionRows("s:e:")
 	rows = append(rows, []Button{
 		{Label: "« Back", Data: cbSubRoot},
 		{Label: "Done", Data: cbCancel},
 	})
 
 	return &Reply{
-		Reply:    "Pick an event:",
+		Reply:    "Pick an event:" + skippedEventsNote(skipped),
 		Edit:     true,
 		Keyboard: rows,
 	}
@@ -225,22 +225,18 @@ func (c *Chat) subWizardSubscribeCam(handler *Handler, payload string) (*Reply, 
 	return next, true
 }
 
-func (c *Chat) subWizardSubscribeEvt(handler *Handler, idxStr string) (*Reply, bool) {
-	idx, err := strconv.Atoi(idxStr)
-	if err != nil {
-		return &Reply{Reply: "Bad event index.", Edit: true, Toast: "Error"}, false
-	}
-
-	names := EventMenuNames(c.Subs.Events)
-	if idx < 0 || idx >= len(names) {
+func (c *Chat) subWizardSubscribeEvt(handler *Handler, name string) (*Reply, bool) {
+	// Buttons carry the event name; resolve it (case-insensitively) against the
+	// live catalog so a renamed/removed event can never mis-subscribe.
+	event := c.Subs.Events.Name(name)
+	if event == "" || IsCamSettingsKey(event) {
 		return &Reply{Reply: "Event gone — try again.", Edit: true, Toast: "Missing"}, false
 	}
 
-	event := names[idx]
 	msg := "Subscribed to event: " + event
 	toast := "Subscribed ✓"
 
-	err = handler.Sub.Subscribe(event)
+	err := handler.Sub.Subscribe(event)
 	if err != nil {
 		msg = "Already subscribed to: " + event
 		toast = "Already on"

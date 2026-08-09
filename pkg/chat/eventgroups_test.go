@@ -2,7 +2,9 @@ package chat
 
 import (
 	"slices"
+	"strings"
 	"testing"
+	"unicode/utf8"
 
 	"golift.io/subscribe"
 )
@@ -87,19 +89,25 @@ func TestEventSectionRows(t *testing.T) {
 	data := testEventCatalog(t)
 	c := &Chat{Subs: data}
 
-	rows := c.eventSectionRows("e:s:")
+	rows, skipped := c.eventSectionRows("e:s:")
 
 	// 2 headers + 4 events.
 	if len(rows) != 6 {
 		t.Fatalf("rows: got %d want 6: %v", len(rows), rows)
 	}
 
+	if len(skipped) != 0 {
+		t.Fatalf("skipped: got %v want none", skipped)
+	}
+
 	if rows[0][0].Data != cbEvtsHdr || rows[3][0].Data != cbEvtsHdr {
 		t.Fatalf("headers: got %q and %q", rows[0][0].Data, rows[3][0].Data)
 	}
 
-	// Indices must follow EventMenuNames order so e:s:{idx} resolves correctly.
-	wantData := []string{"e:s:0", "e:s:1", "e:s:2", "e:s:3"}
+	// Buttons carry event names (stable across catalog changes), not indices.
+	wantData := []string{
+		"e:s:driveway_motion", "e:s:garage_opened", "e:s:Camera Offline", "e:s:Motifini Started",
+	}
 	gotData := []string{rows[1][0].Data, rows[2][0].Data, rows[4][0].Data, rows[5][0].Data}
 
 	if !slices.Equal(gotData, wantData) {
@@ -108,5 +116,66 @@ func TestEventSectionRows(t *testing.T) {
 
 	if rows[1][0].Label != "driveway_motion — HA driveway_motion" {
 		t.Fatalf("label with description: got %q", rows[1][0].Label)
+	}
+}
+
+func TestEventSectionRowsSkipsLongNames(t *testing.T) {
+	t.Parallel()
+
+	data := testEventCatalog(t)
+
+	longName := strings.Repeat("a", MaxEventNameLen+1)
+
+	err := data.Events.New(longName, &subscribe.Rules{
+		S: map[string]string{"source": EventSourceHA},
+	})
+	if err != nil {
+		t.Fatalf("seed long event: %v", err)
+	}
+
+	c := &Chat{Subs: data}
+	rows, skipped := c.eventSectionRows("e:s:")
+
+	if !slices.Equal(skipped, []string{longName}) {
+		t.Fatalf("skipped: got %v want [%q]", skipped, longName)
+	}
+
+	// 2 headers + 4 events; the long one is not a button.
+	if len(rows) != 6 {
+		t.Fatalf("rows: got %d want 6", len(rows))
+	}
+
+	if note := skippedEventsNote(skipped); !strings.Contains(note, longName) {
+		t.Fatalf("note should name the hidden event: %q", note)
+	}
+}
+
+func TestEventMenuButtonTruncatesOnRunes(t *testing.T) {
+	t.Parallel()
+
+	events := &subscribe.Events{Map: make(map[string]*subscribe.Rules)}
+	data := &subscribe.Subscribe{Events: events}
+
+	err := events.New("gate_open", &subscribe.Rules{
+		S: map[string]string{"description": strings.Repeat("é", 100)},
+	})
+	if err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+
+	c := &Chat{Subs: data}
+	btn, ok := c.eventMenuButton("gate_open", "e:s:")
+
+	if !ok {
+		t.Fatal("button should build")
+	}
+
+	runes := []rune(btn.Label)
+	if len(runes) != 64 || !strings.HasSuffix(btn.Label, "…") {
+		t.Fatalf("label: got %d runes, suffix %q", len(runes), btn.Label[len(btn.Label)-3:])
+	}
+
+	if !utf8.ValidString(btn.Label) {
+		t.Fatal("label is not valid UTF-8")
 	}
 }

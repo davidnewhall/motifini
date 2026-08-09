@@ -579,14 +579,14 @@ func (c *Chat) eventsWizardRoot() *Reply {
 		}
 	}
 
-	rows := c.eventSectionRows("e:s:")
+	rows, skipped := c.eventSectionRows("e:s:")
 	rows = append(rows, []Button{{Label: "Done", Data: cbCancel}})
 
 	return &Reply{
 		Reply: "Events (not camera motion clips).\n\n" +
 			"Home Assistant = registered by your HA automations; these may carry a photo or video clip.\n" +
 			"System = text alerts for stream up/down, cameras going offline/online, and SecuritySpy errors.\n\n" +
-			"Tap one to subscribe:",
+			"Tap one to subscribe:" + skippedEventsNote(skipped),
 		Edit:     true,
 		Keyboard: rows,
 	}
