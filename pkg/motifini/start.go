@@ -387,7 +387,7 @@ func (m *Motifini) connectSecuritySpy() bool {
 
 	err := m.SSpy.Refresh()
 	if err == nil {
-		m.Info.Printf("Connected to SecuritySpy (%d cameras)", len(m.SSpy.Cameras.All()))
+		m.Info.Printf("Connected to SecuritySpy (%d cameras)", len(m.SSpy.GetCameras().All()))
 		return true
 	}
 
@@ -408,7 +408,7 @@ func (m *Motifini) retrySecuritySpy(interval time.Duration) {
 			continue
 		}
 
-		m.Info.Printf("Connected to SecuritySpy (%d cameras)", len(m.SSpy.Cameras.All()))
+		m.Info.Printf("Connected to SecuritySpy (%d cameras)", len(m.SSpy.GetCameras().All()))
 
 		return
 	}
@@ -482,20 +482,22 @@ func (m *Motifini) publishDebugStats() {
 
 		return int64(len(m.Subs.GetAdmins()))
 	})
+	// These run on the /debug/vars request goroutine, so they read the camera
+	// list through GetCameras(), which Refresh() cannot swap out mid-read.
 	export.PublishCount("cameras", func() int64 {
-		if m.SSpy == nil || m.SSpy.Cameras == nil {
+		if m.SSpy == nil || m.SSpy.GetCameras() == nil {
 			return 0
 		}
 
-		return int64(len(m.SSpy.Cameras.All()))
+		return int64(len(m.SSpy.GetCameras().All()))
 	})
 	export.PublishCount("cameras_online", func() int64 {
-		if m.SSpy == nil || m.SSpy.Cameras == nil {
+		if m.SSpy == nil || m.SSpy.GetCameras() == nil {
 			return 0
 		}
 
 		var online int64
-		for _, cam := range m.SSpy.Cameras.All() {
+		for _, cam := range m.SSpy.GetCameras().All() {
 			if cam != nil && cam.Connected.Val {
 				online++
 			}

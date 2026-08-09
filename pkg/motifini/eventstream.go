@@ -49,7 +49,8 @@ func (m *Motifini) dispatchEvent(event *securityspy.Event) {
 			break
 		}
 
-		if m.SSpy.Info == nil || strings.HasPrefix(m.SSpy.Info.Version, "4") {
+		info := m.SSpy.GetInfo()
+		if info == nil || strings.HasPrefix(info.Version, "4") {
 			m.handleCameraMotion(event)
 		}
 	case securityspy.EventTriggerAction:

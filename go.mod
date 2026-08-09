@@ -11,15 +11,15 @@ require (
 	golift.io/cnfg v0.2.5
 	golift.io/cnfgfile v0.0.0-20240713024420-a5436d84eb48
 	golift.io/rotatorr v0.0.0-20260217050959-f6ac6fc7b38e
-	golift.io/securityspy/v2 v2.1.2
+	golift.io/securityspy/v2 v2.1.3-0.20260809213113-09a3992bac7b
 	golift.io/subscribe v0.0.0-20260720203740-de586e9886b0
 	golift.io/version v0.0.2
 )
 
 require (
 	github.com/BurntSushi/toml v1.6.0 // indirect
-	github.com/Eyevinn/mp4ff v0.54.0 // indirect
-	github.com/bluenviron/gortsplib/v5 v5.6.2 // indirect
+	github.com/Eyevinn/mp4ff v0.55.0 // indirect
+	github.com/bluenviron/gortsplib/v5 v5.6.3 // indirect
 	github.com/bluenviron/mediacommon/v2 v2.9.2 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/google/uuid v1.6.0 // indirect

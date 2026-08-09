@@ -133,6 +133,59 @@ func TestNotifyConcurrentSaveFailureAllFail(t *testing.T) {
 	}
 }
 
+// TestCameraLookupDuringRefresh resolves cameras from request goroutines while
+// SecuritySpy is refreshing. Refresh() replaces the camera list and runs from
+// the retry loop, the event stream and the Telegram /refresh command, so the
+// lookups have to read it through the library's locked accessor.
+func TestCameraLookupDuringRefresh(t *testing.T) {
+	t.Parallel()
+
+	cfg, _ := testConfigWithSSpy(t)
+	done := make(chan struct{})
+
+	var wait sync.WaitGroup
+
+	wait.Go(func() {
+		defer close(done)
+
+		for range 15 {
+			err := cfg.SSpy.Refresh()
+			if err != nil {
+				t.Errorf("Refresh: %v", err)
+
+				return
+			}
+		}
+	})
+
+	wait.Go(func() {
+		for {
+			select {
+			case <-done:
+				return
+			default:
+			}
+
+			if !cfg.securitySpyReady() {
+				t.Error("cameras should stay loaded across a refresh")
+
+				return
+			}
+
+			if cam := cfg.cameraByNameOrNum("Garage"); cam == nil {
+				t.Error("Garage went missing during a refresh")
+
+				return
+			}
+
+			_ = cfg.cameraByNameOrNum("3")
+			_ = cfg.cameraByName("Porch")
+		}
+	})
+
+	wait.Wait()
+}
+
 // TestRecipientAllowedDuringAuthChanges reads the subscriber auth flags from an
 // HTTP request goroutine while a Telegram handler flips them.
 func TestRecipientAllowedDuringAuthChanges(t *testing.T) {

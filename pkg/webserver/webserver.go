@@ -242,28 +242,42 @@ func (c *Config) recipientAllowed(idStr string) bool {
 	return chat.SubAuthed(sub) && !chat.SubIgnored(sub)
 }
 
+// cameras returns the current camera list, or nil before the first successful
+// Refresh(). GetCameras() is the concurrency-safe read: Refresh() replaces the
+// list from the retry loop, the event stream and the Telegram /refresh command,
+// while request goroutines read it here.
+func (c *Config) cameras() *securityspy.Cameras {
+	if c == nil || c.SSpy == nil {
+		return nil
+	}
+
+	return c.SSpy.GetCameras()
+}
+
 // securitySpyReady is false until the first successful Refresh() loads cameras.
 func (c *Config) securitySpyReady() bool {
-	return c != nil && c.SSpy != nil && c.SSpy.Cameras != nil
+	return c.cameras() != nil
 }
 
 // cameraByName looks up a camera, or nil when SecuritySpy has no camera list yet.
 func (c *Config) cameraByName(name string) *securityspy.Camera {
-	if !c.securitySpyReady() {
+	cams := c.cameras()
+	if cams == nil {
 		return nil
 	}
 
-	return c.SSpy.Cameras.ByName(name)
+	return cams.ByName(name)
 }
 
 // cameraByNameOrNum looks up a camera by name, falling back to the SecuritySpy
 // camera number when the value parses as an integer.
 func (c *Config) cameraByNameOrNum(nameOrNum string) *securityspy.Camera {
-	if !c.securitySpyReady() {
+	cams := c.cameras()
+	if cams == nil {
 		return nil
 	}
 
-	if cam := c.SSpy.Cameras.ByName(nameOrNum); cam != nil {
+	if cam := cams.ByName(nameOrNum); cam != nil {
 		return cam
 	}
 
@@ -272,5 +286,5 @@ func (c *Config) cameraByNameOrNum(nameOrNum string) *securityspy.Camera {
 		return nil
 	}
 
-	return c.SSpy.Cameras.ByNum(num)
+	return cams.ByNum(num)
 }
