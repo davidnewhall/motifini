@@ -46,6 +46,7 @@ type Config struct {
 	TempDir    string
 	AllowedTo  []string
 	ListenAddr string
+	APIKey     string
 	Port       uint
 }
 
@@ -86,6 +87,11 @@ func Start(cfg *Config) error {
 		cfg.Port = DefaultListenPort
 	}
 
+	if cfg.APIKey == "" && !isLoopbackAddr(cfg.ListenAddr) {
+		cfg.Error.Print("Web server listening on a non-localhost address with no api_key — " +
+			"anyone who can reach this port can send notifications. Set [webserver] api_key!")
+	}
+
 	cfg.Start()
 
 	return nil
@@ -112,7 +118,7 @@ func (c *Config) Start() {
 		WriteTimeout: Timeout,
 		ReadTimeout:  Timeout,
 		IdleTimeout:  time.Minute,
-		Handler:      router, // *mux.Router
+		Handler:      c.requireAPIKey(router), // *mux.Router behind API key auth
 	}
 
 	c.Info.Print("Web server listening at http://", c.http.Addr)

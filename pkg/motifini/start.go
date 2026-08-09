@@ -91,6 +91,7 @@ type Config struct {
 	Webserver struct {
 		Port       uint     `toml:"port"`
 		ListenAddr string   `toml:"listen_addr"`
+		APIKey     string   `toml:"api_key"`
 		AllowedTo  []string `toml:"allowed_to"`
 		Enable     bool     `toml:"enable"`
 	} `toml:"webserver"`
@@ -451,6 +452,7 @@ func (m *Motifini) startWebserver() error {
 		TempDir:    m.Conf.Global.TempDir,
 		AllowedTo:  m.Conf.Webserver.AllowedTo,
 		ListenAddr: m.Conf.Webserver.ListenAddr,
+		APIKey:     m.Conf.Webserver.APIKey,
 		Port:       m.Conf.Webserver.Port,
 	}
 
