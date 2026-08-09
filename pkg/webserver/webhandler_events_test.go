@@ -119,6 +119,61 @@ func TestEventUpsertRejects(t *testing.T) {
 	}
 }
 
+// TestEventUpsertSavesEveryTime: a repeat PUT with an identical payload must
+// still rewrite the state file, so a retry recovers from an earlier save failure.
+func TestEventUpsertSavesEveryTime(t *testing.T) {
+	t.Parallel()
+
+	cfg, stateFile := testConfig(t)
+	vars := map[string]string{"event": "garage_opened"}
+
+	rec := doRequest(cfg.eventUpsertHandler, "PUT", "/api/v1.0/event/garage_opened", "", "", vars)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("first PUT: code=%d", rec.Code)
+	}
+
+	// Simulate a lost write: the file disappears after the first PUT.
+	err := os.Remove(stateFile)
+	if err != nil {
+		t.Fatalf("remove state file: %v", err)
+	}
+
+	rec = doRequest(cfg.eventUpsertHandler, "PUT", "/api/v1.0/event/garage_opened", "", "", vars)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("repeat PUT: code=%d", rec.Code)
+	}
+
+	_, err = os.Stat(stateFile)
+	if err != nil {
+		t.Fatalf("repeat PUT did not rewrite the state file: %v", err)
+	}
+}
+
+// TestNotifySaveFailureRollsBack: when the state save fails after
+// auto-registration, the notify must fail (500) and the event must be rolled
+// back so a later notify retries the registration.
+func TestNotifySaveFailureRollsBack(t *testing.T) {
+	t.Parallel()
+
+	cfg, stateFile := testConfig(t)
+
+	// Make the state file unwritable: its parent directory is gone.
+	err := os.RemoveAll(filepath.Dir(stateFile))
+	if err != nil {
+		t.Fatalf("remove temp dir: %v", err)
+	}
+
+	rec := doRequest(cfg.eventsHandler, "POST", "/api/v1.0/event/notify/new_event?msg=hi", "", "",
+		map[string]string{"cmd": "notify", "event": "new_event"})
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("notify with failed save: code=%d want 500", rec.Code)
+	}
+
+	if cfg.Subs.Events.Exists("new_event") {
+		t.Fatal("event must be rolled back when the save fails")
+	}
+}
+
 func TestEventsList(t *testing.T) {
 	t.Parallel()
 

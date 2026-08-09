@@ -51,7 +51,7 @@ func (c *Config) eventsHandler(writer http.ResponseWriter, request *http.Request
 func (c *Config) eventUpsertHandler(writer http.ResponseWriter, request *http.Request) {
 	reqID, event := messenger.ReqID(messenger.IDLength), mux.Vars(request)["event"]
 
-	if event == "" || chat.IsCamSettingsKey(event) {
+	if event == "" || chat.IsCamSettingsKey(event) || len(event) > chat.MaxEventNameLen {
 		c.finishReq(writer, request, reqID, http.StatusBadRequest,
 			"ERROR: invalid event name\n", "register")
 
@@ -67,14 +67,16 @@ func (c *Config) eventUpsertHandler(writer http.ResponseWriter, request *http.Re
 	}
 
 	created := !c.Subs.Events.Exists(event)
-	if c.upsertCatalogEvent(event, description) {
-		err := c.Subs.StateFileSave()
-		if err != nil {
-			c.finishReq(writer, request, reqID, http.StatusInternalServerError,
-				"ERROR: "+err.Error()+"\n", "register")
+	c.upsertCatalogEvent(event, description)
 
-			return
-		}
+	// Save on every accepted PUT: if a previous save failed, a retry carrying
+	// the same payload would otherwise skip the save and stay stale on disk.
+	err = c.Subs.StateFileSave()
+	if err != nil {
+		c.finishReq(writer, request, reqID, http.StatusInternalServerError,
+			"ERROR: "+err.Error()+"\n", "register")
+
+		return
 	}
 
 	verb := "updated"
@@ -107,8 +109,7 @@ func eventDescription(request *http.Request) (string, error) {
 // upsertCatalogEvent registers or updates a catalog event from the HTTP API.
 // New events are tagged source=ha so the Telegram menus group them under Home
 // Assistant; existing events keep their rules and get the description updated.
-// Returns true when the catalog changed and should be saved.
-func (c *Config) upsertCatalogEvent(event, description string) bool {
+func (c *Config) upsertCatalogEvent(event, description string) {
 	if !c.Subs.Events.Exists(event) {
 		if description == "" {
 			description = event
@@ -118,25 +119,19 @@ func (c *Config) upsertCatalogEvent(event, description string) bool {
 			S: map[string]string{"description": description, "source": chat.EventSourceHA},
 		})
 
-		return true
+		return
 	}
-
-	changed := false
 
 	if description != "" {
 		if current, _ := c.Subs.Events.RuleGetS(event, "description"); current != description {
 			c.Subs.Events.RuleSetS(event, "description", description)
-			changed = true
 		}
 	}
 
 	// Claim legacy catalog events that predate the source rule.
 	if _, ok := c.Subs.Events.RuleGetS(event, "source"); !ok {
 		c.Subs.Events.RuleSetS(event, "source", chat.EventSourceHA)
-		changed = true
 	}
-
-	return changed
 }
 
 // eventListEntry is one catalog event in the GET /api/v1.0/events response.
@@ -211,15 +206,21 @@ func (c *Config) notifyHandler(
 
 		err := c.Subs.StateFileSave()
 		if err != nil {
-			c.Error.Printf("[%v] StateFileSave: %v", reqID, err)
+			// Roll back so a later notify retries the registration instead of
+			// the event living in memory only and disappearing on restart.
+			c.Subs.Events.Remove(req.event)
+			c.finishReq(writer, request, reqID, http.StatusInternalServerError,
+				"ERROR: saving new event: "+err.Error()+"\n", "notify")
+
+			return
 		}
 	}
 
 	subs := c.Subs.GetSubscribers(req.event)
-	path, code, reply := c.captureNotifyMedia(reqID, req, len(subs))
+	msg, path, code, reply := c.captureNotifyMedia(reqID, req, len(subs))
 
-	c.Msgs.SendFileOrMsg(reqID, req.msg, path, subs)
-	c.finishReq(writer, request, reqID, code, reply, req.msg)
+	c.Msgs.SendFileOrMsg(reqID, msg, path, subs)
+	c.finishReq(writer, request, reqID, code, reply, msg)
 }
 
 // parseNotifyRequest validates the msg / media / camera combination and
@@ -233,6 +234,10 @@ func (c *Config) parseNotifyRequest(
 		media: strings.ToLower(strings.TrimSpace(request.FormValue("media"))),
 	}
 	camera := strings.TrimSpace(request.FormValue("camera"))
+
+	if req.event == "" || len(req.event) > chat.MaxEventNameLen {
+		return nil, http.StatusBadRequest, "ERROR: invalid event name\n"
+	}
 
 	if req.media == "" {
 		req.media = mediaNone
@@ -275,13 +280,26 @@ func (c *Config) parseNotifyRequest(
 	return req, http.StatusOK, ""
 }
 
-// captureNotifyMedia grabs the requested photo or video clip for a notify.
-// Returns an empty path when no media was requested or no one is subscribed.
-// On capture failure the notify still goes out (text-only) and the caller gets
-// a 500 so the automation knows the media is missing.
-func (c *Config) captureNotifyMedia(reqID string, req *notifyRequest, subCount int) (string, int, string) {
+// captureNotifyMedia grabs the requested photo or video clip for a notify and
+// returns the message to deliver plus the media path (empty for text-only).
+// A camera known to be offline skips the capture attempt entirely; the message
+// still goes out with an offline note appended (200 — delivery succeeded,
+// degraded). A capture failure on an online camera also appends a note and
+// falls back to text-only, but returns 500 so the automation knows.
+func (c *Config) captureNotifyMedia(
+	reqID string, req *notifyRequest, subCount int,
+) (string, string, int, string) {
 	if req.media == mediaNone || subCount == 0 {
-		return "", http.StatusOK, "REQ ID: " + reqID + ", msg: got notify\n"
+		return req.msg, "", http.StatusOK, "REQ ID: " + reqID + ", msg: got notify\n"
+	}
+
+	if !req.cam.Connected.Val {
+		c.Error.Printf("[%v] %s is offline; skipping %s capture for %s",
+			reqID, req.cam.Name, req.media, req.event)
+		note := "⚠ " + req.cam.Name + " is offline — no " + req.media + " attached."
+
+		return appendNote(req.msg, note), "", http.StatusOK,
+			"REQ ID: " + reqID + ", msg: got notify (camera offline, text only)\n"
 	}
 
 	ext := ".jpg"
@@ -302,8 +320,20 @@ func (c *Config) captureNotifyMedia(reqID string, req *notifyRequest, subCount i
 	if err != nil {
 		c.Error.Printf("[%v] capture %s for %s: %v", reqID, req.media, req.event, err)
 		// Text-only fallback; never attach a missing/partial file.
-		return "", http.StatusInternalServerError, "ERROR: " + err.Error() + "\n"
+		note := "⚠ Couldn't capture " + req.media + " from " + req.cam.Name + "."
+
+		return appendNote(req.msg, note), "", http.StatusInternalServerError, "ERROR: " + err.Error() + "\n"
 	}
 
-	return path, http.StatusOK, "REQ ID: " + reqID + ", msg: got notify\n"
+	return req.msg, path, http.StatusOK, "REQ ID: " + reqID + ", msg: got notify\n"
+}
+
+// appendNote adds a delivery note to a notify message (the note becomes the
+// message when the notify carried no text).
+func appendNote(msg, note string) string {
+	if msg == "" {
+		return note
+	}
+
+	return msg + "\n\n" + note
 }
