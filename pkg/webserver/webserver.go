@@ -16,6 +16,7 @@ import (
 	"log"
 	"net/http"
 	"slices"
+	"strconv"
 	"time"
 
 	"github.com/davidnewhall/motifini/pkg/export"
@@ -92,6 +93,8 @@ func (c *Config) Start() {
 	router.HandleFunc("/api/v1.0/send/{app:telegram}/picture/{to}/{camera}", c.sendPictureHandler).Methods("GET")
 	router.HandleFunc("/api/v1.0/send/{app:telegram}/msg/{to}", c.sendMessageHandler).
 		Methods("GET").Queries("msg", "{msg}")
+	router.HandleFunc("/api/v1.0/events", c.eventsListHandler).Methods("GET")
+	router.HandleFunc("/api/v1.0/event/{event}", c.eventUpsertHandler).Methods("PUT")
 	router.HandleFunc("/api/v1.0/event/{cmd:remove|notify}/{event}", c.eventsHandler).Methods("POST")
 	router.HandleFunc("/api/v1.0/sub/{cmd:subscribe|unsubscribe|pause|unpause}/{api}/{contact}/{event}",
 		c.subsHandler).Methods("GET")
@@ -151,6 +154,23 @@ func (c *Config) finishReq(
 	}
 }
 
+// finishReqJSON is finishReq for JSON payloads: no HTML escaping, JSON content type.
+func (c *Config) finishReqJSON(
+	writer http.ResponseWriter, request *http.Request, reqID string, code int, reply []byte, cmd string,
+) {
+	export.Map.HTTPVisits.Add(1)
+	c.Info.Printf(`[%v] %v %v "%v %v" %d %d "%v" "%v"`,
+		reqID, request.RemoteAddr, request.Host, request.Method, request.URL.String(),
+		code, len(reply), request.UserAgent(), cmd)
+	writer.Header().Set("Content-Type", "application/json; charset=utf-8")
+	writer.WriteHeader(code)
+
+	_, err := writer.Write(reply)
+	if err != nil {
+		c.Error.Printf("[%v] Error Sending Reply: %v", reqID, err)
+	}
+}
+
 // handle any unknown URIs.
 func (c *Config) handleAll(writer http.ResponseWriter, request *http.Request) {
 	export.Map.HTTPVisits.Add(1)
@@ -177,4 +197,23 @@ func (c *Config) cameraByName(name string) *securityspy.Camera {
 	}
 
 	return c.SSpy.Cameras.ByName(name)
+}
+
+// cameraByNameOrNum looks up a camera by name, falling back to the SecuritySpy
+// camera number when the value parses as an integer.
+func (c *Config) cameraByNameOrNum(nameOrNum string) *securityspy.Camera {
+	if !c.securitySpyReady() {
+		return nil
+	}
+
+	if cam := c.SSpy.Cameras.ByName(nameOrNum); cam != nil {
+		return cam
+	}
+
+	num, err := strconv.Atoi(nameOrNum)
+	if err != nil {
+		return nil
+	}
+
+	return c.SSpy.Cameras.ByNum(num)
 }
