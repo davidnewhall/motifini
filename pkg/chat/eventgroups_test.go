@@ -179,3 +179,34 @@ func TestEventMenuButtonTruncatesOnRunes(t *testing.T) {
 		t.Fatal("label is not valid UTF-8")
 	}
 }
+
+// TestSubscribeEvtEventRemovedMidFlight: the HTTP remove endpoint can drop an
+// event between the menu button's name lookup and the subscribe. The wizard has
+// to undo its own subscription instead of leaving one nobody can see.
+func TestSubscribeEvtEventRemovedMidFlight(t *testing.T) {
+	t.Parallel()
+
+	data := testEventCatalog(t)
+	sub := &subscribe.Subscriber{
+		ID: 1, API: "telegram", Contact: "Alice",
+		Events: &subscribe.Events{Map: make(map[string]*subscribe.Rules)},
+	}
+	data.Subscribers = []*subscribe.Subscriber{sub}
+	c := &Chat{Subs: data}
+
+	// Stand in for the concurrent remove: the name resolves, then it is gone.
+	data.EventRemove("garage_opened")
+
+	reply, save := c.subWizardSubscribeEvt(&Handler{Sub: sub}, "garage_opened")
+	if save {
+		t.Fatal("a vanished event must not be saved as a subscription")
+	}
+
+	if !strings.Contains(reply.Reply, "gone") {
+		t.Fatalf("reply: %q", reply.Reply)
+	}
+
+	if sub.Events.Len() != 0 {
+		t.Fatalf("subscriptions: got %d want 0", sub.Events.Len())
+	}
+}

@@ -6,6 +6,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 )
 
@@ -72,12 +73,24 @@ func TestRedactAPIKey(t *testing.T) {
 		{"/api/v1.0/events?apikey=s3cret&x=1", "/api/v1.0/events?apikey=REDACTED&x=1"},
 		{"/api/v1.0/events?x=1", "/api/v1.0/events?x=1"},
 		{"/api/v1.0/events", "/api/v1.0/events"},
+		// An empty first value must not hide a later one, and a key that fails
+		// authentication (repeated or miscased) is still a real credential.
+		{"/api/v1.0/events?apikey=&apikey=s3cret", "/api/v1.0/events?apikey=REDACTED"},
+		{"/api/v1.0/events?apikey=", "/api/v1.0/events?apikey=REDACTED"},
+		{"/api/v1.0/events?APIKEY=s3cret", "/api/v1.0/events?APIKEY=REDACTED"},
+		{"/api/v1.0/events?ApiKey=s3cret&x=1", "/api/v1.0/events?ApiKey=REDACTED&x=1"},
 	}
 
 	for _, test := range tests {
 		req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, test.target, http.NoBody)
-		if got := redactAPIKey(req); got != test.want {
+
+		got := redactAPIKey(req)
+		if got != test.want {
 			t.Fatalf("redactAPIKey(%q): got %q want %q", test.target, got, test.want)
+		}
+
+		if strings.Contains(got, "s3cret") {
+			t.Fatalf("redactAPIKey(%q) leaked the key: %q", test.target, got)
 		}
 	}
 }

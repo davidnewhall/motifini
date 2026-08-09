@@ -3,6 +3,7 @@ package webserver
 import (
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"sync"
 	"testing"
@@ -191,5 +192,16 @@ func TestCaptureNotifyMediaVideoFailure(t *testing.T) {
 
 	if !strings.Contains(msg, "check this") || !strings.Contains(msg, "Couldn't capture video from Garage") {
 		t.Fatalf("capture failure message: %q", msg)
+	}
+
+	// A failed capture can leave a partial file, and returning no path means
+	// nothing downstream deletes it.
+	left, err := os.ReadDir(cfg.TempDir)
+	if err != nil {
+		t.Fatalf("read temp dir: %v", err)
+	}
+
+	if len(left) != 0 {
+		t.Fatalf("capture failure left %d file(s) in TempDir: %v", len(left), left[0].Name())
 	}
 }

@@ -10,6 +10,10 @@ import (
 	"github.com/davidnewhall/motifini/pkg/messenger"
 )
 
+// apiKeyParam is the query parameter carrying the key for callers that cannot
+// set headers.
+const apiKeyParam = "apikey"
+
 // requireAPIKey wraps the router with API key authentication when a key is
 // configured. With no key configured the API stays open (localhost default).
 func (c *Config) requireAPIKey(next http.Handler) http.Handler {
@@ -40,7 +44,7 @@ func extractAPIKey(request *http.Request) string {
 		return key
 	}
 
-	return request.URL.Query().Get("apikey")
+	return request.URL.Query().Get(apiKeyParam)
 }
 
 // apiKeyValid compares keys in constant time. Both sides are hashed first so
@@ -52,15 +56,28 @@ func apiKeyValid(got, want string) bool {
 	return subtle.ConstantTimeCompare(gotSum[:], wantSum[:]) == 1
 }
 
-// redactAPIKey returns the request URL with any apikey query value replaced,
+// redactAPIKey returns the request URL with every apikey query value replaced,
 // so query-string credentials never land in the application log.
+//
+// Redaction is deliberately broader than extraction: it ignores case and covers
+// repeated parameters. A key that authentication rejects — `?apikey=&apikey=x`,
+// where Get returns only the empty first value, or a miscased `?APIKEY=x` — is
+// still a real credential, and the 401 gets logged the same as any other reply.
 func redactAPIKey(request *http.Request) string {
 	query := request.URL.Query()
-	if query.Get("apikey") == "" {
-		return request.URL.String()
+	redacted := false
+
+	for param := range query {
+		if strings.EqualFold(param, apiKeyParam) {
+			query.Set(param, "REDACTED") // Set drops any repeated values.
+
+			redacted = true
+		}
 	}
 
-	query.Set("apikey", "REDACTED")
+	if !redacted {
+		return request.URL.String()
+	}
 
 	return request.URL.Path + "?" + query.Encode()
 }

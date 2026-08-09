@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -69,15 +70,7 @@ func (c *Config) eventUpsertHandler(writer http.ResponseWriter, request *http.Re
 		return
 	}
 
-	c.catalog.Lock()
-	created := !c.Subs.Events.Exists(event)
-	c.upsertCatalogEvent(event, description)
-
-	// Save on every accepted PUT: if a previous save failed, a retry carrying
-	// the same payload would otherwise skip the save and stay stale on disk.
-	err = chat.SaveState(c.Subs)
-	c.catalog.Unlock()
-
+	created, err := c.upsertEvent(event, description)
 	if err != nil {
 		c.finishReq(writer, request, reqID, http.StatusInternalServerError,
 			"ERROR: "+err.Error()+"\n", "register")
@@ -92,6 +85,34 @@ func (c *Config) eventUpsertHandler(writer http.ResponseWriter, request *http.Re
 
 	c.finishReq(writer, request, reqID, http.StatusOK,
 		"OK: "+verb+" event "+event+"\n", "register")
+}
+
+// upsertEvent registers or updates a catalog event and persists it, reporting
+// whether the event was new.
+//
+// It saves on every accepted PUT: if an earlier save failed, a retry carrying
+// the same payload would otherwise skip the save and stay stale on disk. A save
+// failure rolls a newly created event back out of memory, because leaving it
+// there would make a later notify treat it as registered, skip its own
+// persistence step and answer 200 for an event that only exists until restart.
+// A failed update needs no rollback: the next PUT saves again.
+func (c *Config) upsertEvent(event, description string) (bool, error) {
+	c.catalog.Lock()
+	defer c.catalog.Unlock()
+
+	created := !c.Subs.Events.Exists(event)
+	c.upsertCatalogEvent(event, description)
+
+	err := chat.SaveState(c.Subs)
+	if err != nil {
+		if created {
+			c.Subs.Events.Remove(event)
+		}
+
+		return false, fmt.Errorf("saving event: %w", err)
+	}
+
+	return created, nil
 }
 
 // eventDescription reads the event description from a form field or a JSON body.
@@ -346,7 +367,10 @@ func (c *Config) captureNotifyMedia(
 
 	if err != nil {
 		c.Error.Printf("[%v] capture %s for %s: %v", reqID, req.media, req.event, err)
-		// Text-only fallback; never attach a missing/partial file.
+		// Text-only fallback; never attach a missing/partial file. Delete it
+		// here: returning no path means nothing downstream will clean it up,
+		// and a flapping camera would pile up partial files in TempDir.
+		_ = os.Remove(path)
 		note := "⚠ Couldn't capture " + req.media + " from " + req.cam.Name + "."
 
 		return appendNote(req.msg, note), "", http.StatusInternalServerError, "ERROR: " + err.Error() + "\n"

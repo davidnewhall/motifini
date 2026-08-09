@@ -242,6 +242,15 @@ func (c *Chat) subWizardSubscribeEvt(handler *Handler, name string) (*Reply, boo
 		toast = "Already on"
 	}
 
+	// The HTTP remove endpoint can drop the event between the lookup above and
+	// the subscribe. Undo rather than leave a subscription to an event nobody
+	// can see — it would spring back to life if the name is ever re-registered.
+	if !c.Subs.Events.Exists(event) {
+		handler.Sub.Events.Remove(event)
+
+		return &Reply{Reply: "Event gone — try again.", Edit: true, Toast: "Missing"}, false
+	}
+
 	msg += fmt.Sprintf("\nYou have %d subscriptions.", handler.Sub.Events.Len())
 
 	return &Reply{

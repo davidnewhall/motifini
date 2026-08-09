@@ -149,6 +149,68 @@ func TestEventUpsertSavesEveryTime(t *testing.T) {
 	}
 }
 
+// TestUpsertSaveFailureRollsBackNewEvent: a PUT whose save fails must not leave
+// the new event in memory. A later notify would see it as registered, skip its
+// own save and answer 200 for an event that disappears on restart.
+func TestUpsertSaveFailureRollsBackNewEvent(t *testing.T) {
+	t.Parallel()
+
+	cfg, stateFile := testConfig(t)
+	vars := map[string]string{"event": "garage_opened"}
+
+	// Make the state file unwritable: its parent directory is gone.
+	err := os.RemoveAll(filepath.Dir(stateFile))
+	if err != nil {
+		t.Fatalf("remove temp dir: %v", err)
+	}
+
+	rec := doRequest(cfg.eventUpsertHandler, "PUT", "/api/v1.0/event/garage_opened", "", "", vars)
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("PUT with failed save: code=%d want 500", rec.Code)
+	}
+
+	if cfg.Subs.Events.Exists("garage_opened") {
+		t.Fatal("a new event must be rolled back when the save fails")
+	}
+
+	// The follow-up notify has to retry the registration rather than trust the
+	// catalog, so it reports the persistence failure too.
+	rec = doRequest(cfg.eventsHandler, "POST", "/api/v1.0/event/notify/garage_opened?msg=hi", "", "",
+		map[string]string{"cmd": "notify", "event": "garage_opened"})
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("notify after rolled-back PUT: code=%d want 500", rec.Code)
+	}
+}
+
+// TestUpsertSaveFailureKeepsExistingEvent: a failed *update* keeps the event.
+// Only creations roll back, and the next PUT saves again.
+func TestUpsertSaveFailureKeepsExistingEvent(t *testing.T) {
+	t.Parallel()
+
+	cfg, stateFile := testConfig(t)
+	vars := map[string]string{"event": "garage_opened"}
+
+	rec := doRequest(cfg.eventUpsertHandler, "PUT", "/api/v1.0/event/garage_opened", "", "", vars)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("first PUT: code=%d", rec.Code)
+	}
+
+	err := os.RemoveAll(filepath.Dir(stateFile))
+	if err != nil {
+		t.Fatalf("remove temp dir: %v", err)
+	}
+
+	rec = doRequest(cfg.eventUpsertHandler, "PUT",
+		"/api/v1.0/event/garage_opened?description=New+text", "", "", vars)
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("update with failed save: code=%d want 500", rec.Code)
+	}
+
+	if !cfg.Subs.Events.Exists("garage_opened") {
+		t.Fatal("a failed update must not remove an already-registered event")
+	}
+}
+
 // TestNotifySaveFailureRollsBack: when the state save fails after
 // auto-registration, the notify must fail (500) and the event must be rolled
 // back so a later notify retries the registration.
