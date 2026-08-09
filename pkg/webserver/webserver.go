@@ -97,9 +97,9 @@ func Start(cfg *Config) error {
 	return nil
 }
 
-// Start creates the http routers and starts http server
-// This code block shows all the routes, for now.
-func (c *Config) Start() {
+// handler builds the routed handler stack. When an API key is configured,
+// every route (including /debug/vars) requires it.
+func (c *Config) handler() http.Handler {
 	router := mux.NewRouter()
 	router.Handle("/debug/vars", http.DefaultServeMux).Methods("GET")
 	router.HandleFunc("/api/v1.0/send/{app:telegram}/video/{to}/{camera}", c.sendVideoHandler).Methods("GET")
@@ -113,12 +113,18 @@ func (c *Config) Start() {
 		c.subsHandler).Methods("GET")
 	router.PathPrefix("/").HandlerFunc(c.handleAll)
 
+	return c.requireAPIKey(router)
+}
+
+// Start creates the http routers and starts http server
+// This code block shows all the routes, for now.
+func (c *Config) Start() {
 	c.http = &http.Server{
 		Addr:         net.JoinHostPort(c.ListenAddr, strconv.Itoa(int(c.Port))),
 		WriteTimeout: Timeout,
 		ReadTimeout:  Timeout,
 		IdleTimeout:  time.Minute,
-		Handler:      c.requireAPIKey(router), // *mux.Router behind API key auth
+		Handler:      c.handler(),
 	}
 
 	c.Info.Print("Web server listening at http://", c.http.Addr)

@@ -2,8 +2,6 @@ package webserver
 
 import (
 	"context"
-	"fmt"
-	"net"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -121,55 +119,34 @@ func TestRequireAPIKey(t *testing.T) {
 	}
 }
 
-// TestAPIKeyEndToEnd starts the real server with a key and checks that every
-// route — including /debug/vars — requires it.
+// TestAPIKeyEndToEnd serves the real handler stack with a key configured and
+// checks that every route — including /debug/vars — requires it.
 func TestAPIKeyEndToEnd(t *testing.T) {
 	t.Parallel()
 
 	cfg, _ := testConfig(t)
-
-	listener, err := new(net.ListenConfig).Listen(context.Background(), "tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatalf("reserve port: %v", err)
-	}
-
-	tcpAddr, ok := listener.Addr().(*net.TCPAddr)
-	if !ok {
-		t.Fatalf("unexpected listener addr type %T", listener.Addr())
-	}
-
-	port := tcpAddr.Port
-	_ = listener.Close()
-
-	cfg.Port = uint(port)
 	cfg.APIKey = "end-to-end-key"
 
-	err = Start(cfg)
-	if err != nil {
-		t.Fatalf("Start: %v", err)
-	}
+	server := httptest.NewServer(cfg.handler())
+	t.Cleanup(server.Close)
 
-	defer func() { _ = cfg.Stop() }()
-
-	base := fmt.Sprintf("http://127.0.0.1:%d", port)
-
-	if code := getWithKey(t, base+"/api/v1.0/events", ""); code != http.StatusUnauthorized {
+	if code := getWithKey(t, server.URL+"/api/v1.0/events", ""); code != http.StatusUnauthorized {
 		t.Fatalf("events without key: got %d want 401", code)
 	}
 
-	if code := getWithKey(t, base+"/debug/vars", ""); code != http.StatusUnauthorized {
+	if code := getWithKey(t, server.URL+"/debug/vars", ""); code != http.StatusUnauthorized {
 		t.Fatalf("debug/vars without key: got %d want 401", code)
 	}
 
-	if code := getWithKey(t, base+"/api/v1.0/events", "wrong"); code != http.StatusUnauthorized {
+	if code := getWithKey(t, server.URL+"/api/v1.0/events", "wrong"); code != http.StatusUnauthorized {
 		t.Fatalf("events with wrong key: got %d want 401", code)
 	}
 
-	if code := getWithKey(t, base+"/api/v1.0/events", "end-to-end-key"); code != http.StatusOK {
+	if code := getWithKey(t, server.URL+"/api/v1.0/events", "end-to-end-key"); code != http.StatusOK {
 		t.Fatalf("events with key: got %d want 200", code)
 	}
 
-	if code := getWithKey(t, base+"/api/v1.0/events?apikey=end-to-end-key", ""); code != http.StatusOK {
+	if code := getWithKey(t, server.URL+"/api/v1.0/events?apikey=end-to-end-key", ""); code != http.StatusOK {
 		t.Fatalf("events with query key: got %d want 200", code)
 	}
 }
