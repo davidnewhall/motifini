@@ -98,6 +98,62 @@ Clip quality is shared for that camera (motion alerts and `/vid`): scale (full /
 - Camera Online / Offline
 - SecuritySpy Error
 
+## Home Assistant
+
+Home Assistant can fire Motifini event notifications — text, a camera photo, or a short video clip — over HTTP. Telegram users subscribe to those events in the bot's Events menu (under **— Home Assistant —**); Home Assistant never talks to Telegram, and no Telegram credentials live in HA.
+
+**1. Enable the webserver** in `motifini.conf`:
+
+```toml
+[webserver]
+  enable = true
+  port = 8765
+  # HA on another host? Bind a LAN address (no auth — trusted networks only):
+  # listen_addr = "0.0.0.0"
+```
+
+**2. Install the integration** from this repo with HACS (*Custom repositories* → *Integration*), or copy [`custom_components/motifini`](custom_components/motifini/) into your HA `config/custom_components/`. Then add **Motifini** under *Settings → Integrations* (host + port; it checks connectivity against the events API).
+
+**3. Call the services** from automations:
+
+```yaml
+# message + photo
+- action: motifini.notify
+  data:
+    event: big_garage_opened
+    message: "Big garage door opened"
+    camera: "Garage"
+    media: photo
+
+# photo only (camera may be a SecuritySpy name or number)
+- action: motifini.notify
+  data:
+    event: driveway_motion
+    camera: "3"
+    media: photo
+
+# message only
+- action: motifini.notify
+  data:
+    event: power_restored
+    message: "House power is back"
+```
+
+`media` is `none` | `photo` | `video` and defaults to `photo` when a camera is given. `camera` is required for photo/video. A call with neither `message` nor camera media is rejected.
+
+**Event lifecycle.** The first `motifini.notify` (or an explicit `motifini.register_event` with a `description`) creates the catalog entry, so it shows up in the Telegram Events menu — subscribe there once and every later notify lands in your chat. Deleting an automation in HA does **not** remove the event from Motifini: call `motifini.remove_event` once when you retire an event (this also unsubscribes everyone in Telegram), or just unsubscribe in the bot and leave the orphan entry.
+
+**Note:** Motifini long-polls the Telegram bot. Do not configure HA's built-in `telegram` / `telegram_bot` integration with the *same* bot token — two pollers on one token steal each other's updates.
+
+**Raw HTTP API** (for anything that isn't HA):
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| `PUT` | `/api/v1.0/event/{event}` | Register/update an event (`description` form field or JSON body) |
+| `GET` | `/api/v1.0/events` | List the event catalog as JSON |
+| `POST` | `/api/v1.0/event/notify/{event}` | Notify subscribers; form fields `msg`, `camera`, `media`, `description` |
+| `POST` | `/api/v1.0/event/remove/{event}` | Remove an event and all its subscriptions |
+
 ## Configuration
 
 All options are documented in the example file:
