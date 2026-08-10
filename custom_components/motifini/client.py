@@ -13,6 +13,21 @@ import aiohttp
 REQUEST_TIMEOUT = 15
 
 
+def url_host(host: str) -> str:
+    """Return a host usable in a URL, bracketing an IPv6 literal.
+
+    The config flow asks for a hostname or IP, and an IPv6 address has to be
+    wrapped: http://fe80::1:8765 is not a parseable URL. A colon is the tell,
+    since hostnames cannot contain one, and this keeps a zone id (fe80::1%en0)
+    working too.
+    """
+    host = host.strip()
+    if ":" in host and not host.startswith("["):
+        return f"[{host}]"
+
+    return host
+
+
 class MotifiniError(Exception):
     """Base error for Motifini API failures."""
 
@@ -45,7 +60,7 @@ class MotifiniClient:
         self._session = session
         self._headers = {"Authorization": f"Bearer {api_key}"} if api_key else None
         prefix = path_prefix.strip("/")
-        self._base_url = f"http://{host.strip()}:{port}"
+        self._base_url = f"http://{url_host(host)}:{port}"
         if prefix:
             self._base_url += f"/{prefix}"
 
@@ -106,10 +121,17 @@ class MotifiniClient:
     ) -> str:
         """Make a request and return the reply body, raising on failure."""
         try:
-            async with asyncio.timeout(REQUEST_TIMEOUT):
-                resp = await self._session.request(
+            # Release the response through its context manager rather than
+            # relying on text() having read the body to the end, which is what
+            # currently returns the connection to the pool. An early return
+            # added above that read would otherwise strand a connection.
+            async with (
+                asyncio.timeout(REQUEST_TIMEOUT),
+                self._session.request(
                     method, self._base_url + path, data=data, headers=self._headers
-                )
+                ) as resp,
+            ):
+                status = resp.status
                 body = await resp.text()
         except (aiohttp.ClientError, TimeoutError) as err:
             raise MotifiniConnectionError(f"Cannot reach Motifini: {err}") from err
@@ -117,7 +139,7 @@ class MotifiniClient:
         # Motifini HTML-escapes its plain-text replies; unescape for readability.
         body = unescape(body.strip())
 
-        if resp.status >= 400:
-            raise MotifiniResponseError(resp.status, body)
+        if status >= 400:
+            raise MotifiniResponseError(status, body)
 
         return body

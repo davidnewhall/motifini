@@ -17,7 +17,7 @@ from homeassistant.helpers.selector import (
     TextSelectorType,
 )
 
-from .client import MotifiniClient, MotifiniError, MotifiniResponseError
+from .client import MotifiniClient, MotifiniError, MotifiniResponseError, url_host
 from .const import CONF_API_KEY, CONF_PATH_PREFIX, DEFAULT_PORT, DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
@@ -74,13 +74,15 @@ class MotifiniConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 _LOGGER.exception("Unexpected error validating Motifini")
                 errors["base"] = "unknown"
             else:
+                # Bracket an IPv6 literal here too, so the entry is identified
+                # and titled the way it is addressed.
+                host = url_host(user_input[CONF_HOST])
                 await self.async_set_unique_id(
-                    f"{user_input[CONF_HOST]}:{user_input[CONF_PORT]}"
-                    f"/{user_input[CONF_PATH_PREFIX]}"
+                    f"{host}:{user_input[CONF_PORT]}/{user_input[CONF_PATH_PREFIX]}"
                 )
                 self._abort_if_unique_id_configured()
                 return self.async_create_entry(
-                    title=f"Motifini {user_input[CONF_HOST]}:{user_input[CONF_PORT]}",
+                    title=f"Motifini {host}:{user_input[CONF_PORT]}",
                     data=user_input,
                 )
 
