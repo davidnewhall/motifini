@@ -54,8 +54,8 @@ golift.io/rotatorr v0.0.0-20260217050959-f6ac6fc7b38e h1:FgfNgbg2EUhFzAWPycsbh1d
 golift.io/rotatorr v0.0.0-20260217050959-f6ac6fc7b38e/go.mod h1:l/fgYTDxyEw15tRLjAtc13M3is1SXMU4hAIE0tdduAQ=
 golift.io/securityspy/v2 v2.2.0 h1:njK2frnay1mXBUMk6Xkf62y8sLV/OW2458hkPuli3Ck=
 golift.io/securityspy/v2 v2.2.0/go.mod h1:dIPiDoFxk+MU+dd66JzgZHo65OvM2reTLmNJBEcp7HM=
-golift.io/subscribe v0.0.0-20260809235750-e55a86363ec3 h1:2ktMibT7bc3J0JYpEwSL2Wte+lzl8bQ19L9+hB7wY5o=
-golift.io/subscribe v0.0.0-20260809235750-e55a86363ec3/go.mod h1:ZfzMeNnPbNbCKI4vt8NKtMi1pZpIe+OjpxHjzsgRmuc=
+golift.io/subscribe v0.0.0-20260810000412-d88353a7f062 h1:glZ10wFodm+/bmAZ31BKRfQ7nFK8BfszI7Gb/q8CL+A=
+golift.io/subscribe v0.0.0-20260810000412-d88353a7f062/go.mod h1:ZfzMeNnPbNbCKI4vt8NKtMi1pZpIe+OjpxHjzsgRmuc=
 golift.io/version v0.0.2 h1:i0gXRuSDHKs4O0sVDUg4+vNIuOxYoXhaxspftu2FRTE=
 golift.io/version v0.0.2/go.mod h1:76aHNz8/Pm7CbuxIsDi97jABL5Zui3f2uZxDm4vB6hU=
 gopkg.in/check.v1 v0.0.0-20161208181325-20d25e280405 h1:yhCVgyC4o1eVCa2tZl7eS0r+SDo693bJlVdllGtEeKM=
