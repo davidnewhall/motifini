@@ -5,6 +5,7 @@ import (
 	"crypto/subtle"
 	"net"
 	"net/http"
+	"net/url"
 	"strings"
 
 	"github.com/davidnewhall/motifini/pkg/messenger"
@@ -59,18 +60,31 @@ func apiKeyValid(got, want string) bool {
 // redactAPIKey returns the request URL with every apikey query value replaced,
 // so query-string credentials never land in the application log.
 //
-// Redaction is deliberately broader than extraction: it ignores case and covers
-// repeated parameters. A key that authentication rejects — `?apikey=&apikey=x`,
-// where Get returns only the empty first value, or a miscased `?APIKEY=x` — is
-// still a real credential, and the 401 gets logged the same as any other reply.
+// Redaction is deliberately broader than extraction, because a key the API
+// rejects is still a key, and the 401 gets logged like any other reply. It runs
+// over the raw query rather than the parsed values for the same reason: URL
+// Query() throws away any field holding an unescaped semicolon, so
+// `?apikey=s3cret;x=1` would parse as nothing at all and leave the secret in
+// the logged URL. Field names are unescaped before comparing, since `%61pikey`
+// reaches the handler as a working credential.
 func redactAPIKey(request *http.Request) string {
-	query := request.URL.Query()
+	if request.URL.RawQuery == "" {
+		return request.URL.String()
+	}
+
+	fields := strings.FieldsFunc(request.URL.RawQuery, isQuerySeparator)
 	redacted := false
 
-	for param := range query {
-		if strings.EqualFold(param, apiKeyParam) {
-			query.Set(param, "REDACTED") // Set drops any repeated values.
+	for idx, field := range fields {
+		name, _, _ := strings.Cut(field, "=")
 
+		unescaped, err := url.QueryUnescape(name)
+		if err != nil {
+			unescaped = name
+		}
+
+		if strings.EqualFold(unescaped, apiKeyParam) {
+			fields[idx] = name + "=REDACTED"
 			redacted = true
 		}
 	}
@@ -79,7 +93,14 @@ func redactAPIKey(request *http.Request) string {
 		return request.URL.String()
 	}
 
-	return request.URL.Path + "?" + query.Encode()
+	return request.URL.Path + "?" + strings.Join(fields, "&")
+}
+
+// isQuerySeparator reports whether a rune separates query fields. Semicolons
+// are not a legal separator, but they do split a field as far as URL.Query() is
+// concerned: it drops the whole field instead of parsing it.
+func isQuerySeparator(char rune) bool {
+	return char == '&' || char == ';'
 }
 
 // isLoopbackAddr reports whether the listen address is localhost-only.

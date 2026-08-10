@@ -75,10 +75,18 @@ func TestRedactAPIKey(t *testing.T) {
 		{"/api/v1.0/events", "/api/v1.0/events"},
 		// An empty first value must not hide a later one, and a key that fails
 		// authentication (repeated or miscased) is still a real credential.
-		{"/api/v1.0/events?apikey=&apikey=s3cret", "/api/v1.0/events?apikey=REDACTED"},
+		{"/api/v1.0/events?apikey=&apikey=s3cret", "/api/v1.0/events?apikey=REDACTED&apikey=REDACTED"},
 		{"/api/v1.0/events?apikey=", "/api/v1.0/events?apikey=REDACTED"},
 		{"/api/v1.0/events?APIKEY=s3cret", "/api/v1.0/events?APIKEY=REDACTED"},
 		{"/api/v1.0/events?ApiKey=s3cret&x=1", "/api/v1.0/events?ApiKey=REDACTED&x=1"},
+		// URL.Query() discards a field containing a semicolon, so the parsed
+		// values cannot be trusted to reveal the key.
+		{"/api/v1.0/events?apikey=s3cret;x=1", "/api/v1.0/events?apikey=REDACTED&x=1"},
+		{"/api/v1.0/events?x=1;apikey=s3cret", "/api/v1.0/events?x=1&apikey=REDACTED"},
+		// %61pikey decodes to apikey, and authenticates.
+		{"/api/v1.0/events?%61pikey=s3cret", "/api/v1.0/events?%61pikey=REDACTED"},
+		// A bare field name carries no secret but should still read as redacted.
+		{"/api/v1.0/events?apikey", "/api/v1.0/events?apikey=REDACTED"},
 	}
 
 	for _, test := range tests {
