@@ -588,7 +588,7 @@ func (c *Chat) eventsWizardRoot(handler *Handler) *Reply {
 	done := []Button{{Label: "Done", Data: cbCancel}}
 	if len(rows) == 0 {
 		return &Reply{
-			Reply:    "You're subscribed to everything in this list." + skippedEventsNote(skipped),
+			Reply:    emptySubscribeEventsMsg(skipped),
 			Edit:     true,
 			Keyboard: [][]Button{done},
 		}

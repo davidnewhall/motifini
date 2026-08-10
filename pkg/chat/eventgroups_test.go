@@ -227,6 +227,46 @@ func TestEventSectionRowsAllSubscribed(t *testing.T) {
 	}
 }
 
+func TestEmptySubscribeMenuSkipsOnly(t *testing.T) {
+	t.Parallel()
+
+	events := &subscribe.Events{Map: make(map[string]*subscribe.Rules)}
+	data := &subscribe.Subscribe{Events: events}
+
+	longName := strings.Repeat("b", MaxEventNameLen+1)
+	err := events.New(longName, &subscribe.Rules{
+		S: map[string]string{"source": EventSourceHA, "description": "Too Long"},
+	})
+	if err != nil {
+		t.Fatalf("seed long: %v", err)
+	}
+
+	chat := &Chat{Subs: data}
+	rows, skipped := chat.eventSectionRows("s:e:", nil)
+	if len(rows) != 0 {
+		t.Fatalf("want no buttons, got %v", rows)
+	}
+	if !slices.Equal(skipped, []string{longName}) {
+		t.Fatalf("skipped: got %v", skipped)
+	}
+
+	reply := chat.subWizardEvents(&Handler{Sub: &subscribe.Subscriber{ID: 1, API: "telegram"}})
+	if strings.Contains(reply.Reply, "subscribed to everything") {
+		t.Fatalf("must not claim all subscribed when only skips remain: %q", reply.Reply)
+	}
+	if !strings.Contains(reply.Reply, "fit on a button") {
+		t.Fatalf("want skipped-only message: %q", reply.Reply)
+	}
+	if !strings.Contains(reply.Reply, longName) {
+		t.Fatalf("want long name in note: %q", reply.Reply)
+	}
+
+	reply = chat.eventsWizardRoot(&Handler{Sub: &subscribe.Subscriber{ID: 1, API: "telegram"}})
+	if strings.Contains(reply.Reply, "subscribed to everything") {
+		t.Fatalf("/events must not claim all subscribed when only skips remain: %q", reply.Reply)
+	}
+}
+
 func TestUnsubWizardStillListsSubscribedEvents(t *testing.T) {
 	t.Parallel()
 
@@ -327,6 +367,45 @@ func TestEventMenuButtonUsesDescriptionOrName(t *testing.T) {
 	}
 	if btn.Data != "e:s:no_desc_event" {
 		t.Fatalf("callback must use event id: got %q", btn.Data)
+	}
+}
+
+func TestEventMenuButtonWhitespaceDescription(t *testing.T) {
+	t.Parallel()
+
+	events := &subscribe.Events{Map: make(map[string]*subscribe.Rules)}
+	data := &subscribe.Subscribe{Events: events}
+
+	err := events.New("ws_desc_event", &subscribe.Rules{
+		S: map[string]string{"description": "   \t  "},
+	})
+	if err != nil {
+		t.Fatalf("seed whitespace desc: %v", err)
+	}
+
+	err = events.New("trim_desc_event", &subscribe.Rules{
+		S: map[string]string{"description": "  Porch Motion  "},
+	})
+	if err != nil {
+		t.Fatalf("seed trim desc: %v", err)
+	}
+
+	chat := &Chat{Subs: data}
+
+	btn, built := chat.eventMenuButton("ws_desc_event", "e:s:")
+	if !built {
+		t.Fatal("whitespace-desc button should build")
+	}
+	if btn.Label != "ws_desc_event" {
+		t.Fatalf("whitespace-only desc must fall back to name: got %q", btn.Label)
+	}
+
+	btn, built = chat.eventMenuButton("trim_desc_event", "e:s:")
+	if !built {
+		t.Fatal("trimmed-desc button should build")
+	}
+	if btn.Label != "Porch Motion" {
+		t.Fatalf("trimmed desc label: got %q want %q", btn.Label, "Porch Motion")
 	}
 }
 

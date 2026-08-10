@@ -102,8 +102,8 @@ func (c *Chat) eventMenuButton(name, dataPrefix string) (Button, bool) {
 	}
 
 	label := name
-	if desc, _ := c.Subs.Events.RuleGetS(name, "description"); desc != "" {
-		label = desc
+	if desc, _ := c.Subs.Events.RuleGetS(name, "description"); strings.TrimSpace(desc) != "" {
+		label = strings.TrimSpace(desc)
 	}
 
 	// Truncate on rune boundaries so multi-byte descriptions never produce
@@ -124,4 +124,15 @@ func skippedEventsNote(skipped []string) string {
 
 	return fmt.Sprintf("\n\n(%d hidden — name too long for a button: %s)",
 		len(skipped), strings.Join(skipped, ", "))
+}
+
+// emptySubscribeEventsMsg is shown when a subscribe event menu has no buttons.
+// If skipped is non-empty, remaining events exist but cannot fit in callbacks —
+// do not claim the user is already subscribed to everything.
+func emptySubscribeEventsMsg(skipped []string) string {
+	if len(skipped) > 0 {
+		return "No events left that fit on a button." + skippedEventsNote(skipped)
+	}
+
+	return "You're subscribed to everything in this list."
 }
