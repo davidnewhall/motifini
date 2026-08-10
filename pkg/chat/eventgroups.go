@@ -56,50 +56,54 @@ func EventMenuNames(events *subscribe.Events) []string {
 // carry the event name rather than an index, so a catalog change while a menu
 // is open can never subscribe someone to the wrong event. Events whose names
 // cannot fit in a callback payload are returned as skipped for the menu text.
-func (c *Chat) eventSectionRows(dataPrefix string) ([][]Button, []string) {
+// When sub is non-nil, events that subscriber already has are omitted (subscribe
+// menus only); empty sections drop their headers.
+func (c *Chat) eventSectionRows(dataPrefix string, sub *subscribe.Subscriber) ([][]Button, []string) {
 	haEvents, sysEvents := CatalogEventsBySource(c.Subs.Events)
 	rows := make([][]Button, 0, len(haEvents)+len(sysEvents)+2)
 
 	var skipped []string
 
-	if len(haEvents) > 0 {
-		rows = append(rows, []Button{{Label: "— Home Assistant —", Data: cbEvtsHdr}})
+	appendSection := func(header string, names []string) {
+		section := make([][]Button, 0, len(names))
 
-		for _, name := range haEvents {
+		for _, name := range names {
+			if sub != nil && sub.Events != nil && sub.Events.Exists(name) {
+				continue
+			}
+
 			if btn, ok := c.eventMenuButton(name, dataPrefix); ok {
-				rows = append(rows, []Button{btn})
+				section = append(section, []Button{btn})
 			} else {
 				skipped = append(skipped, name)
 			}
 		}
-	}
 
-	if len(sysEvents) > 0 {
-		rows = append(rows, []Button{{Label: "— System —", Data: cbEvtsHdr}})
-
-		for _, name := range sysEvents {
-			if btn, ok := c.eventMenuButton(name, dataPrefix); ok {
-				rows = append(rows, []Button{btn})
-			} else {
-				skipped = append(skipped, name)
-			}
+		if len(section) == 0 {
+			return
 		}
+
+		rows = append(rows, []Button{{Label: header, Data: cbEvtsHdr}})
+		rows = append(rows, section...)
 	}
+
+	appendSection("— Home Assistant —", haEvents)
+	appendSection("— System —", sysEvents)
 
 	return rows, skipped
 }
 
-// eventMenuButton builds a subscribe button for one catalog event, with the
-// description appended when one is registered. ok is false when the event
-// name cannot fit in a Telegram callback payload.
+// eventMenuButton builds a subscribe button for one catalog event. The label is
+// the registered description when set, otherwise the event name. ok is false
+// when the event name cannot fit in a Telegram callback payload.
 func (c *Chat) eventMenuButton(name, dataPrefix string) (Button, bool) {
 	if len(name) > MaxEventNameLen {
 		return Button{}, false
 	}
 
 	label := name
-	if desc, _ := c.Subs.Events.RuleGetS(name, "description"); desc != "" {
-		label = name + " — " + desc
+	if desc, _ := c.Subs.Events.RuleGetS(name, "description"); strings.TrimSpace(desc) != "" {
+		label = strings.TrimSpace(desc)
 	}
 
 	// Truncate on rune boundaries so multi-byte descriptions never produce
@@ -120,4 +124,15 @@ func skippedEventsNote(skipped []string) string {
 
 	return fmt.Sprintf("\n\n(%d hidden — name too long for a button: %s)",
 		len(skipped), strings.Join(skipped, ", "))
+}
+
+// emptySubscribeEventsMsg is shown when a subscribe event menu has no buttons.
+// If skipped is non-empty, remaining events exist but cannot fit in callbacks —
+// do not claim the user is already subscribed to everything.
+func emptySubscribeEventsMsg(skipped []string) string {
+	if len(skipped) > 0 {
+		return "No events left that fit on a button." + skippedEventsNote(skipped)
+	}
+
+	return "You're subscribed to everything in this list."
 }

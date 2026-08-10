@@ -112,7 +112,7 @@ func (c *Chat) handleCamsEventsWizardCallback(handler *Handler, data string) (*R
 	case strings.HasPrefix(data, "c:") && strings.Count(data, ":") == 1:
 		return c.camsWizardCam(handler, atoiDefault(strings.TrimPrefix(data, "c:"), -1)), false, true
 	case data == cbEvtsRoot:
-		return c.eventsWizardRoot(), false, true
+		return c.eventsWizardRoot(handler), false, true
 	case data == cbEvtsHdr:
 		// Section header tap — answer the callback, leave the menu alone.
 		return &Reply{}, false, true
@@ -565,7 +565,7 @@ func (c *Chat) camsWizardUnsubscribeApply(
 	return next, true
 }
 
-func (c *Chat) eventsWizardRoot() *Reply {
+func (c *Chat) eventsWizardRoot(handler *Handler) *Reply {
 	names := EventMenuNames(c.Subs.Events)
 	if len(names) == 0 {
 		return &Reply{
@@ -579,8 +579,22 @@ func (c *Chat) eventsWizardRoot() *Reply {
 		}
 	}
 
-	rows, skipped := c.eventSectionRows("e:s:")
-	rows = append(rows, []Button{{Label: "Done", Data: cbCancel}})
+	var sub *subscribe.Subscriber
+	if handler != nil {
+		sub = handler.Sub
+	}
+
+	rows, skipped := c.eventSectionRows("e:s:", sub)
+	done := []Button{{Label: "Done", Data: cbCancel}}
+	if len(rows) == 0 {
+		return &Reply{
+			Reply:    emptySubscribeEventsMsg(skipped),
+			Edit:     true,
+			Keyboard: [][]Button{done},
+		}
+	}
+
+	rows = append(rows, done)
 
 	return &Reply{
 		Reply: "Events (not camera motion clips).\n\n" +

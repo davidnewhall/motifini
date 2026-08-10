@@ -50,7 +50,7 @@ func (c *Chat) handleSubUnsubWizardCallback(handler *Handler, data string) (*Rep
 	case data == cbSubCam:
 		return c.subWizardClasses(), false, true
 	case data == cbSubEvt:
-		return c.subWizardEvents(), false, true
+		return c.subWizardEvents(handler), false, true
 	case strings.HasPrefix(data, cbSubClass):
 		return c.subWizardCameras(handler, strings.TrimPrefix(data, cbSubClass)), false, true
 	case strings.HasPrefix(data, "s:a:"):
@@ -161,7 +161,7 @@ func (c *Chat) subWizardCameras(handler *Handler, classShortCode string) *Reply 
 	}
 }
 
-func (c *Chat) subWizardEvents() *Reply {
+func (c *Chat) subWizardEvents(handler *Handler) *Reply {
 	names := EventMenuNames(c.Subs.Events)
 	if len(names) == 0 {
 		return &Reply{
@@ -173,11 +173,25 @@ func (c *Chat) subWizardEvents() *Reply {
 		}
 	}
 
-	rows, skipped := c.eventSectionRows("s:e:")
-	rows = append(rows, []Button{
+	var sub *subscribe.Subscriber
+	if handler != nil {
+		sub = handler.Sub
+	}
+
+	rows, skipped := c.eventSectionRows("s:e:", sub)
+	nav := []Button{
 		{Label: "« Back", Data: cbSubRoot},
 		{Label: "Done", Data: cbCancel},
-	})
+	}
+	if len(rows) == 0 {
+		return &Reply{
+			Reply:    emptySubscribeEventsMsg(skipped),
+			Edit:     true,
+			Keyboard: [][]Button{nav},
+		}
+	}
+
+	rows = append(rows, nav)
 
 	return &Reply{
 		Reply:    "Pick an event:" + skippedEventsNote(skipped),
