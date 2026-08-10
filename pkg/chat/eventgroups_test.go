@@ -114,7 +114,7 @@ func TestEventSectionRows(t *testing.T) {
 		t.Fatalf("button data: got %v want %v", gotData, wantData)
 	}
 
-	if rows[1][0].Label != "driveway_motion — HA driveway_motion" {
+	if rows[1][0].Label != "HA driveway_motion" {
 		t.Fatalf("label with description: got %q", rows[1][0].Label)
 	}
 }
@@ -147,6 +147,49 @@ func TestEventSectionRowsSkipsLongNames(t *testing.T) {
 
 	if note := skippedEventsNote(skipped); !strings.Contains(note, longName) {
 		t.Fatalf("note should name the hidden event: %q", note)
+	}
+}
+
+func TestEventMenuButtonUsesDescriptionOrName(t *testing.T) {
+	t.Parallel()
+
+	events := &subscribe.Events{Map: make(map[string]*subscribe.Rules)}
+	data := &subscribe.Subscribe{Events: events}
+
+	err := events.New("gate_opened", &subscribe.Rules{
+		S: map[string]string{"description": "Gate Open"},
+	})
+	if err != nil {
+		t.Fatalf("seed described: %v", err)
+	}
+
+	err = events.New("no_desc_event", &subscribe.Rules{S: map[string]string{}})
+	if err != nil {
+		t.Fatalf("seed bare: %v", err)
+	}
+
+	chat := &Chat{Subs: data}
+
+	btn, built := chat.eventMenuButton("gate_opened", "e:s:")
+	if !built {
+		t.Fatal("described button should build")
+	}
+	if btn.Label != "Gate Open" {
+		t.Fatalf("pretty label: got %q want %q", btn.Label, "Gate Open")
+	}
+	if btn.Data != "e:s:gate_opened" {
+		t.Fatalf("callback must use event id: got %q", btn.Data)
+	}
+
+	btn, built = chat.eventMenuButton("no_desc_event", "e:s:")
+	if !built {
+		t.Fatal("fallback button should build")
+	}
+	if btn.Label != "no_desc_event" {
+		t.Fatalf("fallback label: got %q want event name", btn.Label)
+	}
+	if btn.Data != "e:s:no_desc_event" {
+		t.Fatalf("callback must use event id: got %q", btn.Data)
 	}
 }
 

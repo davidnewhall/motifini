@@ -99,7 +99,7 @@ func (c *Chat) eventMenuButton(name, dataPrefix string) (Button, bool) {
 
 	label := name
 	if desc, _ := c.Subs.Events.RuleGetS(name, "description"); desc != "" {
-		label = name + " — " + desc
+		label = desc
 	}
 
 	// Truncate on rune boundaries so multi-byte descriptions never produce
