@@ -97,8 +97,8 @@ func (c *Chat) cmdCams(handler *Handler) (*Reply, error) {
 	return root, nil
 }
 
-func (c *Chat) cmdEvents(_ *Handler) (*Reply, error) {
-	root := c.eventsWizardRoot()
+func (c *Chat) cmdEvents(handler *Handler) (*Reply, error) {
+	root := c.eventsWizardRoot(handler)
 	root.Edit = false
 
 	return root, nil
