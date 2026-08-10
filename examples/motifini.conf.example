@@ -39,12 +39,22 @@
 ##############################################################################
 [webserver]
   enable = false
-  # Listens on 127.0.0.1 only.
   port = 8765
+  # Bind address. Default 127.0.0.1 (localhost only). Set to a LAN address (or
+  # 0.0.0.0) so Home Assistant on another host can reach the event API.
+  # listen_addr = "127.0.0.1"
+  # API key required on every request (Authorization: Bearer <key>,
+  # X-API-Key: <key>, or ?apikey=<key>). Optional for localhost-only binds;
+  # REQUIRED when listen_addr is not localhost (Motifini refuses to start).
+  # Generate one: openssl rand -hex 24
+  # api_key = ""
   # Telegram chat IDs (as strings) allowed as HTTP "to" recipients.
   allowed_to = [
     # "123456789",
   ]
+  # Also allow any authenticated Telegram subscriber as a "to" recipient
+  # (anyone who used /id or was Allowed by an admin, and is not ignored).
+  # allow_subscribers = false
 
 ##############################################################################
 # Telegram bot (required for notifications / commands)

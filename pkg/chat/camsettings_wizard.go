@@ -25,7 +25,7 @@ func (c *Chat) handleCamSetWizardCallback(handler *Handler, data string) (*Reply
 		return nil, false, false
 	}
 
-	if handler == nil || handler.Sub == nil || !handler.Sub.Admin {
+	if handler == nil || handler.Sub == nil || !SubAdmin(handler.Sub) {
 		return &Reply{Reply: "Admins only.", Edit: true, Toast: "Nope"}, false, true
 	}
 

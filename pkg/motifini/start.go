@@ -89,9 +89,12 @@ type Config struct {
 		Debug            bool          `toml:"debug"`
 	} `toml:"motifini"`
 	Webserver struct {
-		Port      uint     `toml:"port"`
-		AllowedTo []string `toml:"allowed_to"`
-		Enable    bool     `toml:"enable"`
+		Port             uint     `toml:"port"`
+		ListenAddr       string   `toml:"listen_addr"`
+		APIKey           string   `toml:"api_key"`
+		AllowedTo        []string `toml:"allowed_to"`
+		AllowSubscribers bool     `toml:"allow_subscribers"`
+		Enable           bool     `toml:"enable"`
 	} `toml:"webserver"`
 	Telegram    *messenger.TelegramConfig `toml:"telegram"`
 	SecuritySpy *server.Config            `toml:"security_spy"`
@@ -384,7 +387,7 @@ func (m *Motifini) connectSecuritySpy() bool {
 
 	err := m.SSpy.Refresh()
 	if err == nil {
-		m.Info.Printf("Connected to SecuritySpy (%d cameras)", len(m.SSpy.Cameras.All()))
+		m.Info.Printf("Connected to SecuritySpy (%d cameras)", len(m.SSpy.GetCameras().All()))
 		return true
 	}
 
@@ -405,7 +408,7 @@ func (m *Motifini) retrySecuritySpy(interval time.Duration) {
 			continue
 		}
 
-		m.Info.Printf("Connected to SecuritySpy (%d cameras)", len(m.SSpy.Cameras.All()))
+		m.Info.Printf("Connected to SecuritySpy (%d cameras)", len(m.SSpy.GetCameras().All()))
 
 		return
 	}
@@ -441,15 +444,18 @@ func (m *Motifini) startMessenger() error {
 // startWebserver builds and starts the HTTP API.
 func (m *Motifini) startWebserver() error {
 	m.HTTP = &webserver.Config{
-		SSpy:      m.SSpy,
-		Subs:      m.Subs,
-		Msgs:      m.Msgs,
-		Info:      log.New(m.logWriter, "[HTTP] ", m.Info.Flags()),
-		Debug:     m.Debug,
-		Error:     m.Error,
-		TempDir:   m.Conf.Global.TempDir,
-		AllowedTo: m.Conf.Webserver.AllowedTo,
-		Port:      m.Conf.Webserver.Port,
+		SSpy:             m.SSpy,
+		Subs:             m.Subs,
+		Msgs:             m.Msgs,
+		Info:             log.New(m.logWriter, "[HTTP] ", m.Info.Flags()),
+		Debug:            m.Debug,
+		Error:            m.Error,
+		TempDir:          m.Conf.Global.TempDir,
+		AllowedTo:        m.Conf.Webserver.AllowedTo,
+		ListenAddr:       m.Conf.Webserver.ListenAddr,
+		APIKey:           m.Conf.Webserver.APIKey,
+		Port:             m.Conf.Webserver.Port,
+		AllowSubscribers: m.Conf.Webserver.AllowSubscribers,
 	}
 
 	err := webserver.Start(m.HTTP)
@@ -476,20 +482,22 @@ func (m *Motifini) publishDebugStats() {
 
 		return int64(len(m.Subs.GetAdmins()))
 	})
+	// These run on the /debug/vars request goroutine, so they read the camera
+	// list through GetCameras(), which Refresh() cannot swap out mid-read.
 	export.PublishCount("cameras", func() int64 {
-		if m.SSpy == nil || m.SSpy.Cameras == nil {
+		if m.SSpy == nil || m.SSpy.GetCameras() == nil {
 			return 0
 		}
 
-		return int64(len(m.SSpy.Cameras.All()))
+		return int64(len(m.SSpy.GetCameras().All()))
 	})
 	export.PublishCount("cameras_online", func() int64 {
-		if m.SSpy == nil || m.SSpy.Cameras == nil {
+		if m.SSpy == nil || m.SSpy.GetCameras() == nil {
 			return 0
 		}
 
 		var online int64
-		for _, cam := range m.SSpy.Cameras.All() {
+		for _, cam := range m.SSpy.GetCameras().All() {
 			if cam != nil && cam.Connected.Val {
 				online++
 			}
@@ -521,7 +529,7 @@ func (m *Motifini) waitForSignal() error {
 // saveSubDB just saves the state file/db and logs any error.
 // called from a few places. SaveStateFile() provides the file lock.
 func (m *Motifini) saveSubDB() {
-	err := m.Subs.StateFileSave()
+	err := chat.SaveState(m.Subs)
 	if err != nil {
 		m.Error.Printf("saving subscribers state file: %v", err)
 		return

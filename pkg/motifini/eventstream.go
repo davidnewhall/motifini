@@ -49,7 +49,8 @@ func (m *Motifini) dispatchEvent(event *securityspy.Event) {
 			break
 		}
 
-		if m.SSpy.Info == nil || strings.HasPrefix(m.SSpy.Info.Version, "4") {
+		info := m.SSpy.GetInfo()
+		if info == nil || strings.HasPrefix(info.Version, "4") {
 			m.handleCameraMotion(event)
 		}
 	case securityspy.EventTriggerAction:
@@ -204,7 +205,7 @@ func (m *Motifini) handleCameraMotion(event *securityspy.Event) {
 
 	names := make([]string, 0, subCount)
 	for _, sub := range subs {
-		name := sub.Contact
+		name := chat.SubContact(sub)
 		if name == "" {
 			name = "?"
 		}
@@ -240,7 +241,7 @@ func (m *Motifini) notifySystemEvent(eventName, msg string) {
 
 	names := make([]string, 0, len(subs))
 	for _, sub := range subs {
-		name := sub.Contact
+		name := chat.SubContact(sub)
 		if name == "" {
 			name = "?"
 		}

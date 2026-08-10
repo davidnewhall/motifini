@@ -122,7 +122,7 @@ func (c *Chat) HandleCommand(handler *Handler) *Reply {
 
 	resp, save := c.doCmd(handler)
 	if save {
-		_ = c.Subs.StateFileSave()
+		_ = SaveState(c.Subs)
 	}
 
 	return resp
@@ -131,7 +131,7 @@ func (c *Chat) HandleCommand(handler *Handler) *Reply {
 func (c *Chat) commandReady(handler *Handler) bool {
 	// SSpy may be nil when [security_spy] is missing; camera cmds use allCameras()/cameraByName().
 	return c.Subs != nil && c.TempDir != "" &&
-		handler != nil && handler.Sub != nil && !handler.Sub.Ignored && handler.Text != nil
+		handler != nil && handler.Sub != nil && !SubIgnored(handler.Sub) && handler.Text != nil
 }
 
 // applyPendingRename returns a reply when a rename was consumed.
@@ -143,7 +143,7 @@ func (c *Chat) applyPendingRename(handler *Handler) *Reply {
 	}
 
 	if save {
-		_ = c.Subs.StateFileSave()
+		_ = SaveState(c.Subs)
 	}
 
 	return reply
@@ -151,13 +151,13 @@ func (c *Chat) applyPendingRename(handler *Handler) *Reply {
 
 // HandleCallback routes inline-keyboard presses (messenger-agnostic callback_data).
 func (c *Chat) HandleCallback(handler *Handler) *Reply {
-	if c.Subs == nil || handler == nil || handler.Sub == nil || handler.Sub.Ignored {
+	if c.Subs == nil || handler == nil || handler.Sub == nil || SubIgnored(handler.Sub) {
 		return &Reply{}
 	}
 
 	resp, save := c.handleWizardCallback(handler)
 	if save {
-		_ = c.Subs.StateFileSave()
+		_ = SaveState(c.Subs)
 	}
 
 	return resp
@@ -177,8 +177,10 @@ func (c *Chat) doHelp(handler *Handler) *Reply {
 		cmdFound bool
 	)
 
+	admin := SubAdmin(handler.Sub)
+
 	for i := range c.Cmds {
-		if !handler.Sub.Admin && c.Cmds[i].Level > LevelUser {
+		if !admin && c.Cmds[i].Level > LevelUser {
 			continue
 		}
 
@@ -198,10 +200,11 @@ func (c *Chat) doCmd(handler *Handler) (*Reply, bool) {
 	var (
 		resp        = &Reply{}
 		save, found bool
+		admin       = SubAdmin(handler.Sub)
 	)
 
 	for i := range c.Cmds {
-		if !handler.Sub.Admin && c.Cmds[i].Level > LevelUser {
+		if !admin && c.Cmds[i].Level > LevelUser {
 			continue
 		}
 
@@ -211,7 +214,7 @@ func (c *Chat) doCmd(handler *Handler) (*Reply, bool) {
 		save = save || cmdSave
 	}
 
-	if !found && handler.Sub.Admin {
+	if !found && admin {
 		resp.Reply = "Command not found: " + handler.Text[0]
 	}
 

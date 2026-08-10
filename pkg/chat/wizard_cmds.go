@@ -22,6 +22,7 @@ const (
 	cbSubsRoot   = "l"
 	cbHelpRoot   = "h"
 	cbEvtsRoot   = "e"
+	cbEvtsHdr    = "e:hdr"
 	cbCamSetRoot = "k"
 )
 
@@ -112,6 +113,9 @@ func (c *Chat) handleCamsEventsWizardCallback(handler *Handler, data string) (*R
 		return c.camsWizardCam(handler, atoiDefault(strings.TrimPrefix(data, "c:"), -1)), false, true
 	case data == cbEvtsRoot:
 		return c.eventsWizardRoot(), false, true
+	case data == cbEvtsHdr:
+		// Section header tap — answer the callback, leave the menu alone.
+		return &Reply{}, false, true
 	case strings.HasPrefix(data, "e:s:"):
 		reply, save := c.subWizardSubscribeEvt(handler, strings.TrimPrefix(data, "e:s:"))
 
@@ -410,7 +414,7 @@ func (c *Chat) camsWizardCam(handler *Handler, idx int) *Reply {
 		subRow = append(subRow, Button{Label: "Unsubscribe", Data: fmt.Sprintf("c:u:%d", idx)})
 	}
 	rows = append(rows, subRow)
-	if handler != nil && handler.Sub != nil && handler.Sub.Admin {
+	if handler != nil && handler.Sub != nil && SubAdmin(handler.Sub) {
 		rows = append(rows, []Button{{Label: "Clip settings", Data: fmt.Sprintf("k:%d", idx)}})
 	}
 
@@ -562,7 +566,7 @@ func (c *Chat) camsWizardUnsubscribeApply(
 }
 
 func (c *Chat) eventsWizardRoot() *Reply {
-	names := CatalogEventNames(c.Subs.Events)
+	names := EventMenuNames(c.Subs.Events)
 	if len(names) == 0 {
 		return &Reply{
 			Reply: "No custom events are configured on this Motifini.\n\n" +
@@ -575,28 +579,14 @@ func (c *Chat) eventsWizardRoot() *Reply {
 		}
 	}
 
-	rows := make([][]Button, 0, len(names)+1)
-	for idx, name := range names {
-		desc, _ := c.Subs.Events.RuleGetS(name, "description")
-		label := name
-		if desc != "" {
-			label = name + " — " + desc
-			if len(label) > 64 {
-				label = label[:61] + "…"
-			}
-		}
-		rows = append(rows, []Button{{
-			Label: label,
-			Data:  fmt.Sprintf("e:s:%d", idx),
-		}})
-	}
+	rows, skipped := c.eventSectionRows("e:s:")
 	rows = append(rows, []Button{{Label: "Done", Data: cbCancel}})
 
 	return &Reply{
-		Reply: "System and custom events (not camera motion clips).\n\n" +
-			"These send a text alert — no video.\n" +
-			"Built-ins cover stream up/down, cameras going offline/online, and SecuritySpy errors.\n\n" +
-			"Tap one to subscribe:",
+		Reply: "Events (not camera motion clips).\n\n" +
+			"Home Assistant = registered by your HA automations; these may carry a photo or video clip.\n" +
+			"System = text alerts for stream up/down, cameras going offline/online, and SecuritySpy errors.\n\n" +
+			"Tap one to subscribe:" + skippedEventsNote(skipped),
 		Edit:     true,
 		Keyboard: rows,
 	}
@@ -1007,7 +997,7 @@ func (c *Chat) subsWizardRoot(handler *Handler) *Reply {
 	var msg strings.Builder
 	msg.WriteString("Your alert subscriptions.\n\n")
 	msg.WriteString("Tap a subscription below to pause it, change how often clips arrive, or remove it.\n")
-	if handler.Sub != nil && handler.Sub.Admin {
+	if handler.Sub != nil && SubAdmin(handler.Sub) {
 		msg.WriteString("\nAdmin tip: use /users → person → Manage subscriptions to edit someone else's.\n")
 	}
 
@@ -1102,7 +1092,7 @@ Tap a button below:`,
 
 func (c *Chat) helpWizardRootFor(handler *Handler) *Reply {
 	root := c.helpWizardRoot()
-	if handler != nil && handler.Sub != nil && handler.Sub.Admin {
+	if handler != nil && handler.Sub != nil && SubAdmin(handler.Sub) {
 		// Insert Users / Clip settings before Done on the last row.
 		rows := root.Keyboard
 		if len(rows) > 0 {

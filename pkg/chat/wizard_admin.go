@@ -16,7 +16,7 @@ const (
 )
 
 func (c *Chat) usersWizardRoot(handler *Handler) *Reply {
-	if handler == nil || handler.Sub == nil || !handler.Sub.Admin {
+	if handler == nil || handler.Sub == nil || !SubAdmin(handler.Sub) {
 		return &Reply{Reply: "Admins only.", Edit: true, Toast: "Nope"}
 	}
 
@@ -49,7 +49,7 @@ func (c *Chat) usersWizardRoot(handler *Handler) *Reply {
 }
 
 func (c *Chat) usersWizardItem(handler *Handler, idStr string) *Reply {
-	if handler == nil || handler.Sub == nil || !handler.Sub.Admin {
+	if handler == nil || handler.Sub == nil || !SubAdmin(handler.Sub) {
 		return &Reply{Reply: "Admins only.", Edit: true, Toast: "Nope"}
 	}
 
@@ -61,7 +61,7 @@ func (c *Chat) usersWizardItem(handler *Handler, idStr string) *Reply {
 		}
 	}
 
-	auth := subscriberHasAuth(target)
+	auth := SubAuthed(target)
 	self := handler.Sub.ID == target.ID && handler.Sub.API == target.API
 
 	var msg strings.Builder
@@ -75,13 +75,13 @@ func (c *Chat) usersWizardItem(handler *Handler, idStr string) *Reply {
 		rows = append(rows, []Button{{Label: "Deny (revoke /id)", Data: fmt.Sprintf("m:deny:%d", target.ID)}})
 	}
 
-	if target.Ignored {
+	if SubIgnored(target) {
 		rows = append(rows, []Button{{Label: "Unignore", Data: fmt.Sprintf("m:unignore:%d", target.ID)}})
 	} else {
 		rows = append(rows, []Button{{Label: "Ignore", Data: fmt.Sprintf("m:ignore:%d", target.ID)}})
 	}
 
-	if target.Admin {
+	if SubAdmin(target) {
 		rows = append(rows, []Button{{Label: "Remove admin", Data: fmt.Sprintf("m:unadmin:%d", target.ID)}})
 	} else {
 		rows = append(rows, []Button{{Label: "Make admin", Data: fmt.Sprintf("m:admin:%d", target.ID)}})
@@ -105,7 +105,7 @@ func (c *Chat) usersWizardItem(handler *Handler, idStr string) *Reply {
 }
 
 func (c *Chat) usersWizardConfirmDelete(handler *Handler, idStr string) *Reply {
-	if handler == nil || handler.Sub == nil || !handler.Sub.Admin {
+	if handler == nil || handler.Sub == nil || !SubAdmin(handler.Sub) {
 		return &Reply{Reply: "Admins only.", Edit: true, Toast: "Nope"}
 	}
 
@@ -133,7 +133,7 @@ func (c *Chat) usersWizardConfirmDelete(handler *Handler, idStr string) *Reply {
 }
 
 func (c *Chat) usersWizardAction(handler *Handler, action, idStr string) (*Reply, bool) {
-	if handler == nil || handler.Sub == nil || !handler.Sub.Admin {
+	if handler == nil || handler.Sub == nil || !SubAdmin(handler.Sub) {
 		return &Reply{Reply: "Admins only.", Edit: true, Toast: "Nope"}, false
 	}
 
@@ -169,7 +169,7 @@ func (c *Chat) usersWizardDelete(handler *Handler, target *subscribe.Subscriber)
 	if handler.Sub.ID == target.ID && handler.Sub.API == target.API {
 		return c.usersWizardBlocked(handler, target, "You can't delete yourself."), false
 	}
-	if target.Admin && len(c.Subs.GetAdmins()) <= 1 {
+	if SubAdmin(target) && len(c.Subs.GetAdmins()) <= 1 {
 		return c.usersWizardBlocked(handler, target, "Can't delete the last admin."), false
 	}
 	err := c.Subs.DeleteSubscriber(target.ID, target.API)
@@ -195,8 +195,8 @@ func (c *Chat) applyUsersAction(
 
 	switch action {
 	case "allow":
-		ensureSubMeta(target)["hasAuth"] = true
-		target.Ignored = false
+		SetSubAuthed(target, true)
+		SetSubIgnored(target, false)
 
 		return fmt.Sprintf("Allowed %s — they can use the bot now.", name), "Allowed", ""
 
@@ -204,7 +204,7 @@ func (c *Chat) applyUsersAction(
 		if self {
 			return "", "", "You can't deny yourself."
 		}
-		ensureSubMeta(target)["hasAuth"] = false
+		SetSubAuthed(target, false)
 
 		return fmt.Sprintf("Denied %s — they need /id or another Allow.", name), "Denied", ""
 
@@ -212,20 +212,20 @@ func (c *Chat) applyUsersAction(
 		if self {
 			return "", "", "You can't ignore yourself."
 		}
-		target.Ignored = true
-		target.Admin = false
+		SetSubIgnored(target, true)
+		SetSubAdmin(target, false)
 
 		return fmt.Sprintf("Ignored %s (also removed admin).", name), "Ignored", ""
 
 	case "unignore":
-		target.Ignored = false
+		SetSubIgnored(target, false)
 
 		return fmt.Sprintf("Unignored %s.", name), "Unignored", ""
 
 	case "admin":
-		target.Admin = true
-		target.Ignored = false
-		ensureSubMeta(target)["hasAuth"] = true
+		SetSubAdmin(target, true)
+		SetSubIgnored(target, false)
+		SetSubAuthed(target, true)
 
 		return name + " is now an admin.", "Admin", ""
 
@@ -233,10 +233,10 @@ func (c *Chat) applyUsersAction(
 		if self {
 			return "", "", "You can't remove your own admin."
 		}
-		if len(c.Subs.GetAdmins()) <= 1 && target.Admin {
+		if len(c.Subs.GetAdmins()) <= 1 && SubAdmin(target) {
 			return "", "", "Can't remove the last admin."
 		}
-		target.Admin = false
+		SetSubAdmin(target, false)
 
 		return name + " is no longer an admin.", "Unadmin", ""
 
@@ -245,16 +245,8 @@ func (c *Chat) applyUsersAction(
 	}
 }
 
-func ensureSubMeta(sub *subscribe.Subscriber) map[string]any {
-	if sub.Meta == nil {
-		sub.Meta = map[string]any{}
-	}
-
-	return sub.Meta
-}
-
 func (c *Chat) usersWizardRenamePrompt(handler *Handler, idStr string) *Reply {
-	if handler == nil || handler.Sub == nil || !handler.Sub.Admin {
+	if handler == nil || handler.Sub == nil || !SubAdmin(handler.Sub) {
 		return &Reply{Reply: "Admins only.", Edit: true, Toast: "Nope"}
 	}
 
@@ -266,7 +258,7 @@ func (c *Chat) usersWizardRenamePrompt(handler *Handler, idStr string) *Reply {
 		}
 	}
 
-	ensureSubMeta(handler.Sub)[pendingRenameMetaKey] = target.ID
+	SetSubMeta(handler.Sub, pendingRenameMetaKey, target.ID)
 
 	return &Reply{
 		Reply: fmt.Sprintf(
@@ -284,23 +276,11 @@ func (c *Chat) usersWizardRenamePrompt(handler *Handler, idStr string) *Reply {
 const pendingRenameMetaKey = "pendingRenameID"
 
 func clearPendingRename(sub *subscribe.Subscriber) {
-	if sub == nil || sub.Meta == nil {
-		return
-	}
-
-	delete(sub.Meta, pendingRenameMetaKey)
+	DeleteSubMeta(sub, pendingRenameMetaKey)
 }
 
 func pendingRenameID(sub *subscribe.Subscriber) (int64, bool) {
-	if sub == nil || sub.Meta == nil {
-		return 0, false
-	}
-
-	return metaInt64(sub.Meta, pendingRenameMetaKey)
-}
-
-func metaInt64(meta map[string]any, key string) (int64, bool) {
-	val, exists := meta[key]
+	val, exists := sub.GetMeta(pendingRenameMetaKey)
 	if !exists || val == nil {
 		return 0, false
 	}
@@ -335,7 +315,7 @@ func anyToInt64(v any) (int64, bool) {
 // consumePendingRename applies an admin's next free-text message as a rename target.
 // handled is false when no pending rename is active.
 func (c *Chat) consumePendingRename(handler *Handler) (*Reply, bool, bool) {
-	if handler == nil || handler.Sub == nil || !handler.Sub.Admin || len(handler.Text) == 0 {
+	if handler == nil || handler.Sub == nil || !SubAdmin(handler.Sub) || len(handler.Text) == 0 {
 		return nil, false, false
 	}
 
@@ -370,8 +350,8 @@ func (c *Chat) consumePendingRename(handler *Handler) (*Reply, bool, bool) {
 	}
 
 	old := subscriberDisplayName(target)
-	target.Contact = name
-	ensureSubMeta(target)["displayName"] = name
+	SetSubContact(target, name)
+	SetSubMeta(target, metaKeyDisplayName, name)
 
 	next := c.usersWizardItem(handler, strconv.FormatInt(renameID, 10))
 	next.Edit = false // new message after free-text
@@ -408,13 +388,14 @@ func subscriberDisplayName(sub *subscribe.Subscriber) string {
 		return "?"
 	}
 
-	if name := strings.TrimSpace(sub.Contact); name != "" {
+	if name := strings.TrimSpace(sub.GetContact()); name != "" {
 		return name
 	}
 
-	// Recover a name from Meta and persist it onto Contact.
-	if name := metaDisplayName(sub.Meta); name != "" {
-		sub.Contact = name
+	// Recover a name from Meta and persist it onto Contact. SetContactIfEmpty
+	// rather than SetContact: an admin rename may have landed since the read.
+	if name := metaDisplayName(sub.GetAllMeta()); name != "" {
+		sub.SetContactIfEmpty(name)
 
 		return name
 	}
@@ -471,15 +452,6 @@ func metaString(m map[string]any, keys ...string) string {
 	return ""
 }
 
-func subscriberHasAuth(sub *subscribe.Subscriber) bool {
-	if sub == nil || sub.Meta == nil {
-		return false
-	}
-	a, _ := sub.Meta["hasAuth"].(bool)
-
-	return a
-}
-
 func formatFirstSeen(t time.Time) string {
 	if t.IsZero() {
 		return "unknown"
@@ -490,15 +462,15 @@ func formatFirstSeen(t time.Time) string {
 
 func adminSubFlags(sub *subscribe.Subscriber) string {
 	var parts []string
-	if subscriberHasAuth(sub) {
+	if SubAuthed(sub) {
 		parts = append(parts, "auth")
 	} else {
 		parts = append(parts, "no-auth")
 	}
-	if sub.Admin {
+	if SubAdmin(sub) {
 		parts = append(parts, "admin")
 	}
-	if sub.Ignored {
+	if SubIgnored(sub) {
 		parts = append(parts, "ignored")
 	}
 
@@ -529,13 +501,13 @@ func adminSubDetail(sub *subscribe.Subscriber) string {
 
 func adminSubButtonLabel(sub *subscribe.Subscriber) string {
 	label := subscriberDisplayName(sub)
-	if sub.Admin {
+	if SubAdmin(sub) {
 		label += " ★"
 	}
-	if sub.Ignored {
+	if SubIgnored(sub) {
 		label += " ⊘"
 	}
-	if !subscriberHasAuth(sub) {
+	if !SubAuthed(sub) {
 		label += " ?"
 	}
 	// Telegram button labels max out around 64 runes; keep room for badges.
