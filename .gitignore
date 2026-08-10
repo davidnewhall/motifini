@@ -25,6 +25,8 @@
 /vendor
 __pycache__/
 *.pyc
+.pytest_cache/
+/.venv/
 .DS_Store
 *~
 /package_build_*
