@@ -10,14 +10,19 @@ package webserver
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"html"
 	"io"
 	"log"
+	"net"
 	"net/http"
 	"slices"
+	"strconv"
+	"sync"
 	"time"
 
+	"github.com/davidnewhall/motifini/pkg/chat"
 	"github.com/davidnewhall/motifini/pkg/export"
 	"github.com/davidnewhall/motifini/pkg/messenger"
 	"github.com/gorilla/mux"
@@ -28,21 +33,34 @@ import (
 // HTTP server defaults.
 const (
 	DefaultListenPort = 8765
+	DefaultListenAddr = "127.0.0.1"
 	Timeout           = 30 * time.Second
 )
 
+// ErrAPIKeyRequired is returned when the web server is configured to listen on
+// a non-localhost address without an api_key.
+var ErrAPIKeyRequired = errors.New("api_key is required when listen_addr is not localhost")
+
 // Config holds HTTP server dependencies and listen settings.
 type Config struct {
-	http      *http.Server
-	SSpy      *securityspy.Server
-	Subs      *subscribe.Subscribe
-	Msgs      *messenger.Messenger
-	Info      *log.Logger
-	Debug     *log.Logger
-	Error     *log.Logger
-	TempDir   string
-	AllowedTo []string
-	Port      uint
+	// catalog serializes the read-modify-save transactions the event API runs
+	// against the subscriber database. Each library call locks itself, but a
+	// sequence like "does this event exist? then create it and save" needs to
+	// exclude a concurrent request running the same sequence.
+	catalog          sync.Mutex
+	http             *http.Server
+	SSpy             *securityspy.Server
+	Subs             *subscribe.Subscribe
+	Msgs             *messenger.Messenger
+	Info             *log.Logger
+	Debug            *log.Logger
+	Error            *log.Logger
+	TempDir          string
+	AllowedTo        []string
+	ListenAddr       string
+	APIKey           string
+	Port             uint
+	AllowSubscribers bool
 }
 
 // Start validates the config and returns any errors.
@@ -74,8 +92,16 @@ func Start(cfg *Config) error {
 		cfg.TempDir = "/tmp/"
 	}
 
+	if cfg.ListenAddr == "" {
+		cfg.ListenAddr = DefaultListenAddr
+	}
+
 	if cfg.Port == 0 {
 		cfg.Port = DefaultListenPort
+	}
+
+	if cfg.APIKey == "" && !isLoopbackAddr(cfg.ListenAddr) {
+		return fmt.Errorf("%w (listen_addr=%s)", ErrAPIKeyRequired, cfg.ListenAddr)
 	}
 
 	cfg.Start()
@@ -83,26 +109,34 @@ func Start(cfg *Config) error {
 	return nil
 }
 
-// Start creates the http routers and starts http server
-// This code block shows all the routes, for now.
-func (c *Config) Start() {
+// handler builds the routed handler stack. When an API key is configured,
+// every route (including /debug/vars) requires it.
+func (c *Config) handler() http.Handler {
 	router := mux.NewRouter()
 	router.Handle("/debug/vars", http.DefaultServeMux).Methods("GET")
 	router.HandleFunc("/api/v1.0/send/{app:telegram}/video/{to}/{camera}", c.sendVideoHandler).Methods("GET")
 	router.HandleFunc("/api/v1.0/send/{app:telegram}/picture/{to}/{camera}", c.sendPictureHandler).Methods("GET")
 	router.HandleFunc("/api/v1.0/send/{app:telegram}/msg/{to}", c.sendMessageHandler).
 		Methods("GET").Queries("msg", "{msg}")
+	router.HandleFunc("/api/v1.0/events", c.eventsListHandler).Methods("GET")
+	router.HandleFunc("/api/v1.0/event/{event}", c.eventUpsertHandler).Methods("PUT")
 	router.HandleFunc("/api/v1.0/event/{cmd:remove|notify}/{event}", c.eventsHandler).Methods("POST")
 	router.HandleFunc("/api/v1.0/sub/{cmd:subscribe|unsubscribe|pause|unpause}/{api}/{contact}/{event}",
 		c.subsHandler).Methods("GET")
 	router.PathPrefix("/").HandlerFunc(c.handleAll)
 
+	return c.requireAPIKey(router)
+}
+
+// Start creates the http routers and starts http server
+// This code block shows all the routes, for now.
+func (c *Config) Start() {
 	c.http = &http.Server{
-		Addr:         fmt.Sprintf("127.0.0.1:%d", c.Port),
+		Addr:         net.JoinHostPort(c.ListenAddr, strconv.Itoa(int(c.Port))),
 		WriteTimeout: Timeout,
 		ReadTimeout:  Timeout,
 		IdleTimeout:  time.Minute,
-		Handler:      router, // *mux.Router
+		Handler:      c.handler(),
 	}
 
 	c.Info.Print("Web server listening at http://", c.http.Addr)
@@ -138,7 +172,7 @@ func (c *Config) finishReq(
 ) {
 	export.Map.HTTPVisits.Add(1)
 	c.Info.Printf(`[%v] %v %v "%v %v" %d %d "%v" "%v"`,
-		reqID, request.RemoteAddr, request.Host, request.Method, request.URL.String(),
+		reqID, request.RemoteAddr, request.Host, request.Method, redactAPIKey(request),
 		code, len(reply), request.UserAgent(), cmd)
 	// Force plain-text rendering and escape the body so a browser can never
 	// interpret the reply (which may echo back request input) as HTML/script.
@@ -146,6 +180,23 @@ func (c *Config) finishReq(
 	writer.WriteHeader(code)
 
 	_, err := writer.Write([]byte(html.EscapeString(reply)))
+	if err != nil {
+		c.Error.Printf("[%v] Error Sending Reply: %v", reqID, err)
+	}
+}
+
+// finishReqJSON is finishReq for JSON payloads: no HTML escaping, JSON content type.
+func (c *Config) finishReqJSON(
+	writer http.ResponseWriter, request *http.Request, reqID string, code int, reply []byte, cmd string,
+) {
+	export.Map.HTTPVisits.Add(1)
+	c.Info.Printf(`[%v] %v %v "%v %v" %d %d "%v" "%v"`,
+		reqID, request.RemoteAddr, request.Host, request.Method, redactAPIKey(request),
+		code, len(reply), request.UserAgent(), cmd)
+	writer.Header().Set("Content-Type", "application/json; charset=utf-8")
+	writer.WriteHeader(code)
+
+	_, err := writer.Write(reply)
 	if err != nil {
 		c.Error.Printf("[%v] Error Sending Reply: %v", reqID, err)
 	}
@@ -165,16 +216,75 @@ func contains(s []string, e string) bool {
 	return slices.Contains(s, e)
 }
 
+// recipientAllowed reports whether a Telegram chat id may be a "to" recipient:
+// either listed in allowed_to, or — when allow_subscribers is set — any
+// authenticated, non-ignored Telegram subscriber in the state DB.
+func (c *Config) recipientAllowed(idStr string) bool {
+	if contains(c.AllowedTo, idStr) {
+		return true
+	}
+
+	if !c.AllowSubscribers || c.Subs == nil {
+		return false
+	}
+
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		return false
+	}
+
+	sub, err := c.Subs.GetSubscriberByID(id, messenger.APITelegram)
+	if err != nil || sub == nil {
+		return false
+	}
+
+	// Same auth marker the Telegram message path checks (set by /id or admin Allow).
+	return chat.SubAuthed(sub) && !chat.SubIgnored(sub)
+}
+
+// cameras returns the current camera list, or nil before the first successful
+// Refresh(). GetCameras() is the concurrency-safe read: Refresh() replaces the
+// list from the retry loop, the event stream and the Telegram /refresh command,
+// while request goroutines read it here.
+func (c *Config) cameras() *securityspy.Cameras {
+	if c == nil || c.SSpy == nil {
+		return nil
+	}
+
+	return c.SSpy.GetCameras()
+}
+
 // securitySpyReady is false until the first successful Refresh() loads cameras.
 func (c *Config) securitySpyReady() bool {
-	return c != nil && c.SSpy != nil && c.SSpy.Cameras != nil
+	return c.cameras() != nil
 }
 
 // cameraByName looks up a camera, or nil when SecuritySpy has no camera list yet.
 func (c *Config) cameraByName(name string) *securityspy.Camera {
-	if !c.securitySpyReady() {
+	cams := c.cameras()
+	if cams == nil {
 		return nil
 	}
 
-	return c.SSpy.Cameras.ByName(name)
+	return cams.ByName(name)
+}
+
+// cameraByNameOrNum looks up a camera by name, falling back to the SecuritySpy
+// camera number when the value parses as an integer.
+func (c *Config) cameraByNameOrNum(nameOrNum string) *securityspy.Camera {
+	cams := c.cameras()
+	if cams == nil {
+		return nil
+	}
+
+	if cam := cams.ByName(nameOrNum); cam != nil {
+		return cam
+	}
+
+	num, err := strconv.Atoi(nameOrNum)
+	if err != nil {
+		return nil
+	}
+
+	return cams.ByNum(num)
 }

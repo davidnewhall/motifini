@@ -26,7 +26,7 @@ func (c *Chat) adminCommands() *Commands { //nolint:funlen // it's not that bad.
 				Desc: "Returns public IP from ifconfig.me.",
 			},
 			{
-				Run:  func(_ *Handler) (*Reply, error) { return &Reply{Reply: "Saved"}, c.Subs.StateFileSave() },
+				Run:  func(_ *Handler) (*Reply, error) { return &Reply{Reply: "Saved"}, SaveState(c.Subs) },
 				AKA:  []string{"save"},
 				Use:  "",
 				Desc: "Saves subscriber data to a file.",
@@ -173,9 +173,9 @@ func (c *Chat) cmdAdminSubs(handler *Handler) (*Reply, error) {
 
 	var status string
 
-	if subscriber.Ignored {
+	if SubIgnored(subscriber) {
 		status = ", ignored"
-	} else if subscriber.Admin {
+	} else if SubAdmin(subscriber) {
 		status = ", admin"
 	}
 
@@ -205,7 +205,7 @@ func (c *Chat) cmdAdminUnadmin(handler *Handler) (*Reply, error) {
 		return &Reply{Reply: "Subscriber does not exist: " + handler.Text[1]}, ErrBadUsage
 	}
 
-	target.Admin = false
+	SetSubAdmin(target, false)
 
 	return &Reply{Reply: "Subscriber '" + subscriberDisplayName(target) + "' updated without admin privileges."}, nil
 }
@@ -220,7 +220,7 @@ func (c *Chat) cmdAdminAdmin(handler *Handler) (*Reply, error) {
 		return &Reply{Reply: "Subscriber does not exist: " + handler.Text[1]}, ErrBadUsage
 	}
 
-	target.Admin = true
+	SetSubAdmin(target, true)
 
 	return &Reply{Reply: "Subscriber '" + subscriberDisplayName(target) + "' updated with admin privileges."}, nil
 }
@@ -235,7 +235,7 @@ func (c *Chat) cmdAdminUnignore(handler *Handler) (*Reply, error) {
 		return &Reply{Reply: "Subscriber does not exist: " + handler.Text[1]}, ErrBadUsage
 	}
 
-	target.Ignored = false
+	SetSubIgnored(target, false)
 
 	return &Reply{Reply: "Subscriber '" + subscriberDisplayName(target) + "' no longer ignored."}, nil
 }
@@ -250,8 +250,8 @@ func (c *Chat) cmdAdminIgnore(handler *Handler) (*Reply, error) {
 		return &Reply{Reply: "Subscriber does not exist: " + handler.Text[1]}, ErrBadUsage
 	}
 
-	target.Ignored = true
-	target.Admin = false
+	SetSubIgnored(target, true)
+	SetSubAdmin(target, false)
 
 	return &Reply{Reply: "Subscriber '" + subscriberDisplayName(target) + "' ignored."}, nil
 }
@@ -267,12 +267,8 @@ func (c *Chat) cmdAdminAllow(handler *Handler) (*Reply, error) {
 			"\nThey must message the bot once first (any text). Then /allow <id|username>."}, ErrBadUsage
 	}
 
-	if target.Meta == nil {
-		target.Meta = map[string]any{}
-	}
-
-	target.Meta["hasAuth"] = true
-	target.Ignored = false
+	SetSubAuthed(target, true)
+	SetSubIgnored(target, false)
 
 	return &Reply{Reply: fmt.Sprintf(
 		"Allowed '%s' (id %d). They can use /help now.", subscriberDisplayName(target), target.ID)}, nil
@@ -288,11 +284,7 @@ func (c *Chat) cmdAdminDeny(handler *Handler) (*Reply, error) {
 		return &Reply{Reply: "Subscriber does not exist: " + handler.Text[1]}, ErrBadUsage
 	}
 
-	if target.Meta == nil {
-		target.Meta = map[string]any{}
-	}
-
-	target.Meta["hasAuth"] = false
+	SetSubAuthed(target, false)
 
 	return &Reply{Reply: fmt.Sprintf(
 		"Denied '%s' (id %d). They need /id <password> again (or another /allow).",
@@ -315,8 +307,8 @@ func (c *Chat) cmdAdminName(handler *Handler) (*Reply, error) {
 	}
 
 	old := subscriberDisplayName(target)
-	target.Contact = name
-	ensureSubMeta(target)["displayName"] = name
+	SetSubContact(target, name)
+	SetSubMeta(target, metaKeyDisplayName, name)
 
 	return &Reply{Reply: fmt.Sprintf(
 		"Renamed id %d: %s → %s", target.ID, old, name)}, nil

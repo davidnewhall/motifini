@@ -162,15 +162,7 @@ func (c *Chat) subWizardCameras(handler *Handler, classShortCode string) *Reply 
 }
 
 func (c *Chat) subWizardEvents() *Reply {
-	names := CatalogEventNames(c.Subs.Events)
-	rows := make([][]Button, 0, len(names)+1)
-
-	for i, name := range names {
-		rows = append(rows, []Button{{
-			Label: name,
-			Data:  fmt.Sprintf("s:e:%d", i),
-		}})
-	}
+	names := EventMenuNames(c.Subs.Events)
 	if len(names) == 0 {
 		return &Reply{
 			Reply: "No custom events configured.\nUse Camera subscriptions instead.",
@@ -181,13 +173,14 @@ func (c *Chat) subWizardEvents() *Reply {
 		}
 	}
 
+	rows, skipped := c.eventSectionRows("s:e:")
 	rows = append(rows, []Button{
 		{Label: "« Back", Data: cbSubRoot},
 		{Label: "Done", Data: cbCancel},
 	})
 
 	return &Reply{
-		Reply:    "Pick an event:",
+		Reply:    "Pick an event:" + skippedEventsNote(skipped),
 		Edit:     true,
 		Keyboard: rows,
 	}
@@ -232,25 +225,30 @@ func (c *Chat) subWizardSubscribeCam(handler *Handler, payload string) (*Reply, 
 	return next, true
 }
 
-func (c *Chat) subWizardSubscribeEvt(handler *Handler, idxStr string) (*Reply, bool) {
-	idx, err := strconv.Atoi(idxStr)
-	if err != nil {
-		return &Reply{Reply: "Bad event index.", Edit: true, Toast: "Error"}, false
-	}
-
-	names := CatalogEventNames(c.Subs.Events)
-	if idx < 0 || idx >= len(names) {
+func (c *Chat) subWizardSubscribeEvt(handler *Handler, name string) (*Reply, bool) {
+	// Buttons carry the event name; resolve it (case-insensitively) against the
+	// live catalog so a renamed/removed event can never mis-subscribe.
+	event := c.Subs.Events.Name(name)
+	if event == "" || IsCamSettingsKey(event) {
 		return &Reply{Reply: "Event gone — try again.", Edit: true, Toast: "Missing"}, false
 	}
 
-	event := names[idx]
 	msg := "Subscribed to event: " + event
 	toast := "Subscribed ✓"
 
-	err = handler.Sub.Subscribe(event)
+	err := handler.Sub.Subscribe(event)
 	if err != nil {
 		msg = "Already subscribed to: " + event
 		toast = "Already on"
+	}
+
+	// The HTTP remove endpoint can drop the event between the lookup above and
+	// the subscribe. Undo rather than leave a subscription to an event nobody
+	// can see — it would spring back to life if the name is ever re-registered.
+	if !c.Subs.Events.Exists(event) {
+		handler.Sub.Events.Remove(event)
+
+		return &Reply{Reply: "Event gone — try again.", Edit: true, Toast: "Missing"}, false
 	}
 
 	msg += fmt.Sprintf("\nYou have %d subscriptions.", handler.Sub.Events.Len())

@@ -102,21 +102,17 @@ func (m *Messenger) recvTelegramCallback(callback *tgbotapi.CallbackQuery) {
 		return
 	}
 
-	hasAuth := false
-	if sub.Meta != nil {
-		hasAuth, _ = sub.Meta["hasAuth"].(bool)
-	}
-
-	if !hasAuth {
+	if !chat.SubAuthed(sub) {
 		_, _ = m.telebot.Request(tgbotapi.NewCallback(callback.ID, "Not authenticated"))
 		m.Info.Printf("Telegram callback from %d:%s NOT authenticated", callback.Message.Chat.ID, displayName)
 
 		return
 	}
 
-	ensureSubscriberContact(sub, displayName)
-	if sub.Meta != nil && displayName != "" {
-		sub.Meta["displayName"] = displayName
+	chat.EnsureSubContact(sub, displayName)
+
+	if displayName != "" {
+		chat.SetSubDisplayName(sub, displayName)
 	}
 
 	// Never block the Telegram update loop on slow media fetches.
@@ -180,32 +176,29 @@ func (m *Messenger) recvTelegramHandler(msg *tgbotapi.Message) {
 		// Every account we receive a message from gets logged as a subscriber with no subscriptions.
 		sub = m.Subs.CreateSubWithID(msg.Chat.ID, displayName,
 			APITelegram, len(m.Subs.GetAdmins()) == 0, false)
-		sub.Meta = map[string]any{"hasAuth": false}
+		chat.SetSubAuthed(sub, false)
 	}
 
-	ensureSubscriberContact(sub, displayName)
+	chat.EnsureSubContact(sub, displayName)
+	chat.SetSubUser(sub, msg.From)
 
-	if sub.Meta == nil {
-		sub.Meta = map[string]any{"hasAuth": false}
-	}
-	sub.Meta["user"] = msg.From
 	if displayName != "" {
-		sub.Meta["displayName"] = displayName
+		chat.SetSubDisplayName(sub, displayName)
 	}
 
 	if strings.TrimPrefix(msg.Text, "/") == "id "+m.Telegram.Pass {
-		sub.Meta["hasAuth"] = true
+		chat.SetSubAuthed(sub, true)
 		sub = m.Subs.CreateSubWithID(msg.Chat.ID, displayName,
-			APITelegram, sub.Admin, false)
-		ensureSubscriberContact(sub, displayName)
+			APITelegram, chat.SubAdmin(sub), false)
+		chat.EnsureSubContact(sub, displayName)
 		m.SendTelegram("none", "You are now authenticated.", "", msg.Chat.ID, displayName)
 		m.Info.Printf("Telegram Received from %d:%s (admin:%v, ignored:%v), 'id' command, authenticated.",
-			msg.Chat.ID, displayName, sub.Admin, sub.Ignored)
+			msg.Chat.ID, displayName, chat.SubAdmin(sub), chat.SubIgnored(sub))
 
 		return
-	} else if a, _ := sub.Meta["hasAuth"].(bool); !a {
+	} else if !chat.SubAuthed(sub) {
 		m.Info.Printf("Telegram Received from %d:%s (admin:%v, ignored:%v), NOT authenticated (ignored), rcvd: %s",
-			msg.Chat.ID, displayName, sub.Admin, sub.Ignored, msg.Text)
+			msg.Chat.ID, displayName, chat.SubAdmin(sub), chat.SubIgnored(sub), msg.Text)
 
 		return
 	}
@@ -220,7 +213,7 @@ func (m *Messenger) recvTelegramHandler(msg *tgbotapi.Message) {
 	}
 
 	m.Info.Printf("[%s] Telegram Received from %d:%s (admin:%v, ignored:%v), size: %d, cmd: %s",
-		handler.ID, msg.Chat.ID, displayName, sub.Admin, sub.Ignored,
+		handler.ID, msg.Chat.ID, displayName, chat.SubAdmin(sub), chat.SubIgnored(sub),
 		len(msg.Text), handler.Text[0])
 	m.replyTelegramHandler(msg, handler)
 }
@@ -236,16 +229,6 @@ func telegramContactName(from *tgbotapi.User) string {
 	}
 
 	return strings.TrimSpace(from.FirstName + " " + from.LastName)
-}
-
-// ensureSubscriberContact keeps Contact filled from Telegram when blank.
-// Never clears an existing Contact (admin /name or prior first/last stay).
-func ensureSubscriberContact(sub *subscribe.Subscriber, displayName string) {
-	if sub == nil || strings.TrimSpace(sub.Contact) != "" || strings.TrimSpace(displayName) == "" {
-		return
-	}
-
-	sub.Contact = strings.TrimSpace(displayName)
 }
 
 func (m *Messenger) replyTelegramHandler(msg *tgbotapi.Message, handler *chat.Handler) {

@@ -191,7 +191,7 @@ func (c *Chat) cmdSub(handler *Handler) (*Reply, error) {
 }
 
 func (c *Chat) cmdSubs(handler *Handler) (*Reply, error) {
-	if handler.Sub.Admin && len(handler.Text) > 1 {
+	if SubAdmin(handler.Sub) && len(handler.Text) > 1 {
 		// admin asking for subs for someone else.
 		return nil, nil //nolint:nilnil // handled by cmdAdminSubs()
 	}

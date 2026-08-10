@@ -35,7 +35,7 @@ func (c *Config) subsHandler(writer http.ResponseWriter, request *http.Request) 
 
 	code, reply := c.applySubCmd(sub, cmd, event, request.FormValue("minutes"))
 	if code == http.StatusOK {
-		err := c.Subs.StateFileSave()
+		err := chat.SaveState(c.Subs)
 		if err != nil {
 			c.Error.Printf("[%v] saving state after %s: %v", reqID, cmd, err)
 			code, reply = http.StatusInternalServerError, "ERROR: save failed: "+err.Error()+"\n"
@@ -143,8 +143,8 @@ func subLabel(sub *subscribe.Subscriber) string {
 		return "?"
 	}
 
-	if strings.TrimSpace(sub.Contact) != "" {
-		return sub.Contact
+	if name := strings.TrimSpace(chat.SubContact(sub)); name != "" {
+		return name
 	}
 
 	return strconv.FormatInt(sub.ID, 10)
