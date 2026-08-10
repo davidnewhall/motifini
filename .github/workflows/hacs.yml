@@ -1,0 +1,60 @@
+name: hacs-component
+# The Home Assistant custom component in custom_components/ is Python, so it is
+# invisible to the Go workflow in codetests.yml.
+on:
+  pull_request:
+    branches:
+    - main
+    paths:
+    - custom_components/**
+    - tests/**
+    - hacs.json
+    - pytest.ini
+    - requirements_test.txt
+    - .github/workflows/hacs.yml
+  push:
+    branches:
+    - main
+    paths:
+    - custom_components/**
+    - tests/**
+    - hacs.json
+    - pytest.ini
+    - requirements_test.txt
+    - .github/workflows/hacs.yml
+permissions:
+  contents: read
+jobs:
+  pytest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.14"
+          cache: pip
+          # The component needs nothing beyond Home Assistant, so there is no
+          # requirements.txt for the cache key to hash.
+          cache-dependency-path: requirements_test.txt
+      - name: install
+        run: pip install -r requirements_test.txt
+      - name: pytest
+        run: pytest -q tests
+      - name: ruff
+        run: |
+          ruff check custom_components tests
+          ruff format --check custom_components tests
+  validate-hacs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: hacs-validation
+        uses: hacs/action@22.5.0
+        with:
+          category: integration
+  validate-hassfest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: hassfest-validation
+        uses: home-assistant/actions/hassfest@master

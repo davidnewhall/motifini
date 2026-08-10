@@ -1,0 +1,92 @@
+notify:
+  name: Notify
+  description: >-
+    Send an event notification to the event's Telegram subscribers.
+    Unknown events are registered in Motifini automatically, so the first
+    notify also creates the Telegram subscribe menu entry.
+  fields:
+    event:
+      name: Event
+      description: Event id, e.g. big_garage_opened.
+      required: true
+      selector:
+        text:
+    message:
+      name: Message
+      description: Text body, or the caption when a photo/video is attached.
+      required: false
+      selector:
+        text:
+    camera:
+      name: Camera
+      description: SecuritySpy camera name or number. Required for photo/video.
+      required: false
+      selector:
+        text:
+    media:
+      name: Media
+      description: >-
+        What to attach. Defaults to photo when a camera is given, none
+        otherwise. Use none to force a text-only message.
+      required: false
+      selector:
+        select:
+          options:
+            - none
+            - photo
+            - video
+    config_entry_id:
+      name: Motifini instance
+      description: Only needed when more than one Motifini entry is configured.
+      required: false
+      selector:
+        config_entry:
+          integration: motifini
+
+register_event:
+  name: Register event
+  description: >-
+    Create or update an event in Motifini's catalog (with a friendly
+    description) so it appears in the Telegram subscribe menus. Optional —
+    the first notify for an event registers it too.
+  fields:
+    event:
+      name: Event
+      description: Event id, e.g. big_garage_opened.
+      required: true
+      selector:
+        text:
+    description:
+      name: Description
+      description: Shown next to the event in Telegram subscribe menus.
+      required: false
+      selector:
+        text:
+    config_entry_id:
+      name: Motifini instance
+      description: Only needed when more than one Motifini entry is configured.
+      required: false
+      selector:
+        config_entry:
+          integration: motifini
+
+remove_event:
+  name: Remove event
+  description: >-
+    Remove an event from Motifini's catalog and unsubscribe every Telegram
+    user from it. Deleting an automation in Home Assistant does not do this —
+    call this service once when you retire an event.
+  fields:
+    event:
+      name: Event
+      description: Event id to remove.
+      required: true
+      selector:
+        text:
+    config_entry_id:
+      name: Motifini instance
+      description: Only needed when more than one Motifini entry is configured.
+      required: false
+      selector:
+        config_entry:
+          integration: motifini

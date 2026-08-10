@@ -1,0 +1,5 @@
+# Dev/test-only dependencies for the custom component.
+# The integration itself pulls nothing beyond Home Assistant, so there is no
+# requirements.txt to mirror: manifest.json declares no requirements.
+pytest-homeassistant-custom-component==0.13.351
+ruff==0.16.1
