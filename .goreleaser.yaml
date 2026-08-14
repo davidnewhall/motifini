@@ -94,7 +94,10 @@ homebrew_casks:
           conf_dir = HOMEBREW_PREFIX/"etc"
           conf_dir.mkpath
           FileUtils.cp "#{staged_path}/examples/motifini.conf.example", conf_dir/"motifini.conf.example"
-          FileUtils.cp "#{staged_path}/examples/motifini.conf.example", conf_dir/"motifini.conf" unless (conf_dir/"motifini.conf").exist?
+          # Existing conf means upgrade/reinstall of a configured install — restart the agent.
+          # First install copies the example and leaves the agent unloaded until `motifini --start`.
+          had_conf = (conf_dir/"motifini.conf").exist?
+          FileUtils.cp "#{staged_path}/examples/motifini.conf.example", conf_dir/"motifini.conf" unless had_conf
           (HOMEBREW_PREFIX/"var/log").mkpath
           label = "io.golift.motifini"
           agent = Pathname.new(Dir.home)/"Library/LaunchAgents/#{label}.plist"
@@ -122,16 +125,22 @@ homebrew_casks:
             </dict>
             </plist>
           XML
+          if had_conf
+            uid = Process.uid
+            system "/bin/launchctl", "bootout", "gui/#{uid}/#{label}"
+            system "/bin/launchctl", "bootstrap", "gui/#{uid}", agent.to_s
+          end
         uninstall: |
           label = "io.golift.motifini"
           agent = Pathname.new(Dir.home)/"Library/LaunchAgents/#{label}.plist"
           system "/bin/launchctl", "bootout", "gui/#{Process.uid}/#{label}"
           agent.delete if agent.exist?
     caveats: |
-      Edit #{HOMEBREW_PREFIX}/etc/motifini.conf then:
-        launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/io.golift.motifini.plist
-      Restart: launchctl kickstart -k gui/$(id -u)/io.golift.motifini
-      Stop:    launchctl bootout gui/$(id -u)/io.golift.motifini
+      First install: edit #{HOMEBREW_PREFIX}/etc/motifini.conf then:
+        motifini --start
+      Upgrades restart the LaunchAgent automatically when that config already exists.
+      Restart: motifini --restart
+      Stop:    motifini --stop
       (brew services does not manage casks.)
 
 changelog:
