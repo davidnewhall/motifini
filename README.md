@@ -16,7 +16,7 @@ brew install --cask golift/mugs/motifini
 launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/io.golift.motifini.plist
 ```
 
-The cask installs a LaunchAgent plist (not started until you bootstrap it). Control it with:
+The cask installs a LaunchAgent plist. First install leaves it unloaded until you edit the config and `--start`. Later `brew upgrade --cask` restarts it automatically when `motifini.conf` already exists. Control it with:
 
 ```bash
 motifini --start    # load at login / start now
